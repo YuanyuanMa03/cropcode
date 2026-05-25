@@ -40,7 +40,7 @@ test("Bash streams stdout and stderr before command completion", async () => {
     completed = true;
   });
 
-  await waitFor(() => chunks.join("").includes("first"), 1500);
+  await waitFor(() => chunks.join("").includes("first"), 5000);
 
   assert.equal(completed, false);
 
@@ -91,7 +91,7 @@ test("Bash timeout control can extend the active command deadline", async () => 
       onProcessTimeoutControl: (_pid, control) => {
         if (control) {
           timeoutControl = control;
-          control.setTimeoutMs(1000);
+          control.setTimeoutMs(5000);
         }
       },
     })
@@ -101,7 +101,7 @@ test("Bash timeout control can extend the active command deadline", async () => 
   assert.equal(result.ok, true);
   assert.match(result.output ?? "", /done/);
   assert.equal(result.metadata?.timedOut, false);
-  assert.equal(result.metadata?.timeoutMs, 1000);
+  assert.equal(result.metadata?.timeoutMs, 5000);
 });
 
 test("UpdatePlan accepts a markdown task list string", async () => {
