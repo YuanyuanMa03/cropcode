@@ -687,6 +687,7 @@ The candidate skills are as follows:\n\n`;
   async listSkills(sessionId?: string): Promise<SkillInfo[]> {
     const homeDir = os.homedir();
     const agentsRoot = path.join(homeDir, ".agents", "skills");
+    const legacyHomeSkillsRoot = path.join(homeDir, ".cropcode", "skills");
     const legacyProjectSkillsRoot = path.join(this.projectRoot, ".cropcode", "skills");
     const projectAgentsSkillsRoot = path.join(this.projectRoot, ".agents", "skills");
     const skillsByName = new Map<string, SkillInfo>();
@@ -726,6 +727,9 @@ The candidate skills are as follows:\n\n`;
     };
 
     for (const skill of collectSkills(agentsRoot, "~/.agents/skills")) {
+      skillsByName.set(skill.name, skill);
+    }
+    for (const skill of collectSkills(legacyHomeSkillsRoot, "~/.cropcode/skills")) {
       skillsByName.set(skill.name, skill);
     }
     for (const skill of collectSkills(legacyProjectSkillsRoot, "./.cropcode/skills")) {
