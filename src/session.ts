@@ -726,10 +726,11 @@ The candidate skills are as follows:\n\n`;
       return results;
     };
 
-    for (const skill of collectSkills(agentsRoot, "~/.agents/skills")) {
+    // Priority: legacy < new path; user < project (later overrides earlier)
+    for (const skill of collectSkills(legacyHomeSkillsRoot, "~/.cropcode/skills")) {
       skillsByName.set(skill.name, skill);
     }
-    for (const skill of collectSkills(legacyHomeSkillsRoot, "~/.cropcode/skills")) {
+    for (const skill of collectSkills(agentsRoot, "~/.agents/skills")) {
       skillsByName.set(skill.name, skill);
     }
     for (const skill of collectSkills(legacyProjectSkillsRoot, "./.cropcode/skills")) {
