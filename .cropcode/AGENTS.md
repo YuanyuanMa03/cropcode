@@ -109,11 +109,11 @@ Run the CLI locally for manual testing: `node dist/cli.js` (after `npm run bundl
 
 ## Architecture Overview
 
-The CLI (`@vegamo/cropcode`) renders a terminal UI using [Ink](https://github.com/vadimdemedes/ink) (React for terminals). `SessionManager` drives the LLM interaction loop: it builds system prompts, sends user messages with optional skills/images, streams responses, executes tool calls via `ToolExecutor`, and compacts context when token thresholds are exceeded (512K for DeepSeek V4 models, 128K for others).
+The CLI (`cropcode`) renders a terminal UI using [Ink](https://github.com/vadimdemedes/ink) (React for terminals). `SessionManager` drives the LLM interaction loop: it builds system prompts, sends user messages with optional skills/images, streams responses, executes tool calls via `ToolExecutor`, and compacts context when token thresholds are exceeded (512K for DeepSeek V4 models, 128K for others).
 
 Seven built-in tools are available to the LLM: `bash`, `read`, `write`, `edit`, `AskUserQuestion`, `UpdatePlan`, and `WebSearch`. Tool definitions are registered in `src/tools/executor.ts` and described to the LLM via `src/prompt.ts` and `templates/tools/`. The `UpdatePlan` tool enables the LLM to display and update a structured task list in the terminal.
 
-**Slash commands**: `/model`, `/new`, `/init`, `/resume`, `/continue`, `/mcp`, `/exit`, plus dynamic `/skill-name` for each loaded skill.
+**Slash commands**: `/model`, `/new`, `/init`, `/resume`, `/continue`, `/mcp`, `/crop-model`, `/exit`, plus dynamic `/skill-name` for each loaded skill.
 
 **Key UI features**: `@` file mentions in the prompt input (scans project files), `Ctrl+O` to view live process stdout in fullscreen, `Ctrl+V` to paste images, MCP server status display.
 
