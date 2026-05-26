@@ -13,6 +13,8 @@ export type DropdownMenuItem = {
   description?: string;
   /** Whether this item is currently selected */
   selected?: boolean;
+  /** Whether this item is disabled and cannot be interacted with */
+  disabled?: boolean;
   /** Whether to show a special status indicator (e.g., loaded checkmark) */
   statusIndicator?: {
     symbol: string;
@@ -153,7 +155,7 @@ const DropdownMenu = React.memo(function DropdownMenu({
           return (
             <Box key={item.key} flexGrow={1} flexDirection="row" gap={2} paddingX={1}>
               <Box width={labelColumnWidth} flexShrink={0}>
-                <Text color={isActive ? activeColor : undefined} wrap="truncate-end">
+                <Text color={isActive ? activeColor : undefined} dimColor={item.disabled} wrap="truncate-end">
                   {isActive ? "> " : "  "}
                   {item.selected !== undefined ? (item.selected ? "●" : "○") : null} <Text bold>{item.label}</Text>
                   {item.statusIndicator ? (

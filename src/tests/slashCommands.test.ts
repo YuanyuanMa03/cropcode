@@ -127,3 +127,32 @@ test("formatSlashCommandLabel marks loaded skills", () => {
   assert.equal(formatSlashCommandLabel(items[0]), "/loaded ✓");
   assert.equal(formatSlashCommandLabel(items[1]), "/fresh");
 });
+
+test("formatSlashCommandLabel marks disabled skills with ✕", () => {
+  const items = buildSlashCommands([
+    { name: "disabled", path: "/skills/disabled/SKILL.md", description: "Disabled skill", disabled: true },
+    { name: "normal", path: "/skills/normal/SKILL.md", description: "Normal skill" },
+  ]);
+
+  assert.equal(formatSlashCommandLabel(items[0]), "/disabled ✕");
+  assert.equal(formatSlashCommandLabel(items[1]), "/normal");
+});
+
+test("formatSlashCommandLabel prefers disabled over loaded indicator", () => {
+  const items = buildSlashCommands([
+    { name: "both", path: "/skills/both/SKILL.md", description: "Both", isLoaded: true, disabled: true },
+  ]);
+
+  assert.equal(formatSlashCommandLabel(items[0]), "/both ✕");
+});
+
+test("buildSlashCommands includes disabled skills in the list", () => {
+  const skillsWithDisabled: SkillInfo[] = [
+    { name: "active", path: "/a/SKILL.md", description: "Active" },
+    { name: "off", path: "/b/SKILL.md", description: "Off", disabled: true },
+  ];
+  const items = buildSlashCommands(skillsWithDisabled);
+  const skillItems = items.filter((i) => i.kind === "skill");
+  assert.equal(skillItems.length, 2);
+  assert.equal(skillItems[1].skill?.disabled, true);
+});

@@ -25,7 +25,7 @@ const SkillsDropdown: React.FC<{
       }
       if ((input === " " && !key.ctrl && !key.meta) || (key.return && !key.shift && !key.meta)) {
         const skill = skills[skillsDropdownIndex];
-        if (skill) {
+        if (skill && !skill.disabled) {
           onSelect?.(skill);
         }
         return;
@@ -62,7 +62,12 @@ const SkillsDropdown: React.FC<{
         label: skill.name,
         description: skill.path,
         selected: isSkillSelected(selectedSkills, skill),
-        statusIndicator: skill.isLoaded ? { symbol: "✓", color: "green" } : undefined,
+        disabled: skill.disabled,
+        statusIndicator: skill.disabled
+          ? { symbol: "✕", color: "gray" }
+          : skill.isLoaded
+            ? { symbol: "✓", color: "green" }
+            : undefined,
       }))}
       activeIndex={skillsDropdownIndex}
       activeColor="#229ac3"

@@ -223,12 +223,18 @@ export type SkillInfo = {
   path: string;
   description: string;
   isLoaded?: boolean;
+  disabled?: boolean;
 };
 
 type SessionManagerOptions = {
   projectRoot: string;
   createOpenAIClient: CreateOpenAIClient;
-  getResolvedSettings: () => { model: string; webSearchTool?: string; mcpServers?: Record<string, McpServerConfig> };
+  getResolvedSettings: () => {
+    model: string;
+    webSearchTool?: string;
+    mcpServers?: Record<string, McpServerConfig>;
+    disabledSkills?: string[];
+  };
   renderMarkdown: (text: string) => string;
   onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   onSessionEntryUpdated?: (entry: SessionEntry) => void;
@@ -246,6 +252,8 @@ export type LlmStreamProgress = {
   phase: "start" | "update" | "end";
 };
 
+const PROTECTED_SKILL_NAMES = new Set(["agent-drift-guard", "plan-and-execute"]);
+
 export class SessionManager {
   private readonly projectRoot: string;
   private readonly createOpenAIClient: CreateOpenAIClient;
@@ -253,6 +261,7 @@ export class SessionManager {
     model: string;
     webSearchTool?: string;
     mcpServers?: Record<string, McpServerConfig>;
+    disabledSkills?: string[];
   };
   private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   private readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
@@ -628,7 +637,7 @@ Response in JSON format:
 If none of the available skills match, respond with an empty array, i.e. \`{"skillNames": []}\`.\n
 The candidate skills are as follows:\n\n`;
     const simpleSkills = skills
-      .filter((x) => !x.isLoaded)
+      .filter((x) => !x.isLoaded && !x.disabled)
       .map((x) => {
         return { name: x.name, description: x.description };
       });
@@ -745,6 +754,16 @@ The candidate skills are as follows:\n\n`;
       for (const skill of skillsByName.values()) {
         if (loadedSkillKeys.has(this.getSkillKey(skill)) || loadedSkillKeys.has(this.getSkillKeyByName(skill.name))) {
           skill.isLoaded = true;
+        }
+      }
+    }
+
+    const settings = this.getResolvedSettings();
+    const disabledNames = new Set(settings.disabledSkills ?? []);
+    if (disabledNames.size > 0) {
+      for (const skill of skillsByName.values()) {
+        if (disabledNames.has(skill.name) && !PROTECTED_SKILL_NAMES.has(skill.name)) {
+          skill.disabled = true;
         }
       }
     }
@@ -988,6 +1007,9 @@ The candidate skills are as follows:\n\n`;
         if (skill.isLoaded) {
           continue;
         }
+        if (skill.disabled) {
+          continue;
+        }
         const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
         const skillPrompt = `Use the skill document below to assist the user:\n
 <${skill.name}-skill path="${this.resolveSkillPath(skill.path)}">
@@ -1050,6 +1072,9 @@ ${skillMd}
     if (userPrompt.skills && userPrompt.skills.length > 0) {
       for (const skill of userPrompt.skills) {
         if (skill.isLoaded) {
+          continue;
+        }
+        if (skill.disabled) {
           continue;
         }
         const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");

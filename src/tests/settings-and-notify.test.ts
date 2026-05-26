@@ -147,6 +147,36 @@ test("resolveSettingsSources applies user, project, and CROPCODE environment pre
   assert.equal(resolved.env.WEBHOOK, "system-webhook");
 });
 
+test("resolveSettings merges disabledSkills from user and project as union", () => {
+  const resolved = resolveSettingsSources(
+    { disabledSkills: ["brainstorming", "tdd"] },
+    { disabledSkills: ["tdd", "frontend-design"] },
+    { model: "default-model", baseURL: "https://default.example.com" },
+    TEST_PROCESS_ENV
+  );
+  assert.deepEqual(resolved.disabledSkills?.sort(), ["brainstorming", "frontend-design", "tdd"]);
+});
+
+test("resolveSettings returns undefined disabledSkills when none are configured", () => {
+  const resolved = resolveSettingsSources(
+    null,
+    null,
+    { model: "default-model", baseURL: "https://default.example.com" },
+    TEST_PROCESS_ENV
+  );
+  assert.equal(resolved.disabledSkills, undefined);
+});
+
+test("resolveSettings filters empty strings from disabledSkills", () => {
+  const resolved = resolveSettingsSources(
+    { disabledSkills: ["a", ""] },
+    { disabledSkills: ["b"] },
+    { model: "default-model", baseURL: "https://default.example.com" },
+    TEST_PROCESS_ENV
+  );
+  assert.deepEqual(resolved.disabledSkills, ["a", "b"]);
+});
+
 test("resolveSettingsSources merges MCP env with documented priority", () => {
   const resolved = resolveSettingsSources(
     {

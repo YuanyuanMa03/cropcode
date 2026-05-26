@@ -732,6 +732,11 @@ export const PromptInput = React.memo(function PromptInput({
     }
 
     if (item.kind === "skill" && item.skill) {
+      if (item.skill.disabled) {
+        setStatusMessage(`Skill "${item.skill.name}" is disabled`);
+        clearSlashToken();
+        return;
+      }
       addSelectedSkill(item.skill);
       clearSlashToken();
       setShowSkillsDropdown(false);

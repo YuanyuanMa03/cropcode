@@ -129,5 +129,8 @@ export function formatSlashCommandDescription(description: string): string {
 }
 
 export function formatSlashCommandLabel(item: SlashCommandItem): string {
+  if (item.kind === "skill" && item.skill?.disabled) {
+    return `${item.label} ✕`;
+  }
   return item.kind === "skill" && item.skill?.isLoaded ? `${item.label} ✓` : item.label;
 }

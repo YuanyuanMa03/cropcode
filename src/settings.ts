@@ -26,6 +26,7 @@ export type DeepcodingSettings = {
   notify?: string;
   webSearchTool?: string;
   mcpServers?: Record<string, McpServerConfig>;
+  disabledSkills?: string[];
 };
 
 export type ResolvedDeepcodingSettings = {
@@ -39,6 +40,7 @@ export type ResolvedDeepcodingSettings = {
   notify?: string;
   webSearchTool?: string;
   mcpServers?: Record<string, McpServerConfig>;
+  disabledSkills?: string[];
 };
 
 export type ModelConfigSelection = {
@@ -167,6 +169,16 @@ function mergeMcpServers(
   return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
+function mergeDisabledSkills(
+  userSettings: DeepcodingSettings | null | undefined,
+  projectSettings: DeepcodingSettings | null | undefined
+): string[] | undefined {
+  const userSkills = userSettings?.disabledSkills ?? [];
+  const projectSkills = projectSettings?.disabledSkills ?? [];
+  const merged = [...new Set([...userSkills, ...projectSkills])].filter(Boolean);
+  return merged.length > 0 ? merged : undefined;
+}
+
 export function resolveSettingsSources(
   userSettings: DeepcodingSettings | null | undefined,
   projectSettings: DeepcodingSettings | null | undefined,
@@ -233,6 +245,7 @@ export function resolveSettingsSources(
     notify: notify || undefined,
     webSearchTool: webSearchTool || undefined,
     mcpServers: mergeMcpServers(userSettings, projectSettings, userEnv, projectEnv, systemEnv),
+    disabledSkills: mergeDisabledSkills(userSettings, projectSettings),
   };
 }
 
