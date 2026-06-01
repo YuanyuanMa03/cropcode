@@ -1,35 +1,37 @@
-# Plugins, Skills & Marketplace
+# 插件、技能与市场
 
-CropCode provides a flexible, multi-layered extension system. You can freely choose how to obtain and manage skills — from one-click marketplace installs to fully custom hand-written skills.
+CropCode 提供灵活的多层扩展系统。你可以自由选择获取和管理技能的方式——从一键市场安装到完全手写的自定义技能。
 
----
-
-## Quick Comparison
-
-| Method | Best For | Setup |
-|--------|----------|-------|
-| **Marketplace** | Team sharing, curated collections | `cropcode marketplace add <url>` |
-| **Custom Skill** | Personal workflows, project-specific logic | Drop a `SKILL.md` into `~/.agents/skills/` |
-| **Community Hub** | Discovering skills from the community | Browse online, then install via marketplace or manual copy |
-| **Git Clone** | Using any public skill repo directly | `git clone` + point marketplace at local path |
+[English](plugins-skills-marketplace_en.md)
 
 ---
 
-## 1. Skill System Basics
+## 快速对比
 
-A **skill** is a Markdown file (`SKILL.md`) that teaches CropCode how to perform a specific task. Skills are loaded into the conversation context and guide the AI's behavior.
+| 方式 | 适用场景 | 操作 |
+|------|----------|------|
+| **市场安装** | 团队共享、精选集合 | `cropcode marketplace add <url>` |
+| **自定义技能** | 个人工作流、项目专属逻辑 | 将 `SKILL.md` 放入 `~/.agents/skills/` |
+| **社区发现** | 从社区获取现成技能 | 在线浏览，通过市场或手动复制安装 |
+| **Git 克隆** | 直接使用任意公开技能仓库 | `git clone` + 将本地路径注册为市场 |
 
-### Skill File Structure
+---
+
+## 1. 技能系统基础
+
+**技能（Skill）** 是一个 Markdown 文件（`SKILL.md`），用于教会 CropCode 如何执行特定任务。技能会被加载到对话上下文中，指导 AI 的行为。
+
+### 技能文件结构
 
 ```
 ~/.agents/skills/
   my-skill/
-    SKILL.md          # Required: skill definition
+    SKILL.md          # 必需：技能定义文件
   another-skill/
     SKILL.md
 ```
 
-Or per-project:
+或按项目组织：
 
 ```
 your-project/
@@ -39,51 +41,51 @@ your-project/
         SKILL.md
 ```
 
-### SKILL.md Format
+### SKILL.md 格式
 
-Every skill starts with YAML frontmatter followed by Markdown content:
+每个技能以 YAML frontmatter 开头，后跟 Markdown 内容：
 
 ```markdown
 ---
 name: my-skill
-description: One-line description of what this skill does
+description: 一行描述这个技能的用途
 license: MIT
 ---
 
-# My Skill
+# 我的技能
 
-## When to Use
+## 使用场景
 
-Describe when this skill should be triggered.
+描述在什么情况下触发这个技能。
 
-## Instructions
+## 指令
 
-Step-by-step instructions for the AI to follow.
+AI 需要遵循的步骤。
 
-## Examples
+## 示例
 
-Concrete examples of inputs and expected outputs.
+具体的输入和预期输出示例。
 ```
 
-**Fields:**
+**字段说明：**
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Unique identifier, used in `/skill-name` slash command |
-| `description` | Yes | One-line summary shown in skill list |
-| `license` | No | License identifier |
+| 字段 | 必需 | 说明 |
+|------|------|------|
+| `name` | 是 | 唯一标识符，对应 `/skill-name` 斜杠命令 |
+| `description` | 是 | 在技能列表中显示的一行描述 |
+| `license` | 否 | 许可证标识 |
 
-### Built-in Skills
+### 内置技能
 
-CropCode ships with several built-in skills in `templates/skills/`:
+CropCode 自带以下内置技能（位于 `templates/skills/`）：
 
-| Skill | Purpose |
-|-------|---------|
-| `karpathy-guidelines` | Behavioral guidelines to reduce common LLM coding mistakes |
-| `plan-and-execute` | Structured planning before implementation |
-| `agent-drift-guard` | Prevents AI from drifting off-task |
+| 技能 | 用途 |
+|------|------|
+| `karpathy-guidelines` | 减少常见 LLM 编码错误的行为准则 |
+| `plan-and-execute` | 实现前的结构化规划 |
+| `agent-drift-guard` | 防止 AI 偏离任务 |
 
-These are automatically available. You can disable any skill in settings:
+这些技能默认可用。你可以在配置中禁用任意技能：
 
 ```json
 {
@@ -91,89 +93,88 @@ These are automatically available. You can disable any skill in settings:
 }
 ```
 
-### Using Skills
+### 使用技能
 
-- Type `/` in the prompt to see all available skills
-- Type `/skills` to browse and select from the skill list
-- Skills can also be auto-triggered based on their `description` field
+- 在提示符中输入 `/` 查看所有可用技能
+- 输入 `/skills` 浏览并选择技能列表
+- 技能也可根据 `description` 字段自动触发
 
 ---
 
-## 2. Writing Your Own Skills
+## 2. 编写自定义技能
 
-Creating a custom skill is the simplest way to extend CropCode. No marketplace, no installation — just a Markdown file.
+创建自定义技能是扩展 CropCode 最简单的方式——不需要市场，不需要安装，只需一个 Markdown 文件。
 
-### Step 1: Create the Directory
+### 第一步：创建目录
 
 ```bash
 mkdir -p ~/.agents/skills/my-custom-skill
 ```
 
-### Step 2: Write SKILL.md
+### 第二步：编写 SKILL.md
 
 ```markdown
 ---
 name: rice-analysis
-description: Standardized rice yield data analysis workflow
+description: 水稻产量数据分析标准化流程
 ---
 
-# Rice Yield Analysis
+# 水稻产量分析
 
-## When to Use
+## 使用场景
 
-Use this skill when the user asks to analyze rice yield data,
-perform ANOVA on field experiment results, or generate yield reports.
+当用户要求分析水稻产量数据、对田间试验结果做方差分析或生成产量报告时使用此技能。
 
-## Workflow
+## 工作流程
 
-1. Read the data file (CSV/Excel)
-2. Check for missing values and outliers (±3σ)
-3. Perform ANOVA using the linear model
-4. Run Tukey HSD for multiple comparison
-5. Generate publication-ready tables and figures
+1. 读取数据文件（CSV/Excel）
+2. 检查缺失值和异常值（±3σ）
+3. 使用线性模型进行方差分析
+4. 运行 Tukey HSD 多重比较
+5. 生成可发表的表格和图表
 
-## Output Format
+## 输出格式
 
-- ANOVA table in markdown
-- Mean separation with letter notation (a, ab, b, ...)
-- Box plot or bar chart with error bars
+- Markdown 格式的方差分析表
+- 字母标注的多重比较结果（a, ab, b, ...）
+- 带误差棒的箱线图或柱状图
 ```
 
-### Step 3: Use It
+### 第三步：使用
 
-Restart CropCode (or start a new session with `/new`), then type `/` to see your skill in the list.
+重启 CropCode（或用 `/new` 开始新会话），输入 `/` 即可在列表中看到你的技能。
 
-### Per-Project Skills
+### 项目级技能
 
-For project-specific workflows, place skills in your project directory:
+对于项目专属的工作流，将技能放在项目目录下：
 
 ```bash
 mkdir -p your-project/.agents/skills/data-pipeline
-# Write your-project/.agents/skills/data-pipeline/SKILL.md
+# 编写 your-project/.agents/skills/data-pipeline/SKILL.md
 ```
 
-These skills are only available when working in that project.
+这些技能仅在该项目中可用。
 
-### Skill Writing Tips
+### 技能编写技巧
 
-- **Be specific** — Vague instructions lead to inconsistent results
-- **Include examples** — Show the AI what good output looks like
-- **Define scope** — Tell the AI when to use this skill AND when NOT to
-- **Keep it focused** — One skill = one workflow. Split complex tasks into multiple skills
+- **具体明确** — 模糊的指令会导致不一致的结果
+- **包含示例** — 向 AI 展示好的输出是什么样的
+- **定义范围** — 告诉 AI 何时使用此技能，以及何时不使用
+- **保持聚焦** — 一个技能 = 一个工作流。复杂任务拆分为多个技能
 
 ---
 
-## 3. Marketplace System
+## 3. 市场系统
 
-The marketplace system lets you distribute and install skills from Git repositories. Any Git repo containing a `marketplace.json` manifest can serve as a marketplace.
+市场系统让你可以从 Git 仓库分发和安装技能。任何包含 `marketplace.json` 清单文件的 Git 仓库都可以作为市场。
 
-### Creating a Marketplace
+### 创建市场
 
-#### Step 1: Prepare Your Repository
+#### 第一步：准备仓库
 
 ```
 my-marketplace/
-  marketplace.json        # Required: manifest file
+  marketplace.json        # 必需：清单文件
   skills/
     rice-analysis/
       SKILL.md
@@ -183,33 +184,33 @@ my-marketplace/
       SKILL.md
 ```
 
-#### Step 2: Write marketplace.json
+#### 第二步：编写 marketplace.json
 
 ```json
 {
   "name": "agri-skills",
-  "description": "Agricultural research skills for CropCode",
+  "description": "面向农业研究的 CropCode 技能集",
   "plugins": [
     {
       "name": "rice-analysis",
-      "description": "Rice yield data analysis and ANOVA",
+      "description": "水稻产量数据分析与方差分析",
       "path": "skills/rice-analysis"
     },
     {
       "name": "soil-report",
-      "description": "Soil nutrient analysis and reporting",
+      "description": "土壤养分分析与报告",
       "path": "skills/soil-report"
     },
     {
       "name": "weather-viz",
-      "description": "Weather data visualization",
+      "description": "气象数据可视化",
       "path": "skills/weather-viz"
     }
   ]
 }
 ```
 
-#### Step 3: Push to GitHub
+#### 第三步：推送到 GitHub
 
 ```bash
 cd my-marketplace
@@ -220,61 +221,61 @@ git remote add origin https://github.com/yourname/agri-skills.git
 git push -u origin main
 ```
 
-### Installing from a Marketplace
+### 从市场安装
 
 ```bash
-# 1. Register the marketplace
+# 1. 注册市场
 cropcode marketplace add https://github.com/yourname/agri-skills.git
 
-# 2. Browse available plugins
+# 2. 浏览可用插件
 cropcode marketplace list
 
-# 3. Install a plugin
+# 3. 安装插件
 cropcode plugin install rice-analysis@agri-skills
 
-# 4. Verify installation
+# 4. 验证安装
 cropcode plugin list
 ```
 
-### Managing Marketplaces
+### 管理市场
 
 ```bash
-# List all registered marketplaces
+# 列出所有已注册市场
 cropcode marketplace list
 
-# Remove a marketplace (also uninstalls its plugins)
+# 移除市场（同时卸载其插件）
 cropcode marketplace remove agri-skills
 ```
 
-### Managing Plugins
+### 管理插件
 
 ```bash
-# List installed plugins
+# 列出已安装插件
 cropcode plugin list
 
-# Install a specific plugin
-cropcode plugin install <plugin-name>@<marketplace-name>
+# 安装指定插件
+cropcode plugin install <插件名>@<市场名>
 
-# Remove a plugin
-cropcode plugin remove <plugin-name>
+# 移除插件
+cropcode plugin remove <插件名>
 ```
 
-### Using Local Directories
+### 使用本地目录
 
-You can also use a local directory as a marketplace — useful for development or private skills:
+你也可以使用本地目录作为市场——适合开发或私有技能：
 
 ```bash
-# Absolute path
+# 绝对路径
 cropcode marketplace add /path/to/my-marketplace
 
-# Relative path
+# 相对路径
 cropcode marketplace add ./my-marketplace
 
-# Home directory
+# Home 目录
 cropcode marketplace add ~/my-marketplace
 ```
 
-### Using Specific Branches
+### 使用指定分支
 
 ```bash
 cropcode marketplace add https://github.com/yourname/agri-skills.git --ref develop
@@ -282,128 +283,128 @@ cropcode marketplace add https://github.com/yourname/agri-skills.git --ref devel
 
 ---
 
-## 4. Community Skill Hubs
+## 4. 社区技能中心
 
-The CropCode skill ecosystem is open — anyone can create and share skills. Here are ways to discover community skills:
+CropCode 的技能生态是开放的——任何人都可以创建和分享技能。以下是发现社区技能的方式：
 
-### GitHub Search
+### GitHub 搜索
 
-Search GitHub for CropCode skills:
+在 GitHub 上搜索 CropCode 技能：
 
 ```
 "marketplace.json" "plugins" cropcode
 ```
 
-Or search for specific skill topics:
+或搜索特定主题的技能：
 
 ```
 SKILL.md "name:" "description:" path:skills
 ```
 
-### Nature Skills (Example)
+### Nature Skills（示例）
 
-A curated collection of agricultural and environmental science skills:
+一个精选的农业与环境科学技能集合：
 
 ```bash
-# Register the marketplace
+# 注册市场
 cropcode marketplace add https://github.com/Yuan1z0825/nature-skills.git
 
-# Browse available skills
+# 浏览可用技能
 cropcode marketplace list
 
-# Install skills you need
-cropcode plugin install <skill-name>@nature-skills
+# 安装需要的技能
+cropcode plugin install <技能名>@nature-skills
 ```
 
-### Creating Your Own Hub
+### 创建团队技能中心
 
-Organizations can maintain internal skill hubs:
+组织可以维护内部技能中心：
 
-1. Create a private Git repository
-2. Add `marketplace.json` with your curated skills
-3. Team members register it as a marketplace
-4. Skills are version-controlled and shareable
+1. 创建私有 Git 仓库
+2. 添加 `marketplace.json` 和精选技能
+3. 团队成员注册为市场
+4. 技能受版本控制，可共享
 
 ```bash
-# Team member setup
+# 团队成员设置
 cropcode marketplace add https://github.com/your-org/cropcode-skills.git
 cropcode plugin install rice-protocol@cropcode-skills
 ```
 
 ---
 
-## 5. TUI Commands
+## 5. TUI 命令
 
-Inside the CropCode interactive session:
+在 CropCode 交互会话中：
 
-| Command | Description |
-|---------|-------------|
-| `/` | Open slash command menu — shows all skills and built-in commands |
-| `/skills` | Browse and select from available skills |
-| `/marketplace` | View registered marketplaces and available plugins |
-| `/plugin` | View installed plugins |
-
----
-
-## 6. Data Storage
-
-| What | Where |
-|------|-------|
-| User skills | `~/.agents/skills/*/SKILL.md` |
-| Project skills | `<project>/.agents/skills/*/SKILL.md` |
-| Settings | `~/.cropcode/settings.json` |
-| Marketplace registry | `~/.cropcode/settings.json` (marketplaces section) |
-| Installed plugins | `~/.cropcode/plugins/cache/` |
-| Plugin skills (linked) | `~/.agents/skills/` (symlinked from cache) |
+| 命令 | 说明 |
+|------|------|
+| `/` | 打开斜杠命令菜单——显示所有技能和内置命令 |
+| `/skills` | 浏览并选择可用技能 |
+| `/marketplace` | 查看已注册市场和可用插件 |
+| `/plugin` | 查看已安装插件 |
 
 ---
 
-## 7. Security
+## 6. 数据存储
 
-- **Path traversal protection** — Plugin sources cannot escape the marketplace directory
-- **Symlink safety** — Symbolic links are skipped during plugin installation
-- **Ownership check** — Only plugin-owned files are removed during uninstall
-- **Local paths** — Absolute and relative paths are resolved and validated
+| 内容 | 位置 |
+|------|------|
+| 用户技能 | `~/.agents/skills/*/SKILL.md` |
+| 项目技能 | `<项目>/.agents/skills/*/SKILL.md` |
+| 配置文件 | `~/.cropcode/settings.json` |
+| 市场注册表 | `~/.cropcode/settings.json`（marketplaces 部分） |
+| 已安装插件缓存 | `~/.cropcode/plugins/cache/` |
+| 插件技能（链接） | `~/.agents/skills/`（从缓存链接） |
 
 ---
 
-## 8. FAQ
+## 7. 安全机制
 
-**Q: Can I use skills from Claude Code / other AI coding tools?**
+- **路径遍历防护** — 插件源不能逃逸市场目录
+- **符号链接安全** — 插件安装时跳过符号链接
+- **所有权检查** — 卸载时仅移除插件自身的文件
+- **本地路径验证** — 绝对路径和相对路径均经过解析和验证
 
-Yes. Any `SKILL.md` file following the format above works. The skill system is Markdown-based and portable.
+---
 
-**Q: Do I need a marketplace to use skills?**
+## 8. 常见问题
 
-No. You can manually create skills in `~/.agents/skills/` or `<project>/.agents/skills/`. The marketplace is optional — it's just a convenient way to distribute and install skills.
+**Q: 可以使用来自 Claude Code 或其他 AI 编码工具的技能吗？**
 
-**Q: Can I disable a skill without removing it?**
+可以。任何遵循上述格式的 `SKILL.md` 文件都能使用。技能系统基于 Markdown，可移植。
 
-Yes. Add the skill name to `disabledSkills` in your settings:
+**Q: 使用技能必须有市场吗？**
+
+不是。你可以直接在 `~/.agents/skills/` 或 `<项目>/.agents/skills/` 中手动创建技能。市场只是分发和安装技能的便捷方式。
+
+**Q: 可以在不删除的情况下禁用技能吗？**
+
+可以。在配置中将技能名称添加到 `disabledSkills`：
 
 ```json
 {
-  "disabledSkills": ["unwanted-skill"]
+  "disabledSkills": ["不需要的技能"]
 }
 ```
 
-**Q: Can a marketplace contain non-skill files?**
+**Q: 市场可以包含非技能文件吗？**
 
-Yes. A marketplace is just a Git repo with a `marketplace.json`. You can include documentation, scripts, data files, or anything else alongside your skills.
+可以。市场只是一个带有 `marketplace.json` 的 Git 仓库。你可以在技能旁边放文档、脚本、数据文件等任何内容。
 
-**Q: How do I update a plugin?**
+**Q: 如何更新插件？**
 
-Remove and reinstall:
+移除后重新安装：
 
 ```bash
-cropcode plugin remove <name>
-cropcode plugin install <name>@<marketplace>
+cropcode plugin remove <名称>
+cropcode plugin install <名称>@<市场>
 ```
 
-Or re-register the marketplace to pull the latest version:
+或重新注册市场以获取最新版本：
 
 ```bash
-cropcode marketplace remove <name>
+cropcode marketplace remove <名称>
 cropcode marketplace add <url>
-cropcode plugin install <name>@<marketplace>
+cropcode plugin install <名称>@<市场>
 ```

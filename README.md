@@ -170,7 +170,7 @@ cropcode plugin install <skill-name>@nature-skills
 
 Type `/` in the prompt to see all available skills, or `/marketplace` to manage marketplaces.
 
-> **Full documentation:** [docs/plugins-skills-marketplace.md](docs/plugins-skills-marketplace.md) — includes how to create your own marketplace, write custom skills, and share with your team.
+> **Full documentation:** [docs/plugins-skills-marketplace_en.md](docs/plugins-skills-marketplace_en.md) — includes how to create your own marketplace, write custom skills, and share with your team.
 
 ### MCP Integration
 
@@ -419,7 +419,7 @@ cropcode plugin install <技能名>@nature-skills
 
 在提示符中输入 `/` 查看所有可用技能，或输入 `/marketplace` 管理市场。
 
-> **完整文档：** [docs/plugins-skills-marketplace.md](docs/plugins-skills-marketplace.md) — 包含如何创建自己的市场、编写自定义技能、以及与团队共享。
+> **完整文档：** [docs/plugins-skills-marketplace.md](docs/plugins-skills-marketplace.md) — 包含如何创建自己的市场、编写自定义技能、以及与团队共享。[English](docs/plugins-skills-marketplace_en.md)
 
 ### MCP 集成
 
