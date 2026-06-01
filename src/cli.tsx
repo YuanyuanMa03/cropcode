@@ -113,9 +113,12 @@ async function handleMarketplaceCommand(argv: string[]): Promise<void> {
         const ref = refIdx !== -1 && argv[refIdx + 1] ? argv[refIdx + 1] : undefined;
 
         // Parse source
-        const source = url.includes("://")
-          ? { source: "url" as const, url, ref }
-          : { source: "github" as const, repo: url, ref };
+        const isLocalPath = url.startsWith("/") || url.startsWith("./") || url.startsWith("~");
+        const source = isLocalPath
+          ? { source: "directory" as const, path: url.replace(/^~/, process.env.HOME ?? "~") }
+          : url.includes("://")
+            ? { source: "url" as const, url, ref }
+            : { source: "github" as const, repo: url, ref };
 
         // Derive marketplace name from repo
         const name = url.includes("/")
