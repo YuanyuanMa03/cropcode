@@ -1,18 +1,51 @@
 <div align="center">
-<br/>
-<p align="center">
-  <h1>🌾 CropCode</h1>
-  <p><strong>AI Coding Agent for Agricultural Research</strong></p>
-</p>
-
-[English](README-en.md) · 中文
 
 <br/>
+
+# 🌾 CropCode
+
+**AI Coding Agent for Agricultural Research**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js >=22](https://img.shields.io/badge/Node.js-%3E%3D22-green.svg)](https://nodejs.org/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/mayuanyuan/cropcode/pulls)
+
+*An intelligent terminal coding assistant purpose-built for agricultural scientists, agronomists, and researchers — bridging AI with crop modeling, statistical analysis, and scientific computing.*
+
+[English](#english) · [中文](#中文)
+
 </div>
 
-**CropCode** 是专为农业科研领域设计的终端 AI 编码助手，支持数据分析、作物模型调用、实验设计和科学计算。
+---
 
-## 安装
+<a id="english"></a>
+
+## ✨ Highlights
+
+- 🤖 **AI Agent** — Autonomous coding agent with deep thinking, tool use (bash, read, write, edit, web search), and multi-turn reasoning
+- 🧠 **Deep Reasoning** — Powered by DeepSeek V4 with configurable thinking mode and reasoning effort control
+- 🌱 **Agriculture-First** — Built-in support for crop models (RiceGrow, CH4MOD, DSSAT, APSIM), field experiment design, and yield analysis
+- 📊 **Data Analysis** — Native Python (pandas/numpy/scipy/matplotlib) and R integration for statistical computing
+- 📄 **Paper Tools** — LaTeX typesetting, reference management, and figure generation
+- 🔌 **MCP Integration** — Connect external tools via Model Context Protocol (GitHub, browser, databases, and more)
+- 🎯 **Skills System** — Extensible skill architecture for custom domain knowledge and workflows
+- 💬 **Multi-Session** — Session management with undo, resume, and conversation compaction
+
+## 📸 Screenshots
+
+<div align="center">
+  <img src="resources/intro1.png" alt="CropCode Chat Interface" width="700" />
+  <br/>
+  <em>Interactive agent session with tool execution and reasoning display</em>
+  <br/><br/>
+  <img src="resources/intro2.png" alt="CropCode Features" width="700" />
+  <br/>
+  <em>Crop model simulation and data analysis</em>
+</div>
+
+## 🚀 Quick Start
+
+### Install
 
 ```bash
 git clone https://github.com/mayuanyuan/cropcode.git
@@ -21,11 +54,252 @@ npm install
 npm link
 ```
 
-在任意项目目录下运行 `cropcode` 即可启动。
+### Configure
 
-## 配置
+Copy a settings template and fill in your API key:
 
-将配置模版复制到用户目录，并填入你的 API Key：
+```bash
+# DeepSeek (recommended)
+cp templates/settings/settings.json ~/.cropcode/settings.json
+
+# or OpenAI
+cp templates/settings/settings-openai.json ~/.cropcode/settings.json
+```
+
+Edit `~/.cropcode/settings.json` and replace the API key:
+
+```json
+{
+  "env": {
+    "MODEL": "deepseek-v4-pro",
+    "BASE_URL": "https://api.deepseek.com",
+    "API_KEY": "sk-your-api-key"
+  },
+  "thinkingEnabled": true,
+  "reasoningEffort": "max"
+}
+```
+
+### Run
+
+```bash
+cd your-project
+cropcode
+```
+
+## 🌿 Core Features
+
+### Agricultural Data Analysis
+
+CropCode understands agricultural data natively. Ask it to clean, analyze, and visualize yield, weather, and soil data.
+
+```
+> 分析这三年水稻产量数据，做方差分析并绘制产量趋势图
+```
+
+- Yield data, meteorological data, soil data processing
+- Python (pandas/numpy/scipy/matplotlib) + R
+- ANOVA, mean separation, regression modeling
+
+### Crop Model Simulation
+
+Run and calibrate crop models directly from the terminal.
+
+```
+> /crop-model
+> 用 RiceGrow 模拟南京地区 2024 年水稻生长，品种为南粳46
+```
+
+- **RiceGrow** — Rice growth simulation
+- **CH4MOD** — Methane emission modeling
+- **DSSAT** — Decision Support System for Agrotechnology Transfer
+- **APSIM** — Agricultural Production Systems Simulator
+
+### Experiment Design & Statistics
+
+```
+> 设计一个三因素三水平的正交试验，分析氮肥、密度、播期对产量的影响
+```
+
+- Randomized complete block design (RCBD), split-plot, orthogonal design
+- ANOVA, multiple comparison, regression modeling
+- Field experiment data processing
+
+### Paper & Writing Tools
+
+```
+> 把这个结果整理成 LaTeX 表格，符合 Crop Science 期刊格式
+```
+
+- LaTeX typesetting and reference management
+- Figure and chart generation
+- Data visualization for publications
+
+### Agent Capabilities
+
+```
+> 读取 data/yield.csv，清洗异常值，用 R 做多重比较分析，把结果写成 markdown 报告
+```
+
+CropCode operates as a fully autonomous agent:
+1. Reads your files
+2. Executes analysis code (Python/R/Shell)
+3. Writes results and reports
+4. Handles errors and retries automatically
+
+### MCP Integration
+
+Connect external services via Model Context Protocol:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..."
+      }
+    }
+  }
+}
+```
+
+See [docs/mcp_en.md](docs/mcp_en.md) for detailed setup.
+
+## ⌨️ Keyboard Shortcuts
+
+| Action | Key |
+|--------|-----|
+| Send message | `Enter` |
+| New line | `Shift+Enter` |
+| Interrupt generation | `Esc` |
+| Command menu | `/` |
+| Switch model | `/model` |
+| Crop model simulation | `/crop-model` |
+| List skills | `/skills` |
+| New session | `/new` |
+| Resume session | `/resume` |
+| Undo | `/undo` |
+| MCP status | `/mcp` |
+| Exit | `/exit` or `Ctrl+D` ×2 |
+
+## ⚙️ Configuration
+
+### Configuration Hierarchy
+
+Settings are resolved with the following priority (higher overrides lower):
+
+1. **Defaults** — Hardcoded defaults
+2. **User settings** — `~/.cropcode/settings.json`
+3. **Project settings** — `<project>/.cropcode/settings.json`
+4. **Environment variables** — `CROPCODE_*` prefixed env vars
+
+### All Settings
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `env.MODEL` | string | Model name (e.g. `deepseek-v4-pro`, `gpt-4o`) |
+| `env.BASE_URL` | string | API base URL |
+| `env.API_KEY` | string | API key |
+| `thinkingEnabled` | boolean | Enable thinking mode (default: `true` for DeepSeek V4) |
+| `reasoningEffort` | string | `"max"` or `"high"` (default: `"max"`) |
+| `notify` | string | Path to notification script |
+| `webSearchTool` | string | Path to custom web search script |
+| `mcpServers` | object | MCP server configurations |
+| `disabledSkills` | string[] | Skills to disable |
+
+For detailed configuration, see [docs/configuration_en.md](docs/configuration_en.md).
+
+### Supported Models
+
+Any OpenAI-compatible API can be used:
+
+| Provider | `BASE_URL` | Example Models |
+|----------|-----------|----------------|
+| DeepSeek | `https://api.deepseek.com` | `deepseek-v4-pro`, `deepseek-v4-flash` |
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o`, `o3` |
+
+## 🛠️ Architecture
+
+```
+┌─────────────────────────────────────────┐
+│              Terminal UI (Ink/React)     │
+├─────────────────────────────────────────┤
+│           Session Manager                │
+│  ┌────────────┐  ┌──────────────────┐   │
+│  │ LLM Client │  │  Tool Executor   │   │
+│  │ (OpenAI)   │  │  ┌────┐ ┌─────┐  │   │
+│  │            │  │  │Bash│ │Read │  │   │
+│  │ DeepSeek   │  │  ├────┤ ├─────┤  │   │
+│  │ OpenAI     │  │  │Write│ │Edit │  │   │
+│  │ ...        │  │  ├────┤ ├─────┤  │   │
+│  │            │  │  │WebSearch│Ask │  │   │
+│  └────────────┘  │  └─────────┴────┘  │   │
+│                  │  ┌──────────────┐   │   │
+│                  │  │  MCP Manager │   │   │
+│                  │  └──────────────┘   │   │
+│                  └──────────────────┘   │
+├─────────────────────────────────────────┤
+│          Skills & Prompts               │
+│   ~/.agents/skills/*/SKILL.md           │
+│   ./.agents/skills/*/SKILL.md           │
+└─────────────────────────────────────────┘
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Whether it's bug fixes, new features, skills, or documentation improvements.
+
+1. Fork the repository
+2. Create your feature branch: `git checkout -b feature/my-feature`
+3. Commit your changes: `git commit -m 'feat: add some feature'`
+4. Push to the branch: `git push origin feature/my-feature`
+5. Open a Pull Request
+
+## 📄 License
+
+[MIT](LICENSE) © CropCode Contributors
+
+---
+
+<a id="中文"></a>
+
+<div align="center">
+
+# 🌾 CropCode
+
+**专为农业科研设计的 AI 编程助手**
+
+*面向农学家、农业科研人员和数据分析师的智能终端编程助手，将 AI 与作物模型、统计分析和科学计算深度融合。*
+
+</div>
+
+## ✨ 核心特性
+
+- 🤖 **自主 Agent** — 具备深度思考、工具调用（bash/read/write/edit/web search）和多轮推理能力的自主编程助手
+- 🧠 **深度推理** — 基于 DeepSeek V4，支持思考模式和推理强度控制
+- 🌱 **农业专精** — 内置作物模型（RiceGrow、CH4MOD、DSSAT、APSIM）、田间试验设计和产量分析支持
+- 📊 **数据分析** — 原生 Python (pandas/numpy/scipy/matplotlib) 和 R 集成
+- 📄 **论文工具** — LaTeX 排版、参考文献管理、图表生成
+- 🔌 **MCP 集成** — 通过 Model Context Protocol 连接外部工具（GitHub、浏览器、数据库等）
+- 🎯 **技能系统** — 可扩展的技能架构，支持自定义领域知识和工作流
+- 💬 **多会话管理** — 支持撤销、恢复和对话压缩
+
+## 🚀 快速开始
+
+### 安装
+
+```bash
+git clone https://github.com/mayuanyuan/cropcode.git
+cd cropcode
+npm install
+npm link
+```
+
+### 配置
+
+复制配置模板并填入你的 API Key：
 
 ```bash
 # DeepSeek（推荐）
@@ -35,77 +309,121 @@ cp templates/settings/settings.json ~/.cropcode/settings.json
 cp templates/settings/settings-openai.json ~/.cropcode/settings.json
 ```
 
-编辑 `~/.cropcode/settings.json`，将 `API_KEY` 替换为你的真实密钥。
+编辑 `~/.cropcode/settings.json`，替换 API Key：
 
-更多配置选项详见 [docs/configuration.md](docs/configuration.md)。
+```json
+{
+  "env": {
+    "MODEL": "deepseek-v4-pro",
+    "BASE_URL": "https://api.deepseek.com",
+    "API_KEY": "sk-你的API密钥"
+  },
+  "thinkingEnabled": true,
+  "reasoningEffort": "max"
+}
+```
 
-## 核心能力
+### 运行
 
-### 🌱 农业数据分析
-- 产量数据、气象数据、土壤数据的清洗、统计和可视化
-- Python (pandas/numpy/scipy/matplotlib) + R
+```bash
+cd your-project
+cropcode
+```
 
-### 🌿 作物模型
-- `/crop-model` 命令调用 RiceGrow、CH4MOD、DSSAT、APSIM
-- 参数校准与模拟结果分析
+## 🌿 功能详解
 
-### 🧪 实验工具
-- 实验设计（随机区组、裂区、正交设计）
-- 方差分析、多重比较、回归建模
+### 农业数据分析
 
-### 📄 论文工具
-- LaTeX 排版、参考文献管理
-- 图表生成、数据可视化
+CropCode 原生理解农业数据，直接处理产量、气象和土壤数据的清洗、分析和可视化。
 
-### 🤖 Agent 能力
-- 深度思考 + 推理强度控制
-- Agent Skills 系统
-- MCP 集成
-- 多会话管理
+```
+> 分析这三年水稻产量数据，做方差分析并绘制产量趋势图
+```
 
-## 快捷键
+### 作物模型模拟
+
+```
+> /crop-model
+> 用 RiceGrow 模拟南京地区 2024 年水稻生长，品种为南粳46
+```
+
+支持 RiceGrow、CH4MOD、DSSAT、APSIM 等主流作物模型的调用与参数校准。
+
+### 实验设计与统计
+
+```
+> 设计一个三因素三水平的正交试验，分析氮肥、密度、播期对产量的影响
+```
+
+支持随机区组、裂区、正交设计，以及方差分析、多重比较、回归建模。
+
+### 论文写作工具
+
+```
+> 把这个结果整理成 LaTeX 表格，符合《作物学报》格式
+```
+
+### MCP 集成
+
+通过 Model Context Protocol 连接 GitHub 等外部服务：
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..."
+      }
+    }
+  }
+}
+```
+
+详见 [docs/mcp.md](docs/mcp.md)。
+
+## ⌨️ 快捷键
 
 | 操作 | 按键 |
 |------|------|
-| 发送 | Enter |
-| 换行 | Shift+Enter |
-| 中断生成 | Esc |
-| 命令菜单 | / |
-| 切换模型 | /model |
-| 作物模型 | /crop-model |
-| 查看技能 | /skills |
-| 新会话 | /new |
-| 恢复会话 | /resume |
-| 撤销 | /undo |
-| 退出 | /exit 或 Ctrl+D×2 |
+| 发送消息 | `Enter` |
+| 换行 | `Shift+Enter` |
+| 中断生成 | `Esc` |
+| 命令菜单 | `/` |
+| 切换模型 | `/model` |
+| 作物模型 | `/crop-model` |
+| 查看技能 | `/skills` |
+| 新会话 | `/new` |
+| 恢复会话 | `/resume` |
+| 撤销 | `/undo` |
+| MCP 状态 | `/mcp` |
+| 退出 | `/exit` 或 `Ctrl+D` ×2 |
 
-## 配置层级
+## ⚙️ 配置
 
-优先级从高到低：
+### 配置层级
 
-1. 环境变量 `CROPCODE_*` 环境变量
-2. 项目级 `.cropcode/settings.json`
-3. 用户级 `~/.cropcode/settings.json`
-4. 默认值
+设置按以下优先级解析（高优先级覆盖低优先级）：
 
-## Skills
+1. **默认值** — 程序内置
+2. **用户配置** — `~/.cropcode/settings.json`
+3. **项目配置** — `<项目>/.cropcode/settings.json`
+4. **环境变量** — `CROPCODE_*` 前缀的环境变量
 
-- **用户级**：`~/.agents/skills/*/SKILL.md`
-- **项目级**：`./.agents/skills/*/SKILL.md`
-- **旧版兼容**：`./.cropcode/skills/*/SKILL.md`
+详细配置说明请参阅 [docs/configuration.md](docs/configuration.md)。
 
-## 致谢
+## 🛠️ 致谢
 
-本项目在开发过程中参考了以下开源技术/项目：
+本项目开发过程中参考和使用了以下开源技术：
+
 - [DeepSeek](https://deepseek.com) — LLM 模型服务
-- [Ink](https://github.com/vadimdemedes/ink) — 终端 React 渲染引擎
 - [OpenAI Node.js SDK](https://github.com/openai/openai-node) — LLM API 调用
-- [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) — AI 工具集成协议
+- [Ink](https://github.com/vadimdemedes/ink) — 终端 React 渲染引擎
+- [MCP](https://modelcontextprotocol.io/) — AI 工具集成协议
 - [esbuild](https://esbuild.github.io/) — JavaScript 构建工具
 - [React](https://react.dev/) — UI 框架
-- [Zod](https://zod.dev/) — 数据校验
-- [Deep Code CLI](https://github.com/lessweb/deepcode-cli) — CLI 交互范式参考
 
-## 许可证
+## 📄 许可证
 
-MIT
+[MIT](LICENSE) © CropCode Contributors
