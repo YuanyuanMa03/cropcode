@@ -28,7 +28,7 @@ import type { McpServerConfig } from "./settings";
 import { logApiError } from "./common/error-logger";
 import { logOpenAIChatCompletionDebug, normalizeDebugError } from "./common/debug-logger";
 import { killProcessTree } from "./common/process-tree";
-import { GitFileHistory } from "./common/file-history";
+import { GitFileHistory, type FileHistoryCheckpointResult } from "./common/file-history";
 
 const MAX_SESSION_ENTRIES = 50;
 const DEFAULT_NEW_PROMPT_API_URL = "https://cropcode.local/api/plugin/new";
@@ -1051,6 +1051,11 @@ ${skillMd}
     this.reportNewPrompt();
 
     this.ensureFileHistorySession(sessionId);
+    const checkpoint = this.recordUserPromptCheckpoint(sessionId);
+    if (checkpoint.changedFilePaths.length) {
+      const content = `Note that the user manually modified these files:\n${checkpoint.changedFilePaths.join("\n")}`;
+      this.appendSessionMessage(sessionId, this.buildSystemMessage(sessionId, content));
+    }
     const userMessage = this.buildUserMessage(sessionId, userPrompt);
     this.appendSessionMessage(sessionId, userMessage);
 
@@ -1631,6 +1636,10 @@ ${skillMd}
 
   private ensureFileHistorySession(sessionId: string): string | undefined {
     return this.getFileHistory().ensureSession(sessionId);
+  }
+
+  private recordUserPromptCheckpoint(sessionId: string): FileHistoryCheckpointResult {
+    return this.getFileHistory().recordTrackedFilesCheckpoint(sessionId, "User prompt checkpoint");
   }
 
   private getCurrentCheckpointHash(sessionId: string): string | undefined {

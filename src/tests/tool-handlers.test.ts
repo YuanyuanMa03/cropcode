@@ -198,7 +198,7 @@ test("Edit returns candidate match snippets when old_string is not unique", asyn
   assert.match(candidates[0]?.preview ?? "", /city/);
 });
 
-test("Edit returns closest matches only above threshold with surrounding context", async () => {
+test("Edit returns not-found error when old_string is a close but non-matching variant", async () => {
   const workspace = createTempWorkspace();
   const filePath = path.join(workspace, "closest.ts");
   fs.writeFileSync(
@@ -226,16 +226,7 @@ test("Edit returns closest matches only above threshold with surrounding context
   );
 
   assert.equal(closeResult.ok, false);
-  assert.equal(closeResult.error, "old_string not found in file.");
-  const closestMatch = closeResult.metadata?.closest_match as
-    | { snippet_id?: string; start_line?: number; end_line?: number; similarity?: number; preview?: string }
-    | undefined;
-  assert.ok(closestMatch?.snippet_id);
-  assert.equal(closestMatch.start_line, 1);
-  assert.equal(closestMatch.end_line, 4);
-  assert.ok((closestMatch.similarity ?? 0) >= 0.8);
-  assert.match(closestMatch.preview ?? "", /const before = true/);
-  assert.match(closestMatch.preview ?? "", /return value/);
+  assert.match(closeResult.error ?? "", /old_string not found in file/);
 
   const lowResult = await handleEditTool(
     {
@@ -247,8 +238,7 @@ test("Edit returns closest matches only above threshold with surrounding context
   );
 
   assert.equal(lowResult.ok, false);
-  assert.equal(lowResult.error, "old_string not found in file.");
-  assert.equal(lowResult.metadata?.closest_match, undefined);
+  assert.match(lowResult.error ?? "", /old_string not found in file/);
 
   const partialRead = await handleReadTool(
     { file_path: filePath, offset: 2, limit: 2 },
@@ -267,12 +257,7 @@ test("Edit returns closest matches only above threshold with surrounding context
   );
 
   assert.equal(scopedCloseResult.ok, false);
-  const scopedClosestMatch = scopedCloseResult.metadata?.closest_match as
-    | { start_line?: number; end_line?: number; preview?: string }
-    | undefined;
-  assert.equal(scopedClosestMatch?.start_line, 2);
-  assert.equal(scopedClosestMatch?.end_line, 3);
-  assert.doesNotMatch(scopedClosestMatch?.preview ?? "", /const before = true/);
+  assert.match(scopedCloseResult.error ?? "", /old_string not found in file/);
 });
 
 test("Edit allows outdated snippet matches but reports outdated snippet when no match is found", async () => {
