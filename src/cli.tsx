@@ -127,7 +127,7 @@ async function handleMarketplaceCommand(argv: string[]): Promise<void> {
 
         process.stdout.write(`Fetching marketplace "${name}"...\n`);
         const manifest = addMarketplace(name, source);
-        process.stdout.write(`✓ Marketplace "${name}" added.\n`);
+        process.stdout.write(`[OK] Marketplace "${name}" added.\n`);
         process.stdout.write(`  ${manifest.description ?? manifest.name}\n`);
         process.stdout.write(`  Plugins: ${manifest.plugins.map((p) => p.name).join(", ")}\n`);
       } else if (action === "list") {
@@ -137,7 +137,7 @@ async function handleMarketplaceCommand(argv: string[]): Promise<void> {
           return;
         }
         for (const mp of marketplaces) {
-          process.stdout.write(`\n📦 ${mp.name}${mp.manifest?.description ? ` — ${mp.manifest.description}` : ""}\n`);
+          process.stdout.write(`\n[${mp.name}]${mp.manifest?.description ? ` — ${mp.manifest.description}` : ""}\n`);
           if (mp.manifest) {
             for (const p of mp.manifest.plugins) {
               process.stdout.write(`   • ${p.name}: ${p.description}\n`);
@@ -153,7 +153,7 @@ async function handleMarketplaceCommand(argv: string[]): Promise<void> {
           process.exit(1);
         }
         removeMarketplace(name);
-        process.stdout.write(`✓ Marketplace "${name}" removed.\n`);
+        process.stdout.write(`[OK] Marketplace "${name}" removed.\n`);
       } else {
         process.stderr.write(
           "Usage:\n  cropcode marketplace add <git-url|github-repo> [--ref <branch>]\n  cropcode marketplace list\n  cropcode marketplace remove <name>\n"
@@ -169,7 +169,7 @@ async function handleMarketplaceCommand(argv: string[]): Promise<void> {
         const [pluginName, marketplaceName] = pluginRef.split("@");
         process.stdout.write(`Installing plugin "${pluginName}" from "${marketplaceName}"...\n`);
         const skills = installPlugin(pluginName, marketplaceName);
-        process.stdout.write(`✓ Plugin "${pluginName}" installed.\n`);
+        process.stdout.write(`[OK] Plugin "${pluginName}" installed.\n`);
         if (skills.length > 0) {
           process.stdout.write(`  Skills linked: ${skills.join(", ")}\n`);
         }
@@ -191,7 +191,7 @@ async function handleMarketplaceCommand(argv: string[]): Promise<void> {
           process.exit(1);
         }
         removePlugin(name);
-        process.stdout.write(`✓ Plugin "${name}" removed.\n`);
+        process.stdout.write(`[OK] Plugin "${name}" removed.\n`);
       } else {
         process.stderr.write(
           "Usage:\n  cropcode plugin install <plugin-name>@<marketplace-name>\n  cropcode plugin list\n  cropcode plugin remove <name>\n"

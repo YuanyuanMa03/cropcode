@@ -7,6 +7,7 @@ import {
   type InstalledPluginConfig,
   ensureDir,
   getCropcodeDir,
+  getMarketplacesDir,
 } from "./types";
 import {
   fetchMarketplace,
@@ -97,8 +98,9 @@ export function listMarketplaces(): Array<{
   for (const [name, config] of Object.entries(settings.marketplaces ?? {})) {
     let manifest: MarketplaceManifest | null = null;
     try {
-      const { dir } = fetchMarketplace(name, config.source);
-      manifest = parseMarketplaceManifest(dir);
+      const targetDir =
+        config.source.source === "directory" ? config.source.path : path.join(getMarketplacesDir(), name);
+      manifest = parseMarketplaceManifest(targetDir);
     } catch {
       // marketplace dir may be unavailable
     }

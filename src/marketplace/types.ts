@@ -49,19 +49,6 @@ export type MarketplaceManifest = {
   plugins: MarketplacePluginEntry[];
 };
 
-// --- Plugin manifest (inside each plugin repo) ---
-
-export type PluginManifest = {
-  name: string;
-  version?: string;
-  description?: string;
-  author?: { name: string; email?: string; url?: string };
-  skills?: string;
-  homepage?: string;
-  repository?: string;
-  license?: string;
-};
-
 // --- Config types (stored in ~/.cropcode/settings.json) ---
 
 export type MarketplaceConfig = {
@@ -88,10 +75,6 @@ export function getMarketplacesDir(): string {
 
 export function getPluginsCacheDir(): string {
   return path.join(getCropcodeDir(), "plugins", "cache");
-}
-
-export function getSkillsDir(): string {
-  return path.join(os.homedir(), ".agents", "skills");
 }
 
 export function ensureDir(dir: string): void {

@@ -98,8 +98,11 @@ export function parseMarketplaceManifest(marketplaceDir: string): MarketplaceMan
 // (e.g., "./" or "./plugins/my-plugin") into a PluginSource object.
 function normalizePluginSource(rawSource: PluginSource | string, marketplaceDir: string): PluginSource {
   if (typeof rawSource === "string") {
-    // Relative path within the marketplace repo
     const resolvedPath = path.resolve(marketplaceDir, rawSource);
+    const normalizedBase = path.resolve(marketplaceDir) + path.sep;
+    if (!resolvedPath.startsWith(normalizedBase) && resolvedPath !== path.resolve(marketplaceDir)) {
+      throw new Error(`Plugin source "${rawSource}" escapes marketplace directory.`);
+    }
     return { source: "directory", path: resolvedPath };
   }
   return rawSource;
@@ -148,7 +151,11 @@ function copyDirRecursive(src: string, dest: string): void {
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
+    const stat = fs.lstatSync(srcPath);
+    if (stat.isSymbolicLink()) {
+      continue;
+    }
+    if (stat.isDirectory()) {
       copyDirRecursive(srcPath, destPath);
     } else {
       fs.copyFileSync(srcPath, destPath);
@@ -205,7 +212,7 @@ export function unlinkPluginSkills(pluginDir: string): string[] {
     try {
       if (fs.existsSync(linkPath) && fs.lstatSync(linkPath).isSymbolicLink()) {
         const target = fs.readlinkSync(linkPath);
-        if (typeof target === "string" && target.includes(pluginDir)) {
+        if (typeof target === "string" && (target === pluginDir || target.startsWith(pluginDir + path.sep))) {
           fs.unlinkSync(linkPath);
           unlinked.push(entry.name);
         }
