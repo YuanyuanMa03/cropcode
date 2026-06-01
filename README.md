@@ -40,7 +40,7 @@
 ## 🎬 Demo
 
 <div align="center">
-  <video src="resources/demo.mp4" controls width="700"></video>
+  <video src="https://raw.githubusercontent.com/YuanyuanMa03/cropcode/main/resources/demo.mp4" controls width="700"></video>
 </div>
 
 ## 🚀 Quick Start
