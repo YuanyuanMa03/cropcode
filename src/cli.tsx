@@ -7,12 +7,16 @@ import { AppContainer } from "./ui";
 const args = process.argv.slice(2);
 const packageInfo = readPackageInfo();
 
-if (args.includes("--version") || args.includes("-v")) {
+// Handle marketplace CLI subcommands before TUI launch
+if (args[0] === "marketplace" || args[0] === "plugin") {
+  void handleMarketplaceCommand(args).then(
+    () => process.exit(0),
+    () => process.exit(1)
+  );
+} else if (args.includes("--version") || args.includes("-v")) {
   process.stdout.write(`${packageInfo.version || "unknown"}\n`);
   process.exit(0);
-}
-
-if (args.includes("--help") || args.includes("-h")) {
+} else if (args.includes("--help") || args.includes("-h")) {
   process.stdout.write(
     [
       "cropcode - CropCode CLI",
@@ -23,6 +27,14 @@ if (args.includes("--help") || args.includes("-h")) {
       "  cropcode --prompt <prompt>            Same as -p",
       "  cropcode --version                    Print the version",
       "  cropcode --help                       Show this help",
+      "",
+      "Marketplace:",
+      "  cropcode marketplace add <url>        Register a plugin marketplace",
+      "  cropcode marketplace list             List registered marketplaces",
+      "  cropcode marketplace remove <name>    Remove a marketplace",
+      "  cropcode plugin install <n>@<m>       Install a plugin from a marketplace",
+      "  cropcode plugin list                  List installed plugins",
+      "  cropcode plugin remove <name>         Remove an installed plugin",
       "",
       "Configuration:",
       "  ~/.cropcode/settings.json    User-level API key, model, base URL",
@@ -69,12 +81,128 @@ let initialPrompt = extractInitialPrompt(args);
 const projectRoot = process.cwd();
 configureWindowsShell();
 
-if (!process.stdin.isTTY) {
-  process.stderr.write("cropcode requires an interactive terminal (TTY). " + "Re-run from a real terminal session.\n");
-  process.exit(1);
+const isMarketplaceCommand = args[0] === "marketplace" || args[0] === "plugin";
+
+if (isMarketplaceCommand) {
+  // Already handled above; wait for the async handler to exit.
+} else {
+  if (!process.stdin.isTTY) {
+    process.stderr.write(
+      "cropcode requires an interactive terminal (TTY). " + "Re-run from a real terminal session.\n"
+    );
+    process.exit(1);
+  }
+  void main();
 }
 
-void main();
+async function handleMarketplaceCommand(argv: string[]): Promise<void> {
+  const { addMarketplace, removeMarketplace, listMarketplaces, installPlugin, removePlugin, listInstalledPlugins } =
+    await import("./marketplace");
+  const subcommand = argv[0];
+  const action = argv[1];
+
+  try {
+    if (subcommand === "marketplace") {
+      if (action === "add") {
+        const url = argv[2];
+        if (!url) {
+          process.stderr.write("Usage: cropcode marketplace add <git-url|github-repo> [--ref <branch>]\n");
+          process.exit(1);
+        }
+        const refIdx = argv.indexOf("--ref");
+        const ref = refIdx !== -1 && argv[refIdx + 1] ? argv[refIdx + 1] : undefined;
+
+        // Parse source
+        const source = url.includes("://")
+          ? { source: "url" as const, url, ref }
+          : { source: "github" as const, repo: url, ref };
+
+        // Derive marketplace name from repo
+        const name = url.includes("/")
+          ? url
+              .split("/")
+              .pop()!
+              .replace(/\.git$/, "")
+          : url;
+
+        process.stdout.write(`Fetching marketplace "${name}"...\n`);
+        const manifest = addMarketplace(name, source);
+        process.stdout.write(`✓ Marketplace "${name}" added.\n`);
+        process.stdout.write(`  ${manifest.description ?? manifest.name}\n`);
+        process.stdout.write(`  Plugins: ${manifest.plugins.map((p) => p.name).join(", ")}\n`);
+      } else if (action === "list") {
+        const marketplaces = listMarketplaces();
+        if (marketplaces.length === 0) {
+          process.stdout.write("No marketplaces registered. Use: cropcode marketplace add <url>\n");
+          return;
+        }
+        for (const mp of marketplaces) {
+          process.stdout.write(`\n📦 ${mp.name}${mp.manifest?.description ? ` — ${mp.manifest.description}` : ""}\n`);
+          if (mp.manifest) {
+            for (const p of mp.manifest.plugins) {
+              process.stdout.write(`   • ${p.name}: ${p.description}\n`);
+            }
+          } else {
+            process.stdout.write(`   (could not load manifest)\n`);
+          }
+        }
+      } else if (action === "remove") {
+        const name = argv[2];
+        if (!name) {
+          process.stderr.write("Usage: cropcode marketplace remove <name>\n");
+          process.exit(1);
+        }
+        removeMarketplace(name);
+        process.stdout.write(`✓ Marketplace "${name}" removed.\n`);
+      } else {
+        process.stderr.write(
+          "Usage:\n  cropcode marketplace add <git-url|github-repo> [--ref <branch>]\n  cropcode marketplace list\n  cropcode marketplace remove <name>\n"
+        );
+      }
+    } else if (subcommand === "plugin") {
+      if (action === "install") {
+        const pluginRef = argv[2];
+        if (!pluginRef || !pluginRef.includes("@")) {
+          process.stderr.write("Usage: cropcode plugin install <plugin-name>@<marketplace-name>\n");
+          process.exit(1);
+        }
+        const [pluginName, marketplaceName] = pluginRef.split("@");
+        process.stdout.write(`Installing plugin "${pluginName}" from "${marketplaceName}"...\n`);
+        const skills = installPlugin(pluginName, marketplaceName);
+        process.stdout.write(`✓ Plugin "${pluginName}" installed.\n`);
+        if (skills.length > 0) {
+          process.stdout.write(`  Skills linked: ${skills.join(", ")}\n`);
+        }
+      } else if (action === "list") {
+        const plugins = listInstalledPlugins();
+        if (plugins.length === 0) {
+          process.stdout.write("No plugins installed. Use: cropcode plugin install <name>@<marketplace>\n");
+          return;
+        }
+        for (const { name, config } of plugins) {
+          process.stdout.write(
+            `  • ${name} (from ${config.marketplace}, installed ${config.installedAt.split("T")[0]})\n`
+          );
+        }
+      } else if (action === "remove") {
+        const name = argv[2];
+        if (!name) {
+          process.stderr.write("Usage: cropcode plugin remove <name>\n");
+          process.exit(1);
+        }
+        removePlugin(name);
+        process.stdout.write(`✓ Plugin "${name}" removed.\n`);
+      } else {
+        process.stderr.write(
+          "Usage:\n  cropcode plugin install <plugin-name>@<marketplace-name>\n  cropcode plugin list\n  cropcode plugin remove <name>\n"
+        );
+      }
+    }
+  } catch (error) {
+    process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
+    process.exit(1);
+  }
+}
 
 async function main(): Promise<void> {
   const updatePromptResult = await promptForPendingUpdate(packageInfo);
