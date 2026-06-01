@@ -25,19 +25,19 @@ npm link
 
 ## 配置
 
-创建 `~/.cropcode/settings.json` 文件：
+将配置模版复制到用户目录，并填入你的 API Key：
 
-```json
-{
-  "env": {
-    "MODEL": "deepseek-v4-pro",
-    "BASE_URL": "https://api.deepseek.com",
-    "API_KEY": "sk-..."
-  },
-  "thinkingEnabled": true,
-  "reasoningEffort": "max"
-}
+```bash
+# DeepSeek（推荐）
+cp templates/settings/settings.json ~/.cropcode/settings.json
+
+# 或 OpenAI
+cp templates/settings/settings-openai.json ~/.cropcode/settings.json
 ```
+
+编辑 `~/.cropcode/settings.json`，将 `API_KEY` 替换为你的真实密钥。
+
+更多配置选项详见 [docs/configuration.md](docs/configuration.md)。
 
 ## 核心能力
 

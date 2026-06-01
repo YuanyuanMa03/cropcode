@@ -1,0 +1,9 @@
+{
+  "env": {
+    "MODEL": "gpt-4o",
+    "BASE_URL": "https://api.openai.com/v1",
+    "API_KEY": "sk-YOUR_OPENAI_API_KEY"
+  },
+  "thinkingEnabled": false,
+  "reasoningEffort": "high"
+}

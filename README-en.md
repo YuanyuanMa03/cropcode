@@ -25,19 +25,19 @@ Run `cropcode` in any project directory.
 
 ## Configuration
 
-Create `~/.cropcode/settings.json`:
+Copy a settings template to your home directory and fill in your API key:
 
-```json
-{
-  "env": {
-    "MODEL": "deepseek-v4-pro",
-    "BASE_URL": "https://api.deepseek.com",
-    "API_KEY": "sk-..."
-  },
-  "thinkingEnabled": true,
-  "reasoningEffort": "max"
-}
+```bash
+# DeepSeek (recommended)
+cp templates/settings/settings.json ~/.cropcode/settings.json
+
+# or OpenAI
+cp templates/settings/settings-openai.json ~/.cropcode/settings.json
 ```
+
+Edit `~/.cropcode/settings.json` and replace `API_KEY` with your actual key.
+
+For more options, see [docs/configuration_en.md](docs/configuration_en.md).
 
 ## Core Features
 
