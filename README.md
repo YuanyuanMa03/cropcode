@@ -31,16 +31,10 @@
 - 🎯 **Skills System** — Extensible skill architecture for custom domain knowledge and workflows
 - 💬 **Multi-Session** — Session management with undo, resume, and conversation compaction
 
-## 📸 Screenshots
+## 📸 Screenshot
 
 <div align="center">
-  <img src="resources/intro1.png" alt="CropCode Chat Interface" width="700" />
-  <br/>
-  <em>Interactive agent session with tool execution and reasoning display</em>
-  <br/><br/>
-  <img src="resources/intro2.png" alt="CropCode Features" width="700" />
-  <br/>
-  <em>Crop model simulation and data analysis</em>
+  <img src="resources/intro.png" alt="CropCode Terminal Interface" width="700" />
 </div>
 
 ## 🚀 Quick Start
