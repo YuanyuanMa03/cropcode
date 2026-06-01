@@ -122,11 +122,17 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
         </Box>
       );
     }
-    if (message.meta?.kind === "info" || message.meta?.kind === "marketplace" || message.meta?.kind === "plugin") {
+    if (
+      message.meta?.kind === "info" ||
+      message.meta?.kind === "marketplace" ||
+      message.meta?.kind === "plugin" ||
+      message.meta?.kind === "error"
+    ) {
+      const color = message.meta.kind === "error" ? "red" : "cyan";
       return (
         <Box marginY={0} marginLeft={1} marginBottom={1} flexDirection="column">
           {(message.content ?? "").split("\n").map((line, i) => (
-            <Text key={i} color="cyan">
+            <Text key={i} color={color}>
               {line}
             </Text>
           ))}

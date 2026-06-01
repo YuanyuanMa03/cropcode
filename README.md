@@ -141,6 +141,37 @@ CropCode operates as a fully autonomous agent:
 3. Writes results and reports
 4. Handles errors and retries automatically
 
+### Skills & Plugin Marketplace
+
+CropCode's skill system is fully extensible. You have multiple ways to find and install skills:
+
+**Quick Start — Install from a community marketplace:**
+
+```bash
+# Register a marketplace (e.g. nature-skills)
+cropcode marketplace add https://github.com/Yuan1z0825/nature-skills.git
+
+# Browse available skills
+cropcode marketplace list
+
+# Install a skill
+cropcode plugin install <skill-name>@nature-skills
+```
+
+**Other ways to get skills:**
+
+| Method | How |
+|--------|-----|
+| Community marketplaces | `cropcode marketplace add <github-url>` — browse and install curated skill collections |
+| Write your own | Create `~/.agents/skills/my-skill/SKILL.md` — no installation needed |
+| Per-project skills | Place in `<project>/.agents/skills/` — available only in that project |
+| Local directory | `cropcode marketplace add /path/to/skills` — use a local folder as marketplace |
+| Git clone | Clone any skill repo and register it as a local marketplace |
+
+Type `/` in the prompt to see all available skills, or `/marketplace` to manage marketplaces.
+
+> **Full documentation:** [docs/plugins-skills-marketplace.md](docs/plugins-skills-marketplace.md) — includes how to create your own marketplace, write custom skills, and share with your team.
+
 ### MCP Integration
 
 Connect external services via Model Context Protocol:
@@ -172,6 +203,8 @@ See [docs/mcp_en.md](docs/mcp_en.md) for detailed setup.
 | Switch model | `/model` |
 | Crop model simulation | `/crop-model` |
 | List skills | `/skills` |
+| Marketplace | `/marketplace` |
+| Installed plugins | `/plugin` |
 | New session | `/new` |
 | Resume session | `/resume` |
 | Undo | `/undo` |
@@ -357,6 +390,37 @@ CropCode 原生理解农业数据，直接处理产量、气象和土壤数据�
 > 把这个结果整理成 LaTeX 表格，符合《作物学报》格式
 ```
 
+### 技能与插件市场
+
+CropCode 的技能系统完全可扩展，你可以自由选择获取和管理技能的方式：
+
+**快速开始 — 从社区市场安装：**
+
+```bash
+# 注册一个市场（例如 nature-skills）
+cropcode marketplace add https://github.com/Yuan1z0825/nature-skills.git
+
+# 浏览可用技能
+cropcode marketplace list
+
+# 安装技能
+cropcode plugin install <技能名>@nature-skills
+```
+
+**其他获取技能的方式：**
+
+| 方式 | 操作 |
+|------|------|
+| 社区市场 | `cropcode marketplace add <github地址>` — 浏览并安装精选技能集合 |
+| 自己编写 | 在 `~/.agents/skills/我的技能/SKILL.md` 创建即可，无需安装 |
+| 项目级技能 | 放在 `<项目>/.agents/skills/` 下，仅当前项目可用 |
+| 本地目录 | `cropcode marketplace add /路径/技能目录` — 用本地文件夹作为市场 |
+| Git 克隆 | 克隆任意技能仓库，注册为本地市场即可使用 |
+
+在提示符中输入 `/` 查看所有可用技能，或输入 `/marketplace` 管理市场。
+
+> **完整文档：** [docs/plugins-skills-marketplace.md](docs/plugins-skills-marketplace.md) — 包含如何创建自己的市场、编写自定义技能、以及与团队共享。
+
 ### MCP 集成
 
 通过 Model Context Protocol 连接 GitHub 等外部服务：
@@ -388,6 +452,8 @@ CropCode 原生理解农业数据，直接处理产量、气象和土壤数据�
 | 切换模型 | `/model` |
 | 作物模型 | `/crop-model` |
 | 查看技能 | `/skills` |
+| 插件市场 | `/marketplace` |
+| 已装插件 | `/plugin` |
 | 新会话 | `/new` |
 | 恢复会话 | `/resume` |
 | 撤销 | `/undo` |
