@@ -1,0 +1,2 @@
+Species*,Exp*,Trt*,Label,weather,CO2,SowingDate,HarvestDate,SoilName,Cultivar,IrrigationTrt,MaxIntercept,InitialBio,InitialTT,InitialFsolar,NOTE
+wheat,Custom,1,Custom Simulation,NASA2301,350,231101,,CustomSoil,冬小麦-长江中下游,1,0.95,1,0,0.001,Custom
