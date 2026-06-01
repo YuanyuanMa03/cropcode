@@ -12,6 +12,8 @@ export type SlashCommandKind =
   | "mcp"
   | "raw"
   | "crop-model"
+  | "marketplace"
+  | "plugin"
   | "exit";
 
 export type SlashCommandItem = {
@@ -77,6 +79,18 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
     name: "crop-model",
     label: "/crop-model",
     description: "Run crop model simulation (RiceGrow, CH4MOD, DSSAT)",
+  },
+  {
+    kind: "marketplace",
+    name: "marketplace",
+    label: "/marketplace",
+    description: "Manage plugin marketplaces (add, list, remove)",
+  },
+  {
+    kind: "plugin",
+    name: "plugin",
+    label: "/plugin",
+    description: "Manage plugins (install, list, remove)",
   },
   {
     kind: "raw",

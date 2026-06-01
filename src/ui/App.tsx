@@ -5,6 +5,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { createOpenAIClient } from "../common/openai-client";
+import { listMarketplaces, listInstalledPlugins } from "../marketplace";
 import {
   type LlmStreamProgress,
   type MessageMeta,
@@ -249,6 +250,122 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         setShowWelcome(false);
         setMcpStatuses(sessionManager.getMcpStatus());
         setView("mcp-status");
+        return;
+      }
+      if (submission.command === "marketplace") {
+        setShowWelcome(false);
+        try {
+          const marketplaces = listMarketplaces();
+          const lines: string[] = [];
+          if (marketplaces.length === 0) {
+            lines.push("No marketplaces registered.");
+            lines.push("Use: cropcode marketplace add <git-url|github-repo|local-path>");
+          } else {
+            lines.push(`Registered marketplaces (${marketplaces.length}):`);
+            for (const mp of marketplaces) {
+              lines.push(`  [${mp.name}]${mp.manifest?.description ? ` — ${mp.manifest.description}` : ""}`);
+              if (mp.manifest) {
+                for (const p of mp.manifest.plugins) {
+                  lines.push(`    - ${p.name}: ${p.description}`);
+                }
+              }
+            }
+          }
+          lines.push("");
+          lines.push("Commands:");
+          lines.push("  cropcode marketplace add <url>      Register a marketplace");
+          lines.push("  cropcode marketplace remove <name>  Remove a marketplace");
+          lines.push("  cropcode plugin install <n>@<m>     Install a plugin");
+          lines.push("  cropcode plugin list                List installed plugins");
+          lines.push("  cropcode plugin remove <name>       Remove a plugin");
+          const now = new Date().toISOString();
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `local-${Math.random().toString(36).slice(2)}`,
+              sessionId: "local",
+              role: "system",
+              content: lines.join("\n"),
+              contentParams: null,
+              messageParams: null,
+              compacted: false,
+              visible: true,
+              createTime: now,
+              updateTime: now,
+            },
+          ]);
+        } catch (error) {
+          const now = new Date().toISOString();
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `local-${Math.random().toString(36).slice(2)}`,
+              sessionId: "local",
+              role: "system",
+              content: `Error: ${error instanceof Error ? error.message : String(error)}`,
+              contentParams: null,
+              messageParams: null,
+              compacted: false,
+              visible: true,
+              createTime: now,
+              updateTime: now,
+            },
+          ]);
+        }
+        return;
+      }
+      if (submission.command === "plugin") {
+        setShowWelcome(false);
+        try {
+          const plugins = listInstalledPlugins();
+          const lines: string[] = [];
+          if (plugins.length === 0) {
+            lines.push("No plugins installed.");
+            lines.push("Use: cropcode plugin install <name>@<marketplace>");
+          } else {
+            lines.push(`Installed plugins (${plugins.length}):`);
+            for (const { name, config } of plugins) {
+              lines.push(`  - ${name} (from ${config.marketplace}, installed ${config.installedAt.split("T")[0]})`);
+            }
+          }
+          lines.push("");
+          lines.push("Commands:");
+          lines.push("  cropcode plugin install <n>@<m>  Install a plugin");
+          lines.push("  cropcode plugin remove <name>   Remove a plugin");
+          const now = new Date().toISOString();
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `local-${Math.random().toString(36).slice(2)}`,
+              sessionId: "local",
+              role: "system",
+              content: lines.join("\n"),
+              contentParams: null,
+              messageParams: null,
+              compacted: false,
+              visible: true,
+              createTime: now,
+              updateTime: now,
+            },
+          ]);
+        } catch (error) {
+          const now = new Date().toISOString();
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `local-${Math.random().toString(36).slice(2)}`,
+              sessionId: "local",
+              role: "system",
+              content: `Error: ${error instanceof Error ? error.message : String(error)}`,
+              contentParams: null,
+              messageParams: null,
+              compacted: false,
+              visible: true,
+              createTime: now,
+              updateTime: now,
+            },
+          ]);
+        }
         return;
       }
 
