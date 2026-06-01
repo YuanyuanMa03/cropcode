@@ -37,7 +37,7 @@ export type MarketplacePluginEntry = {
   description: string;
   author?: { name: string; email?: string };
   category?: string;
-  source: PluginSource;
+  source: PluginSource | string;
   homepage?: string;
   version?: string;
 };

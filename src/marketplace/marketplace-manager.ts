@@ -130,14 +130,14 @@ export function installPlugin(pluginName: string, marketplaceName: string): stri
     throw new Error(`Plugin "${pluginName}" is already installed.`);
   }
 
-  const { manifest } = getMarketplaceManifest(marketplaceName);
+  const { manifest, dir: marketplaceDir } = getMarketplaceManifest(marketplaceName);
   const pluginEntry = manifest.plugins.find((p) => p.name === pluginName);
   if (!pluginEntry) {
     const available = manifest.plugins.map((p) => p.name).join(", ");
     throw new Error(`Plugin "${pluginName}" not found in marketplace "${marketplaceName}". Available: ${available}`);
   }
 
-  const pluginDir = installPluginToCache(pluginEntry, marketplaceName);
+  const pluginDir = installPluginToCache(pluginEntry, marketplaceName, marketplaceDir);
   const linkedSkills = linkPluginSkills(pluginDir);
 
   if (!settings.installedPlugins) {

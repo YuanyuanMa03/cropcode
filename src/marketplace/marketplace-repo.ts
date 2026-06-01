@@ -94,22 +94,43 @@ export function parseMarketplaceManifest(marketplaceDir: string): MarketplaceMan
   return null;
 }
 
-export function installPluginToCache(pluginEntry: MarketplacePluginEntry, marketplaceName: string): string {
+// Normalize a plugin source that might be a relative path string
+// (e.g., "./" or "./plugins/my-plugin") into a PluginSource object.
+function normalizePluginSource(rawSource: PluginSource | string, marketplaceDir: string): PluginSource {
+  if (typeof rawSource === "string") {
+    // Relative path within the marketplace repo
+    const resolvedPath = path.resolve(marketplaceDir, rawSource);
+    return { source: "directory", path: resolvedPath };
+  }
+  return rawSource;
+}
+
+export function installPluginToCache(
+  pluginEntry: MarketplacePluginEntry,
+  marketplaceName: string,
+  marketplaceDir: string
+): string {
   const cacheDir = path.join(getPluginsCacheDir(), marketplaceName, pluginEntry.name);
   ensureDir(path.dirname(cacheDir));
 
-  if (pluginEntry.source.source === "directory") {
-    return pluginEntry.source.path;
+  const source = normalizePluginSource(pluginEntry.source, marketplaceDir);
+
+  if (source.source === "directory") {
+    if (fs.existsSync(cacheDir)) {
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+    }
+    copyDirRecursive(source.path, cacheDir);
+    return cacheDir;
   }
 
-  const { url, ref } = resolveSourceUrl(pluginEntry.source);
+  const { url, ref } = resolveSourceUrl(source);
 
-  if (pluginEntry.source.source === "git-subdir") {
+  if (source.source === "git-subdir") {
     const tmpDir = path.join(getPluginsCacheDir(), ".tmp", `${marketplaceName}-${pluginEntry.name}`);
     cloneOrPullRepo(url, tmpDir, ref);
-    const subDir = path.join(tmpDir, pluginEntry.source.path);
+    const subDir = path.join(tmpDir, source.path);
     if (!fs.existsSync(subDir)) {
-      throw new Error(`Subdirectory not found: ${pluginEntry.source.path}`);
+      throw new Error(`Subdirectory not found: ${source.path}`);
     }
     if (fs.existsSync(cacheDir)) {
       fs.rmSync(cacheDir, { recursive: true, force: true });
