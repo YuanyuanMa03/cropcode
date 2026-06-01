@@ -34,7 +34,7 @@
 ## 📸 Screenshot
 
 <div align="center">
-  <img src="resources/intro.png" alt="CropCode Terminal Interface" width="700" />
+  <img src="resources/demo.gif" alt="CropCode Demo" width="420" />
 </div>
 
 ## 🚀 Quick Start
