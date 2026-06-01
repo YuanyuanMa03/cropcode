@@ -188,6 +188,7 @@ export type MessageMeta = {
   isSummary?: boolean;
   isModelChange?: boolean;
   skill?: SkillInfo;
+  kind?: "info" | "marketplace" | "plugin" | "error";
 };
 
 export type SessionMessage = {

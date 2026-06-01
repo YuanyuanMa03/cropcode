@@ -122,6 +122,17 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
         </Box>
       );
     }
+    if (message.meta?.kind === "info" || message.meta?.kind === "marketplace" || message.meta?.kind === "plugin") {
+      return (
+        <Box marginY={0} marginLeft={1} marginBottom={1} flexDirection="column">
+          {(message.content ?? "").split("\n").map((line, i) => (
+            <Text key={i} color="cyan">
+              {line}
+            </Text>
+          ))}
+        </Box>
+      );
+    }
     return null;
   }
 

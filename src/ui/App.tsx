@@ -292,6 +292,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
               visible: true,
               createTime: now,
               updateTime: now,
+              meta: { kind: "marketplace" },
             },
           ]);
         } catch (error) {
@@ -309,6 +310,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
               visible: true,
               createTime: now,
               updateTime: now,
+              meta: { kind: "error" },
             },
           ]);
         }
@@ -346,6 +348,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
               visible: true,
               createTime: now,
               updateTime: now,
+              meta: { kind: "plugin" },
             },
           ]);
         } catch (error) {
@@ -363,6 +366,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
               visible: true,
               createTime: now,
               updateTime: now,
+              meta: { kind: "error" },
             },
           ]);
         }
