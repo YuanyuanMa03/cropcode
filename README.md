@@ -37,6 +37,12 @@
   <img src="resources/intro.png" alt="CropCode Terminal Interface" width="700" />
 </div>
 
+## 🎬 Demo
+
+<div align="center">
+  <video src="resources/demo.mp4" controls width="700"></video>
+</div>
+
 ## 🚀 Quick Start
 
 ### Install
