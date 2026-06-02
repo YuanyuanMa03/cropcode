@@ -10,7 +10,7 @@
 [![Node.js >=22](https://img.shields.io/badge/Node.js-%3E%3D22-green.svg)](https://nodejs.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/mayuanyuan/cropcode/pulls)
 
-*An intelligent terminal coding assistant purpose-built for agricultural scientists, agronomists, and researchers — bridging AI with crop modeling, statistical analysis, and scientific computing.*
+*An intelligent terminal coding assistant with deep thinking, tool use, and multi-turn reasoning — for data analysis, scripting, and scientific computing.*
 
 [English](#english) · [中文](#中文)
 
@@ -24,8 +24,7 @@
 
 - 🤖 **AI Agent** — Autonomous coding agent with deep thinking, tool use (bash, read, write, edit, web search), and multi-turn reasoning
 - 🧠 **Deep Reasoning** — Powered by DeepSeek V4 with configurable thinking mode and reasoning effort control
-- 🌱 **Agriculture-First** — Built-in support for crop models (RiceGrow, CH4MOD, DSSAT, APSIM), field experiment design, and yield analysis
-- 📊 **Data Analysis** — Native Python (pandas/numpy/scipy/matplotlib) and R integration for statistical computing
+- 🌱 **Data Analysis** — Native Python (pandas/numpy/scipy/matplotlib) and R integration for data processing and statistical computing
 - 📄 **Paper Tools** — LaTeX typesetting, reference management, and figure generation
 - 🔌 **MCP Integration** — Connect external tools via Model Context Protocol (GitHub, browser, databases, and more)
 - 🎯 **Skills System** — Extensible skill architecture for custom domain knowledge and workflows
@@ -89,46 +88,22 @@ cropcode
 
 ## 🌿 Core Features
 
-### Agricultural Data Analysis
+### Data Analysis
 
-CropCode understands agricultural data natively. Ask it to clean, analyze, and visualize yield, weather, and soil data.
+CropCode handles data analysis natively with Python and R integration.
 
 ```
-> 分析这三年水稻产量数据，做方差分析并绘制产量趋势图
+> 分析这个CSV数据，做统计摘要并绘制分布图
 ```
 
-- Yield data, meteorological data, soil data processing
+- Data cleaning, transformation, and visualization
 - Python (pandas/numpy/scipy/matplotlib) + R
-- ANOVA, mean separation, regression modeling
-
-### Crop Model Simulation
-
-Run and calibrate crop models directly from the terminal.
-
-```
-> /crop-model
-> 用 RiceGrow 模拟南京地区 2024 年水稻生长，品种为南粳46
-```
-
-- **RiceGrow** — Rice growth simulation
-- **CH4MOD** — Methane emission modeling
-- **DSSAT** — Decision Support System for Agrotechnology Transfer
-- **APSIM** — Agricultural Production Systems Simulator
-
-### Experiment Design & Statistics
-
-```
-> 设计一个三因素三水平的正交试验，分析氮肥、密度、播期对产量的影响
-```
-
-- Randomized complete block design (RCBD), split-plot, orthogonal design
-- ANOVA, multiple comparison, regression modeling
-- Field experiment data processing
+- Statistical modeling, regression, ANOVA
 
 ### Paper & Writing Tools
 
 ```
-> 把这个结果整理成 LaTeX 表格，符合 Crop Science 期刊格式
+> 把这个结果整理成 LaTeX 表格
 ```
 
 - LaTeX typesetting and reference management
@@ -138,7 +113,7 @@ Run and calibrate crop models directly from the terminal.
 ### Agent Capabilities
 
 ```
-> 读取 data/yield.csv，清洗异常值，用 R 做多重比较分析，把结果写成 markdown 报告
+> 读取 data/results.csv，清洗异常值，做统计分析，把结果写成 markdown 报告
 ```
 
 CropCode operates as a fully autonomous agent:
@@ -207,7 +182,6 @@ See [docs/mcp_en.md](docs/mcp_en.md) for detailed setup.
 | Interrupt generation | `Esc` |
 | Command menu | `/` |
 | Switch model | `/model` |
-| Crop model simulation | `/crop-model` |
 | List skills | `/skills` |
 | Marketplace | `/marketplace` |
 | Installed plugins | `/plugin` |
@@ -304,7 +278,7 @@ Contributions are welcome! Whether it's bug fixes, new features, skills, or docu
 
 **专为农业科研设计的 AI 编程助手**
 
-*面向农学家、农业科研人员和数据分析师的智能终端编程助手，将 AI 与作物模型、统计分析和科学计算深度融合。*
+*具备深度思考、工具调用和多轮推理能力的智能终端编程助手，适用于数据分析、脚本编写和科学计算。*
 
 </div>
 
@@ -312,8 +286,7 @@ Contributions are welcome! Whether it's bug fixes, new features, skills, or docu
 
 - 🤖 **自主 Agent** — 具备深度思考、工具调用（bash/read/write/edit/web search）和多轮推理能力的自主编程助手
 - 🧠 **深度推理** — 基于 DeepSeek V4，支持思考模式和推理强度控制
-- 🌱 **农业专精** — 内置作物模型（RiceGrow、CH4MOD、DSSAT、APSIM）、田间试验设计和产量分析支持
-- 📊 **数据分析** — 原生 Python (pandas/numpy/scipy/matplotlib) 和 R 集成
+- 🌱 **数据分析** — 原生 Python (pandas/numpy/scipy/matplotlib) 和 R 集成，支持数据处理和统计计算
 - 📄 **论文工具** — LaTeX 排版、参考文献管理、图表生成
 - 🔌 **MCP 集成** — 通过 Model Context Protocol 连接外部工具（GitHub、浏览器、数据库等）
 - 🎯 **技能系统** — 可扩展的技能架构，支持自定义领域知识和工作流
@@ -365,35 +338,18 @@ cropcode
 
 ## 🌿 功能详解
 
-### 农业数据分析
+### 数据分析
 
-CropCode 原生理解农业数据，直接处理产量、气象和土壤数据的清洗、分析和可视化。
-
-```
-> 分析这三年水稻产量数据，做方差分析并绘制产量趋势图
-```
-
-### 作物模型模拟
+CropCode 原生支持数据清洗、统计分析和可视化。
 
 ```
-> /crop-model
-> 用 RiceGrow 模拟南京地区 2024 年水稻生长，品种为南粳46
+> 分析这个CSV数据，做统计摘要并绘制分布图
 ```
-
-支持 RiceGrow、CH4MOD、DSSAT、APSIM 等主流作物模型的调用与参数校准。
-
-### 实验设计与统计
-
-```
-> 设计一个三因素三水平的正交试验，分析氮肥、密度、播期对产量的影响
-```
-
-支持随机区组、裂区、正交设计，以及方差分析、多重比较、回归建模。
 
 ### 论文写作工具
 
 ```
-> 把这个结果整理成 LaTeX 表格，符合《作物学报》格式
+> 把这个结果整理成 LaTeX 表格
 ```
 
 ### 技能与插件市场
@@ -456,7 +412,6 @@ cropcode plugin install <技能名>@nature-skills
 | 中断生成 | `Esc` |
 | 命令菜单 | `/` |
 | 切换模型 | `/model` |
-| 作物模型 | `/crop-model` |
 | 查看技能 | `/skills` |
 | 插件市场 | `/marketplace` |
 | 已装插件 | `/plugin` |

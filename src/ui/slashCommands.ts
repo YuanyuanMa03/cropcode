@@ -75,12 +75,6 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
     description: "Show MCP server status and available tools",
   },
   {
-    kind: "crop-model",
-    name: "crop-model",
-    label: "/crop-model",
-    description: "Run crop model simulation (RiceGrow, CH4MOD, DSSAT)",
-  },
-  {
     kind: "marketplace",
     name: "marketplace",
     label: "/marketplace",

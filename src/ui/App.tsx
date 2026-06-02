@@ -669,6 +669,10 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
 
   const screenWidth = useMemo(() => columns ?? stdout?.columns ?? 80, [columns, stdout]);
   const screenHeight = useMemo(() => rows ?? stdout?.rows ?? 24, [rows, stdout]);
+  const totalTokens = useMemo(
+    () => sessions.reduce((sum, s) => sum + (typeof s.usage?.total_tokens === "number" ? s.usage.total_tokens : 0), 0),
+    [sessions]
+  );
   const promptHistory = useMemo(() => {
     return messages
       .filter((message) => message.role === "user" && typeof message.content === "string")
@@ -742,6 +746,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
                 settings={resolvedSettings}
                 skills={skills}
                 width={screenWidth}
+                totalTokens={totalTokens}
               />
             );
           }
@@ -888,11 +893,18 @@ function isCurrentSessionEmpty(sessionManager: SessionManager): boolean {
   return !activeSessionId || !sessionManager.getSession(activeSessionId);
 }
 
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
 function buildStatusLine(entry: SessionEntry): string {
   const parts: string[] = [];
   parts.push(`status: ${entry.status}`);
-  if (typeof entry.activeTokens === "number" && entry.activeTokens > 0) {
-    parts.push(`tokens: ${entry.activeTokens}`);
+  const total = typeof entry.usage?.total_tokens === "number" ? entry.usage.total_tokens : 0;
+  if (total > 0) {
+    parts.push(`session: ${formatTokens(total)}`);
   }
   if (entry.failReason) {
     parts.push(`fail: ${entry.failReason}`);

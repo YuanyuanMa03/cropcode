@@ -14,23 +14,30 @@ type WelcomeScreenProps = {
   settings: ResolvedDeepcodingSettings;
   skills: SkillInfo[];
   width: number;
+  totalTokens: number;
 };
 
 const TITLE_PANEL_WIDTH = 70;
 const PANEL_CONTENT_HEIGHT = 10;
 
 const AGRICULTURAL_TIPS = [
-  { label: "🌱 Rice Growth", description: "Use /crop-model to run RiceGrow simulations with parameter calibration" },
   { label: "📊 Data Analysis", description: "Paste CSV data and ask CropCode to clean, analyze and visualize" },
-  { label: "🧪 Experiment Design", description: "Describe your trial and get a randomized block design" },
-  { label: "📄 Paper Tools", description: "Ask for LaTeX tables, figures, and reference formatting" },
-  { label: "🌡️ Weather Data", description: "Import meteorological data and compute growing degree days" },
-  { label: "🌿 CH₄ Emissions", description: "Model methane emissions from paddy fields with CH4MOD" },
-  { label: "🧬 Crop Breeding", description: "Analyze variety comparison trials with ANOVA and mean separation" },
-  { label: "🌾 Yield Prediction", description: "Build ML models from historical yield and weather data" },
+  { label: "🔬 Code Review", description: "Ask CropCode to review your code for bugs and improvements" },
+  { label: "🧪 Testing", description: "Generate unit tests for your functions with edge cases" },
+  { label: "📄 Documentation", description: "Generate README, API docs, and inline comments" },
+  { label: "🔧 Debugging", description: "Paste an error message and get step-by-step fix guidance" },
+  { label: "📈 Visualization", description: "Create plots and charts from your data with matplotlib/ggplot" },
+  { label: "🐍 Scripting", description: "Automate repetitive tasks with Python or Shell scripts" },
+  { label: "📐 Refactoring", description: "Improve code structure while preserving behavior" },
 ];
 
-export function WelcomeScreen({ projectRoot, settings, skills, width }: WelcomeScreenProps): React.ReactElement {
+export function WelcomeScreen({
+  projectRoot,
+  settings,
+  skills,
+  width,
+  totalTokens,
+}: WelcomeScreenProps): React.ReactElement {
   const { version } = useAppContext();
   const tips = useMemo(() => buildWelcomeTips(skills), [skills]);
   const [tipIndex] = useState(() => randomTipIndex(tips.length));
@@ -64,12 +71,14 @@ export function WelcomeScreen({ projectRoot, settings, skills, width }: WelcomeS
                 CropCode
               </Text>
               <Text color="gray"> (v{version || "unknown"})</Text>
-              <Text color={THEME_COLORS.gold}> 🌾 Agricultural Research Agent</Text>
+              <Text color={THEME_COLORS.gold}> 🌾 AI Coding Agent</Text>
             </Box>
+            {!compact ? <Text color="gray"> 为农业研究者打造，但能力远不止于此 ⚡</Text> : null}
             {!compact ? <Text> </Text> : null}
             <SettingRow label="Model" value={settings.model} />
             <SettingRow label="Thinking" value={settings.thinkingEnabled ? `${settings.reasoningEffort}` : "off"} />
             <SettingRow label="Skills" value={`${skills.filter((s) => s.isLoaded).length} loaded`} />
+            {totalTokens > 0 ? <SettingRow label="Total Tokens" value={formatTokenCount(totalTokens)} /> : null}
             <SettingRow label="CWD" value={cwd} />
           </Box>
         </Box>
@@ -128,4 +137,10 @@ export function buildWelcomeTips(skills: SkillInfo[]): Array<{ label: string; de
 
 function randomTipIndex(length: number): number {
   return length > 0 ? Math.floor(Math.random() * length) : 0;
+}
+
+function formatTokenCount(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}k`;
+  return String(tokens);
 }
