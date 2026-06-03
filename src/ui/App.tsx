@@ -54,6 +54,7 @@ import {
 import { buildExitSummaryText } from "./exitSummary";
 import { RawMode, useRawModeContext } from "./contexts";
 import { renderMessageToStdout } from "./components/MessageView/utils";
+import { ANSI_CLEAR_SCREEN } from "./constants";
 
 // Derive defaults from the first provider preset instead of hardcoding a specific vendor
 const FIRST_PROVIDER = BUILTIN_PROVIDERS[0];
@@ -198,6 +199,39 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     [sessionManager]
   );
 
+  const navigateToSubView = useCallback((targetView: View) => {
+    setShowWelcome(false);
+    setView(targetView);
+  }, []);
+
+  const resetStaticView = useCallback(
+    (loadedMessages: SessionMessage[], options?: { clearScreen?: boolean }) => {
+      if (options?.clearScreen) {
+        process.stdout.write(ANSI_CLEAR_SCREEN);
+      }
+      setMessages([]);
+      setWelcomeNonce((n) => n + 1);
+      navigateToSubView("chat");
+      setTimeout(() => {
+        setMessages(loadedMessages);
+        setShowWelcome(true);
+      }, 0);
+    },
+    [navigateToSubView]
+  );
+
+  const resetToWelcome = useCallback(async () => {
+    process.stdout.write(ANSI_CLEAR_SCREEN);
+    sessionManager.setActiveSessionId(null);
+    setStatusLine("");
+    setErrorLine(null);
+    setRunningProcesses(null);
+    setActiveStatus(null);
+    setDismissedQuestionIds(new Set());
+    resetStaticView([]);
+    await refreshSkills();
+  }, [sessionManager, resetStaticView, refreshSkills]);
+
   useEffect(() => {
     refreshSessionsList();
     void refreshSkills();
@@ -244,31 +278,19 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         if (onRestart) {
           onRestart();
         } else {
-          writeRef.current("\u001B[2J\u001B[3J\u001B[H");
-          sessionManager.setActiveSessionId(null);
-          setMessages([]);
-          setStatusLine("");
-          setErrorLine(null);
-          setRunningProcesses(null);
-          setActiveStatus(null);
-          setDismissedQuestionIds(new Set());
-          setShowWelcome(true);
-          setWelcomeNonce((n) => n + 1);
-          await refreshSkills();
+          await resetToWelcome();
           refreshSessionsList();
         }
         return;
       }
       if (submission.command === "resume") {
-        setShowWelcome(false);
         refreshSessionsList();
-        setView("session-list");
+        navigateToSubView("session-list");
         return;
       }
       if (submission.command === "continue" && isCurrentSessionEmpty(sessionManager)) {
-        setShowWelcome(false);
         refreshSessionsList();
-        setView("session-list");
+        navigateToSubView("session-list");
         return;
       }
       if (submission.command === "undo") {
@@ -277,20 +299,17 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           setErrorLine("No active session to undo.");
           return;
         }
-        setShowWelcome(false);
         setUndoTargets(sessionManager.listUndoTargets(activeSessionId));
-        setView("undo");
+        navigateToSubView("undo");
         return;
       }
       if (submission.command === "login") {
-        setShowWelcome(false);
-        setView("login");
+        navigateToSubView("login");
         return;
       }
       if (submission.command === "mcp") {
-        setShowWelcome(false);
         setMcpStatuses(sessionManager.getMcpStatus());
-        setView("mcp-status");
+        navigateToSubView("mcp-status");
         return;
       }
       if (submission.command === "marketplace") {
@@ -450,7 +469,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         setRunningProcesses(null);
       }
     },
-    [exit, onRestart, sessionManager, refreshSkills, refreshSessionsList]
+    [exit, onRestart, sessionManager, refreshSkills, refreshSessionsList, navigateToSubView, resetToWelcome]
   );
 
   const handleInterrupt = useCallback(() => {
@@ -535,16 +554,9 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
 
   const reloadActiveSessionView = useCallback(
     (sessionId: string): void => {
-      process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
-      setMessages([]);
-      setShowWelcome(false);
-      setWelcomeNonce((n) => n + 1);
-      setTimeout(() => {
-        setMessages(loadVisibleMessages(sessionManager, sessionId));
-        setShowWelcome(true);
-      }, 0);
+      resetStaticView(loadVisibleMessages(sessionManager, sessionId), { clearScreen: true });
     },
-    [sessionManager]
+    [resetStaticView, sessionManager]
   );
 
   useEffect(() => {
@@ -564,26 +576,17 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     async (sessionId: string) => {
       const currentSessionId = sessionManager.getActiveSessionId();
       if (currentSessionId !== sessionId) {
-        process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
+        process.stdout.write(ANSI_CLEAR_SCREEN);
       }
       sessionManager.setActiveSessionId(sessionId);
-      // Clear first so <Static> resets its index to 0.
-      setMessages([]);
-      setShowWelcome(false);
-      setWelcomeNonce((n) => n + 1);
-      setView("chat");
-      // Load messages after the reset so all static items are rendered.
-      setTimeout(() => {
-        setMessages(loadVisibleMessages(sessionManager, sessionId));
-        setShowWelcome(true);
-      }, 0);
+      resetStaticView(loadVisibleMessages(sessionManager, sessionId));
       const session = sessionManager.getSession(sessionId);
       setStatusLine(session ? buildStatusLine(session) : "");
       setRunningProcesses(session?.processes ?? null);
       setActiveStatus(session?.status ?? null);
       await refreshSkills(sessionId);
     },
-    [sessionManager, refreshSkills]
+    [sessionManager, resetStaticView, refreshSkills]
   );
 
   const handleUndoRestore = useCallback(
@@ -615,7 +618,6 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
 
       refreshSessionsList();
       await refreshSkills(sessionId);
-      setView("chat");
       setErrorLine(errors.length > 0 ? errors.join(" ") : null);
       if (conversationRestored) {
         setPromptDraft(buildPromptDraftFromSessionMessage(target.message, Date.now()));
