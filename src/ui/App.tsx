@@ -109,6 +109,15 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const [mcpStatuses, setMcpStatuses] = useState<ReturnType<typeof sessionManager.getMcpStatus>>([]);
   const [showProcessStdout, setShowProcessStdout] = useState(false);
 
+  // Ink's <Static> preserves rendered items by key and never removes them.
+  // When dismissing the welcome screen, we must clear the terminal so the
+  // old welcome output doesn't stay visible and cover new messages.
+  const dismissWelcomeScreen = useCallback(() => {
+    setShowWelcome(false);
+    setWelcomeNonce((n) => n + 1);
+    writeRef.current("[2J[3J[H");
+  }, []);
+
   // Throttle stream progress updates: LLM fires events per-token (~10-50ms),
   // but React+Ink can't re-render that fast without visible flicker. Batch at ~200ms.
   const streamProgressRef = useRef<LlmStreamProgress | null>(null);
@@ -288,13 +297,13 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         return;
       }
       if (submission.command === "mcp") {
-        setShowWelcome(false);
+        dismissWelcomeScreen();
         setMcpStatuses(sessionManager.getMcpStatus());
         setView("mcp-status");
         return;
       }
       if (submission.command === "marketplace") {
-        setShowWelcome(false);
+        dismissWelcomeScreen();
         try {
           const marketplaces = listMarketplaces();
           const lines: string[] = [];
@@ -358,7 +367,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         return;
       }
       if (submission.command === "plugin") {
-        setShowWelcome(false);
+        dismissWelcomeScreen();
         try {
           const plugins = listInstalledPlugins();
           const lines: string[] = [];
@@ -450,7 +459,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         setRunningProcesses(null);
       }
     },
-    [exit, onRestart, sessionManager, refreshSkills, refreshSessionsList]
+    [exit, onRestart, sessionManager, refreshSkills, refreshSessionsList, dismissWelcomeScreen]
   );
 
   const handleInterrupt = useCallback(() => {
