@@ -97,10 +97,10 @@ test("SessionManager filters image content for non-multimodal models", () => {
     projectRoot: process.cwd(),
     createOpenAIClient: () => ({
       client: null,
-      model: "deepseek-chat",
+      model: "deepseek-v4-pro",
       thinkingEnabled: false,
     }),
-    getResolvedSettings: () => ({ model: "deepseek-chat" }),
+    getResolvedSettings: () => ({ model: "deepseek-v4-pro" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
   });
@@ -125,7 +125,7 @@ test("SessionManager filters image content for non-multimodal models", () => {
     },
   ];
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "deepseek-chat") as Array<{
+  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "deepseek-v4-pro") as Array<{
     role: string;
     content: unknown;
   }>;

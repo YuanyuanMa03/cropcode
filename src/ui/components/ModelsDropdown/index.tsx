@@ -71,7 +71,7 @@ const ModelsDropdown: React.FC<Props> = ({
     } else {
       setStep(null);
     }
-  }, [open, modelConfig.model]);
+  }, [open, modelConfig.model, models]);
 
   useEffect(() => {
     if (!step) {
@@ -81,7 +81,7 @@ const ModelsDropdown: React.FC<Props> = ({
     if (activeIndex >= optionCount) {
       setActiveIndex(Math.max(0, optionCount - 1));
     }
-  }, [activeIndex, step]);
+  }, [activeIndex, step, models.length]);
 
   function selectItem(): void {
     if (step === "model") {

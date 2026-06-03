@@ -311,7 +311,7 @@ export async function handleEditTool(
           };
         }
 
-        const updated = applyReplacement(raw, replacementOldString, replacementNewString, matches, replaceAll);
+        const updated = applyReplacement(raw, replacementNewString, matches, replaceAll);
         const diffPreview = buildDiffPreview(filePath, raw, updated);
         context.onBeforeFileMutation?.(filePath);
         writeTextFile(filePath, updated, metadata.encoding, metadata.lineEndings);
@@ -530,13 +530,7 @@ function validateReplaceAllGuard(input: {
   return null;
 }
 
-function applyReplacement(
-  raw: string,
-  oldString: string,
-  newString: string,
-  matches: MatchOccurrence[],
-  replaceAll: boolean
-): string {
+function applyReplacement(raw: string, newString: string, matches: MatchOccurrence[], replaceAll: boolean): string {
   if (!replaceAll) {
     return raw.slice(0, matches[0].startOffset) + newString + raw.slice(matches[0].endOffset);
   }
@@ -636,7 +630,7 @@ async function correctEscapedStringsWithLLM(
     return null;
   }
 
-  const { client, model, baseURL, thinkingEnabled, reasoningEffort } = clientFactory();
+  const { client, model, thinkingEnabled, reasoningEffort } = clientFactory();
   if (!client) {
     return null;
   }
@@ -790,7 +784,7 @@ async function inferOldStringNotFoundReasonWithLLM(
     return null;
   }
 
-  const { client, model, baseURL, thinkingEnabled, reasoningEffort } = clientFactory();
+  const { client, model, thinkingEnabled, reasoningEffort } = clientFactory();
   if (!client) {
     return null;
   }
