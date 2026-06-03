@@ -592,6 +592,14 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     [sessionManager, resetStaticView, refreshSkills]
   );
 
+  const handleDeleteSession = useCallback(
+    (sessionId: string): void => {
+      sessionManager.deleteSession(sessionId);
+      refreshSessionsList();
+    },
+    [sessionManager, refreshSessionsList]
+  );
+
   const handleUndoRestore = useCallback(
     async (target: UndoTarget, restoreMode: UndoRestoreMode): Promise<void> => {
       const sessionId = sessionManager.getActiveSessionId();
@@ -849,6 +857,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           sessions={sessions}
           onSelect={(id) => void handleSelectSession(id)}
           onCancel={() => setView("chat")}
+          onDelete={handleDeleteSession}
         />
       ) : view === "undo" ? (
         <UndoSelector

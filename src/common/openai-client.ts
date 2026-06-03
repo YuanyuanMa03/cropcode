@@ -22,6 +22,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
   webSearchTool?: string;
   env: Record<string, string>;
   machineId?: string;
+  telemetryEnabled: boolean;
 } {
   const settings = resolveCurrentSettings(projectRoot);
 
@@ -46,6 +47,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       webSearchTool: settings.webSearchTool,
       env: settings.env,
       machineId: getMachineId(),
+      telemetryEnabled: settings.debugLogEnabled,
     };
   }
 
@@ -62,6 +64,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       webSearchTool: settings.webSearchTool,
       env: settings.env,
       machineId: getMachineId(),
+      telemetryEnabled: settings.debugLogEnabled,
     };
   }
 
@@ -94,6 +97,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
     webSearchTool: settings.webSearchTool,
     env: settings.env,
     machineId: getMachineId(),
+    telemetryEnabled: settings.debugLogEnabled,
   };
 }
 

@@ -6,6 +6,7 @@ type Props = {
   sessions: SessionEntry[];
   onSelect: (sessionId: string) => void;
   onCancel: () => void;
+  onDelete?: (sessionId: string) => void;
 };
 
 /**
@@ -36,9 +37,10 @@ export function filterSessions(sessions: SessionEntry[], query: string): Session
   });
 }
 
-export function SessionList({ sessions, onSelect, onCancel }: Props): React.ReactElement {
+export function SessionList({ sessions, onSelect, onCancel, onDelete }: Props): React.ReactElement {
   const [index, setIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [confirmDeleteSessionId, setConfirmDeleteSessionId] = useState<string | null>(null);
   const { columns, rows } = useWindowSize();
 
   // Filter sessions by search query
@@ -72,12 +74,28 @@ export function SessionList({ sessions, onSelect, onCancel }: Props): React.Reac
   }, [filteredSessions, scrollOffset, maxVisibleSessions]);
 
   // Handle backspace for search query
+  const selectedSession = filteredSessions[safeIndex];
+
   const handleBackspace = useCallback(() => {
     setSearchQuery((prev) => prev.slice(0, -1));
     setIndex(0);
   }, []);
 
   useInput((input, key) => {
+    // If in delete confirmation mode, handle confirm/cancel
+    if (confirmDeleteSessionId) {
+      if (key.return) {
+        onDelete?.(confirmDeleteSessionId);
+        setConfirmDeleteSessionId(null);
+        return;
+      }
+      if (key.escape) {
+        setConfirmDeleteSessionId(null);
+        return;
+      }
+      return;
+    }
+
     // ESC: clear search first, then cancel
     if (key.escape) {
       if (searchQuery) {
@@ -95,13 +113,17 @@ export function SessionList({ sessions, onSelect, onCancel }: Props): React.Reac
       return;
     }
 
-    // Backspace / Delete: remove last search character
+    // Backspace / Delete: remove last search character, or start delete confirmation
     if (key.backspace || key.delete) {
       if (searchQuery) {
         handleBackspace();
         return;
       }
-      // If no search query, navigation keys below handle the rest
+      // No search query: start delete confirmation if session is selected
+      if (selectedSession && onDelete) {
+        setConfirmDeleteSessionId(selectedSession.id);
+        return;
+      }
     }
 
     // Printable character: append to search query
@@ -224,7 +246,11 @@ export function SessionList({ sessions, onSelect, onCancel }: Props): React.Reac
                       >
                         {formatSessionTitle(session.summary || "Untitled")}
                       </Text>
-                      <Text dimColor> ({formatSessionStatus(session.status)})</Text>
+                      {confirmDeleteSessionId === session.id ? (
+                        <Text color="yellow"> [Delete? Enter=yes, Esc=no]</Text>
+                      ) : (
+                        <Text dimColor> ({formatSessionStatus(session.status)})</Text>
+                      )}
                     </Box>
                     <Box width="100%">
                       <Text dimColor>{formatTimestamp(session.updateTime)} </Text>
@@ -245,14 +271,28 @@ export function SessionList({ sessions, onSelect, onCancel }: Props): React.Reac
         </Box>
         {/* Footer */}
         <Box flexDirection="column">
-          {hasActiveSearch ? (
+          {confirmDeleteSessionId ? (
+            <Box>
+              <Text color="yellow">Delete this session? </Text>
+              <Text bold color="green">
+                Enter
+              </Text>
+              <Text dimColor> to confirm · </Text>
+              <Text bold color="red">
+                Esc
+              </Text>
+              <Text dimColor> to cancel</Text>
+            </Box>
+          ) : hasActiveSearch ? (
             <Box>
               <Text dimColor>Esc clear search · </Text>
               <Text dimColor>↑/↓ navigate · Enter select · Esc again to cancel</Text>
             </Box>
           ) : (
             <Box>
-              <Text dimColor>Type to search · ↑/↓ navigate · PgUp/PgDn page · Enter select · Esc cancel</Text>
+              <Text dimColor>
+                Type to search · ↑/↓ navigate · PgUp/PgDn page · Enter select · Esc cancel · Del delete
+              </Text>
             </Box>
           )}
         </Box>
@@ -291,6 +331,10 @@ export function formatSessionStatus(status: SessionStatus): string {
       return "failed";
     case "interrupted":
       return "stopped";
+    case "ask_permission":
+      return "waiting";
+    case "permission_denied":
+      return "denied";
     default:
       return status;
   }
