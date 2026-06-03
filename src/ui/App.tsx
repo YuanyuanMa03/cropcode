@@ -109,6 +109,12 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const [mcpStatuses, setMcpStatuses] = useState<ReturnType<typeof sessionManager.getMcpStatus>>([]);
   const [showProcessStdout, setShowProcessStdout] = useState(false);
 
+  // Throttle stream progress updates: LLM fires events per-token (~10-50ms),
+  // but React+Ink can't re-render that fast without visible flicker. Batch at ~200ms.
+  const streamProgressRef = useRef<LlmStreamProgress | null>(null);
+  const lastProgressFlushRef = useRef(0);
+  const PROGRESS_FLUSH_INTERVAL = 200;
+
   rawModeRef.current = mode;
   messagesRef.current = messages;
 
@@ -132,10 +138,17 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       },
       onLlmStreamProgress: (progress) => {
         if (progress.phase === "end") {
+          streamProgressRef.current = null;
+          lastProgressFlushRef.current = 0;
           setStreamProgress(null);
           return;
         }
-        setStreamProgress(progress);
+        streamProgressRef.current = progress;
+        const now = Date.now();
+        if (now - lastProgressFlushRef.current >= PROGRESS_FLUSH_INTERVAL) {
+          lastProgressFlushRef.current = now;
+          setStreamProgress(progress);
+        }
       },
       onMcpStatusChanged: () => {
         // 当 MCP 状态变更时，如果当前正在查看 MCP 状态页面，则更新显示
@@ -161,7 +174,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     if (!busy) {
       return;
     }
-    const id = setInterval(() => setNowTick((tick) => tick + 1), 500);
+    const id = setInterval(() => setNowTick((tick) => tick + 1), 2000);
     return () => clearInterval(id);
   }, [busy]);
 
@@ -722,6 +735,13 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const expandedThinkingId = findExpandedThinkingId(messages);
   const pendingQuestion = useMemo(() => findPendingAskUserQuestion(messages, activeStatus), [activeStatus, messages]);
   const shouldShowQuestionPrompt = Boolean(pendingQuestion && !dismissedQuestionIds.has(pendingQuestion.messageId));
+  // Flush any pending stream progress that was throttled
+  useEffect(() => {
+    if (streamProgressRef.current) {
+      setStreamProgress(streamProgressRef.current);
+    }
+  }, [nowTick]);
+
   const loadingText = useMemo(
     () => (busy ? buildLoadingText({ progress: streamProgress, processes: runningProcesses, now: Date.now() }) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nowTick forces periodic recalculation for spinner animation
