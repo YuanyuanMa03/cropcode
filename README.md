@@ -23,18 +23,39 @@
 
 ## Why CropCode?
 
-CropCode is an **AI-powered coding agent** that runs in your terminal. It reads your codebase, executes commands, edits files, and reasons through complex problems — all through natural language conversation. Think Claude Code, but with **multi-provider support** (DeepSeek, GLM, Qwen, MiMo) optimized for developers in China and beyond.
+CropCode is an **AI-powered coding agent** that runs in your terminal. Think Claude Code, but open-source, multi-provider, and with a community skill marketplace.
+
+### vs Other Agents
+
+| Capability | Claude Code | Codex | Cursor | **CropCode** |
+|------------|:---:|:---:|:---:|:---:|
+| **Multi-provider** | ❌ Anthropic only | ❌ OpenAI only | ❌ | **✅ 4 providers** |
+| **Built-in Login** | OAuth | Manual | OAuth | **✅ TUI wizard** |
+| **Skill Marketplace** | ❌ | ❌ | Extensions | **✅ Community** |
+| **Thinking Modes** | Extended | ❌ | ❌ | **✅ dual-format** |
+| **China Direct** | Proxy | Proxy | Partial | **✅ no proxy** |
+| **Paper Tools** | ❌ | ❌ | ❌ | **✅ LaTeX/citations** |
+| **Open Source** | ❌ | ❌ | ❌ | **✅ MIT** |
+
+[Full comparison →](docs/why-cropcode.md)
+
+### Killer Features
+
+- 🔐 **TUI Login Wizard** — pick provider, model, enter key. No config files, no proxy setup
+- 🧩 **Skill Marketplace** — first community marketplace for AI agent skills. One command to install
+- 🧠 **Dual Thinking Format** — auto-adapts deepseek/qwen thinking protocols per provider
+- 📊 **Python/R Native** — data analysis, scientific computing, LaTeX — all built-in
 
 ## ✨ Key Features
 
-- **AI Agent** — Autonomous coding with deep thinking, tool use, and multi-turn reasoning
-- **Multi-Provider** — DeepSeek, Zhipu GLM, Qwen, and Xiaomi MiMo in one tool. One-click TUI login to switch
-- **Deep Reasoning** — Configurable thinking mode with per-provider format adaptation (deepseek / qwen protocols)
+- **Multi-Provider** — DeepSeek, Zhipu GLM, Qwen, Xiaomi MiMo. One-click TUI login to switch
+- **Skill Marketplace** — Community-driven skill ecosystem. Install code-review, testing, paper-writing skills from marketplaces
+- **Deep Reasoning** — Configurable thinking mode, per-provider format adaptation (deepseek / qwen protocols)
+- **Autonomous Agent** — Deep thinking + tool use + multi-turn reasoning, handles complex multi-step tasks
 - **Tool System** — Bash, Read, Write, Edit, WebSearch, AskUserQuestion, UpdatePlan — extensible via MCP
 - **Data Analysis** — Native Python (pandas/numpy/scipy/matplotlib) and R integration
 - **Paper Tools** — LaTeX typesetting, reference management, figure generation
-- **MCP Integration** — Connect external tools via Model Context Protocol (GitHub, browser, databases)
-- **Skills Marketplace** — Extensible skill architecture with community plugin marketplace
+- **MCP Integration** — Connect external tools via Model Context Protocol
 - **Session Management** — Multi-session with undo, resume, and automatic context compaction
 
 ## 🎬 Demo
@@ -352,18 +373,39 @@ CropCode is built on and inspired by excellent open-source projects:
 
 ## 为什么选择 CropCode？
 
-CropCode 是一个运行在终端中的 **AI 编程助手**。它通过自然语言对话，读取你的代码库、执行命令、编辑文件、推理复杂问题。对标 Claude Code，但支持**多家国产大模型供应商**（DeepSeek、智谱 GLM、通义千问、小米 MiMo），国内直连无需代理。
+CropCode 是一个运行在终端中的 **AI 编程助手**。对标 Claude Code，但**开源**、**多供应商**、有**社区技能市场**。
+
+### 与其他 Agent 对比
+
+| 能力 | Claude Code | Codex | Cursor | **CropCode** |
+|------|:---:|:---:|:---:|:---:|
+| **多供应商** | ❌ 仅 Anthropic | ❌ 仅 OpenAI | ❌ | **✅ 4 家国产** |
+| **内置登录** | OAuth | 手动 | OAuth | **✅ TUI 向导** |
+| **技能市场** | ❌ | ❌ | 扩展 | **✅ 社区市场** |
+| **思考模式** | Extended | ❌ | ❌ | **✅ 双格式适配** |
+| **国内直连** | 需代理 | 需代理 | 部分 | **✅ 全部直连** |
+| **论文工具** | ❌ | ❌ | ❌ | **✅ LaTeX/引用** |
+| **开源** | ❌ | ❌ | ❌ | **✅ MIT** |
+
+[完整对比 →](docs/why-cropcode.md)
+
+### 杀手级特性
+
+- 🔐 **TUI 登录向导** — 选供应商 → 选模型 → 输入 Key，三步完成，无需手动编辑配置
+- 🧩 **技能市场** — 首个 AI Agent 社区技能市场，一键安装代码审查、测试、论文写作等技能
+- 🧠 **双格式深度推理** — 自动适配 deepseek/qwen 两种 thinking 协议，每个供应商精确优化
+- 📊 **Python/R 原生集成** — 数据分析、科学计算、LaTeX 排版开箱即用
 
 ## ✨ 核心特性
 
-- **自主 Agent** — 深度思考 + 工具调用 + 多轮推理，全自主完成编程任务
-- **多供应商** — 一套工具切换四家供应商，TUI 交互式登录，一键完成
+- **多供应商** — DeepSeek、智谱 GLM、通义千问、小米 MiMo，一套工具自由切换
+- **技能市场** — 社区驱动的技能生态，安装代码审查/测试生成/论文写作等社区技能
 - **深度推理** — 可配置思考模式，自动适配 deepseek/qwen 双协议格式
+- **自主 Agent** — 深度思考 + 工具调用 + 多轮推理，全自主完成复杂任务
 - **工具系统** — Bash、Read、Write、Edit、WebSearch、AskUserQuestion、UpdatePlan，MCP 可扩展
 - **数据分析** — 原生 Python (pandas/numpy/scipy/matplotlib) 和 R 集成
 - **论文工具** — LaTeX 排版、参考文献管理、论文图表生成
-- **MCP 集成** — Model Context Protocol 连接外部工具（GitHub、浏览器、数据库）
-- **技能市场** — 社区插件市场，可扩展领域知识和自定义工作流
+- **MCP 集成** — Model Context Protocol 连接外部工具
 - **会话管理** — 多会话支持，可撤销、恢复、自动上下文压缩
 
 ## 🚀 快速开始
