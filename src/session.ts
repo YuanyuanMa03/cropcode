@@ -28,6 +28,8 @@ import type { McpServerConfig } from "./settings";
 import { logApiError } from "./common/error-logger";
 import { logOpenAIChatCompletionDebug, normalizeDebugError } from "./common/debug-logger";
 import { killProcessTree } from "./common/process-tree";
+import { clearSessionState } from "./common/state";
+import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { GitFileHistory, type FileHistoryCheckpointResult } from "./common/file-history";
 
 const MAX_SESSION_ENTRIES = 50;
@@ -119,7 +121,15 @@ function getTotalTokens(usage: ModelUsage | null | undefined): number {
   return typeof totalTokens === "number" ? totalTokens : 0;
 }
 
-export type SessionStatus = "failed" | "pending" | "processing" | "waiting_for_user" | "completed" | "interrupted";
+export type SessionStatus =
+  | "failed"
+  | "pending"
+  | "processing"
+  | "waiting_for_user"
+  | "completed"
+  | "interrupted"
+  | "ask_permission"
+  | "permission_denied";
 
 export type ModelUsage = {
   prompt_tokens: number;
@@ -304,6 +314,18 @@ export class SessionManager {
   }
 
   dispose(): void {
+    const controller = this.activePromptController;
+    if (controller && !controller.signal.aborted) {
+      controller.abort();
+    }
+    this.activePromptController = null;
+    for (const sessionController of this.sessionControllers.values()) {
+      if (!sessionController.signal.aborted) {
+        sessionController.abort();
+      }
+    }
+    this.sessionControllers.clear();
+    this.processTimeoutControls.clear();
     this.mcpManager.disconnect();
   }
 
@@ -1495,6 +1517,69 @@ ${skillMd}
     return this.buildBashTimeoutAdjustment(selectedPid, next);
   }
 
+  denySessionPermission(sessionId: string, reason?: string): void {
+    const now = new Date().toISOString();
+    this.updateSessionEntry(sessionId, (entry) => ({
+      ...entry,
+      status: "permission_denied",
+      failReason: reason ?? "Permission denied by user",
+      updateTime: now,
+    }));
+  }
+
+  deleteSession(sessionId: string): boolean {
+    const index = this.loadSessionsIndex();
+    const targetEntry = index.entries.find((entry) => entry.id === sessionId) ?? null;
+    const nextEntries = index.entries.filter((entry) => entry.id !== sessionId);
+    if (nextEntries.length === index.entries.length) {
+      return false;
+    }
+
+    index.entries = nextEntries;
+    this.saveSessionsIndex(index);
+    this.cleanupSessionResources(sessionId, {
+      removeMessages: true,
+      processIds: this.getProcessIds(targetEntry?.processes ?? null),
+    });
+    return true;
+  }
+
+  private cleanupSessionResources(
+    sessionId: string,
+    options: { removeMessages: boolean; processIds?: number[] }
+  ): void {
+    const processIds = options.processIds ?? [];
+    for (const pid of processIds) {
+      const processControlKey = this.getProcessControlKey(sessionId, pid);
+      if (!this.processTimeoutControls.has(processControlKey)) {
+        continue;
+      }
+
+      const killedGroup = killProcessTree(pid, "SIGKILL");
+      if (killedGroup) {
+        this.processTimeoutControls.delete(processControlKey);
+        continue;
+      }
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // ignore process-kill failures during cleanup
+      }
+      this.processTimeoutControls.delete(processControlKey);
+    }
+
+    clearSessionState(sessionId);
+    clearSessionWorkingDir(sessionId);
+    const controller = this.sessionControllers.get(sessionId);
+    if (controller && !controller.signal.aborted) {
+      controller.abort();
+    }
+    this.sessionControllers.delete(sessionId);
+    if (options.removeMessages) {
+      this.removeSessionMessages([sessionId]);
+    }
+  }
+
   listSessions(): SessionEntry[] {
     const index = this.loadSessionsIndex();
     return index.entries;
@@ -2532,7 +2617,9 @@ ${skillMd}
       status === "processing" ||
       status === "waiting_for_user" ||
       status === "completed" ||
-      status === "interrupted"
+      status === "interrupted" ||
+      status === "ask_permission" ||
+      status === "permission_denied"
     ) {
       return status;
     }

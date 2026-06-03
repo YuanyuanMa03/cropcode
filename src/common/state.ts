@@ -183,3 +183,21 @@ export function getSnippet(sessionId: string, snippetId: string): FileSnippet | 
 export function hasSnippetOutdatedFileVersion(sessionId: string, snippet: FileSnippet): boolean {
   return getFileVersion(sessionId, snippet.filePath) > snippet.fileVersion;
 }
+
+export function clearSessionState(sessionId: string): void {
+  if (!sessionId) {
+    return;
+  }
+
+  fileStatesBySession.delete(sessionId);
+  snippetsBySession.delete(sessionId);
+  snippetCountersBySession.delete(sessionId);
+  fileVersionsBySession.delete(sessionId);
+}
+
+export function hasSessionState(sessionId: string): boolean {
+  if (!sessionId) {
+    return false;
+  }
+  return fileStatesBySession.has(sessionId) || snippetsBySession.has(sessionId);
+}
