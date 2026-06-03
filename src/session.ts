@@ -1689,7 +1689,7 @@ ${skillMd}
   }
 
   private getProjectCode(projectRoot: string): string {
-    return projectRoot.replace(/[\\/]/g, "-").replace(/:/g, "");
+    return projectRoot.replace(/[/\\]/g, "-").replace(/:/g, "");
   }
 
   private getProjectStorage(): {
