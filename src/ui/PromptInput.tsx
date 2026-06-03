@@ -68,7 +68,7 @@ export type PromptSubmission = {
   text: string;
   imageUrls: string[];
   selectedSkills?: SkillInfo[];
-  command?: "new" | "resume" | "continue" | "undo" | "mcp" | "marketplace" | "plugin" | "exit";
+  command?: "new" | "resume" | "continue" | "undo" | "mcp" | "marketplace" | "plugin" | "login" | "exit";
 };
 
 export type PromptDraft = {
@@ -795,6 +795,11 @@ export const PromptInput = React.memo(function PromptInput({
     }
     if (item.kind === "plugin") {
       onSubmit({ text: "/plugin", imageUrls: [], command: "plugin" });
+      resetPromptInput();
+      return;
+    }
+    if (item.kind === "login") {
+      onSubmit({ text: "/login", imageUrls: [], command: "login" });
       resetPromptInput();
       return;
     }

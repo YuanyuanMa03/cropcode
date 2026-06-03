@@ -11,7 +11,7 @@ export type SlashCommandKind =
   | "undo"
   | "mcp"
   | "raw"
-  | "crop-model"
+  | "login"
   | "marketplace"
   | "plugin"
   | "exit";
@@ -37,6 +37,12 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
     name: "model",
     label: "/model",
     description: "Select model, thinking mode and effort control",
+  },
+  {
+    kind: "login",
+    name: "login",
+    label: "/login",
+    description: "选择或切换 AI 供应商和模型",
   },
   {
     kind: "new",

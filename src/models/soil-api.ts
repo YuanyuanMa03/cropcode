@@ -9,35 +9,31 @@ export interface SoilData {
   silt: number;
   clay: number;
   // 化学性质
-  ph: number;           // pH 值
+  ph: number; // pH 值
   organicCarbon: number; // 有机碳 (g/kg)
   // 物理性质
-  bulkDensity: number;  // 容重 (g/cm³)
+  bulkDensity: number; // 容重 (g/cm³)
   // 深度 (cm)
   depth: string;
 }
 
 // SoilGrids API 返回的属性
 const SOIL_PROPERTIES = [
-  'sand',     // 砂粒含量
-  'silt',     // 粉粒含量
-  'clay',     // 黏粒含量
-  'phh2o',    // pH
-  'soc',      // 有机碳
-  'bdod',     // 容重
+  "sand", // 砂粒含量
+  "silt", // 粉粒含量
+  "clay", // 黏粒含量
+  "phh2o", // pH
+  "soc", // 有机碳
+  "bdod", // 容重
 ];
 
-export async function fetchSoilData(
-  lat: number,
-  lon: number,
-  depth: string = '0-30cm'
-): Promise<SoilData> {
+export async function fetchSoilData(lat: number, lon: number, depth: string = "0-30cm"): Promise<SoilData> {
   // 分别查询每个属性，避免 API 限制
   const results: Record<string, number> = {};
-  
+
   for (const prop of SOIL_PROPERTIES) {
     const url = `https://rest.isric.org/soilgrids/v2.0/properties/query?lon=${lon}&lat=${lat}&property=${prop}&depth=${depth}&value=mean`;
-    
+
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -47,10 +43,10 @@ export async function fetchSoilData(
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data = await response.json() as any;
+      const data = (await response.json()) as any;
       const layer = data.properties?.layers?.[0];
       const value = layer?.depths?.[0]?.values?.mean;
-      
+
       if (value !== null && value !== undefined) {
         results[prop] = value;
       } else {
@@ -69,12 +65,12 @@ export async function fetchSoilData(
   // soc: dg/kg -> g/kg
   // bdod: cg/cm³ -> g/cm³
   return {
-    sand: (results['sand'] || 300) / 10,
-    silt: (results['silt'] || 400) / 10,
-    clay: (results['clay'] || 300) / 10,
-    ph: (results['phh2o'] || 65) / 10,
-    organicCarbon: (results['soc'] || 15) / 10,
-    bulkDensity: (results['bdod'] || 140) / 100,
+    sand: (results["sand"] || 300) / 10,
+    silt: (results["silt"] || 400) / 10,
+    clay: (results["clay"] || 300) / 10,
+    ph: (results["phh2o"] || 65) / 10,
+    organicCarbon: (results["soc"] || 15) / 10,
+    bulkDensity: (results["bdod"] || 140) / 100,
     depth,
   };
 }
@@ -82,12 +78,12 @@ export async function fetchSoilData(
 // 默认值（中国典型农田土壤）
 function getDefaultValue(property: string): number {
   const defaults: Record<string, number> = {
-    'sand': 300,    // 30%
-    'silt': 400,    // 40%
-    'clay': 300,    // 30%
-    'phh2o': 65,    // pH 6.5
-    'soc': 15,      // 1.5 g/kg
-    'bdod': 140,    // 1.4 g/cm³
+    sand: 300, // 30%
+    silt: 400, // 40%
+    clay: 300, // 30%
+    phh2o: 65, // pH 6.5
+    soc: 15, // 1.5 g/kg
+    bdod: 140, // 1.4 g/cm³
   };
   return defaults[property] || 0;
 }
@@ -96,24 +92,24 @@ function getDefaultValue(property: string): number {
 export function toSimpleSoilParams(soilData: SoilData): Record<string, number> {
   // SIMPLE 模型需要的土壤参数
   return {
-    'Soil.Type': getSoilType(soilData.clay, soilData.sand),
-    'Soil.MaxRootDepth': 150,  // cm
-    'Soil.SAT': calculateSAT(soilData.bulkDensity),
-    'Soil.FC': calculateFC(soilData.clay, soilData.organicCarbon),
-    'Soil.WP': calculateWP(soilData.clay),
-    'Soil.K0': calculateK0(soilData.sand, soilData.clay),
-    'Soil.pH': soilData.ph,
-    'Soil.OC': soilData.organicCarbon,
+    "Soil.Type": getSoilType(soilData.clay, soilData.sand),
+    "Soil.MaxRootDepth": 150, // cm
+    "Soil.SAT": calculateSAT(soilData.bulkDensity),
+    "Soil.FC": calculateFC(soilData.clay, soilData.organicCarbon),
+    "Soil.WP": calculateWP(soilData.clay),
+    "Soil.K0": calculateK0(soilData.sand, soilData.clay),
+    "Soil.pH": soilData.ph,
+    "Soil.OC": soilData.organicCarbon,
   };
 }
 
 // 根据黏粒和砂粒含量判断土壤类型
 function getSoilType(clay: number, sand: number): number {
-  if (clay > 40) return 1;      // 黏土
-  if (clay > 25) return 2;      // 壤质黏土
-  if (sand > 70) return 3;      // 砂土
-  if (sand > 50) return 4;      // 壤质砂土
-  return 5;                      // 壤土
+  if (clay > 40) return 1; // 黏土
+  if (clay > 25) return 2; // 壤质黏土
+  if (sand > 70) return 3; // 砂土
+  if (sand > 50) return 4; // 壤质砂土
+  return 5; // 壤土
 }
 
 // 饱和含水量 (volumetric)

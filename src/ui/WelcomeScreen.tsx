@@ -5,6 +5,7 @@ import path from "node:path";
 import type { SkillInfo } from "../session";
 import type { ResolvedDeepcodingSettings } from "../settings";
 import { buildSlashCommands, formatSlashCommandDescription } from "./slashCommands";
+import { getActiveProviderLabel, getActiveModelLabel } from "../common/providers";
 import { ThemedGradient, THEME_COLORS } from "./ThemedGradient";
 import { AsciiLogo } from "../AsciiArt";
 import { useAppContext } from "./contexts";
@@ -75,7 +76,8 @@ export function WelcomeScreen({
             </Box>
             {!compact ? <Text color="gray"> 为农业研究者打造，但能力远不止于此 ⚡</Text> : null}
             {!compact ? <Text> </Text> : null}
-            <SettingRow label="Model" value={settings.model} />
+            <SettingRow label="Provider" value={getActiveProviderLabel()} />
+            <SettingRow label="Model" value={getActiveModelLabel() || settings.model} />
             <SettingRow label="Thinking" value={settings.thinkingEnabled ? `${settings.reasoningEffort}` : "off"} />
             <SettingRow label="Skills" value={`${skills.filter((s) => s.isLoaded).length} loaded`} />
             {totalTokens > 0 ? <SettingRow label="Total Tokens" value={formatTokenCount(totalTokens)} /> : null}

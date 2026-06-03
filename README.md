@@ -23,7 +23,8 @@
 ## ✨ Highlights
 
 - 🤖 **AI Agent** — Autonomous coding agent with deep thinking, tool use (bash, read, write, edit, web search), and multi-turn reasoning
-- 🧠 **Deep Reasoning** — Powered by DeepSeek V4 with configurable thinking mode and reasoning effort control
+- 🧠 **Deep Reasoning** — Configurable thinking mode and reasoning effort, supporting multiple LLM providers
+- 🔐 **Multi-Provider Login** — Interactive TUI wizard to switch between DeepSeek, GLM, Qwen, and MiMo with one command
 - 🌱 **Data Analysis** — Native Python (pandas/numpy/scipy/matplotlib) and R integration for data processing and statistical computing
 - 📄 **Paper Tools** — LaTeX typesetting, reference management, and figure generation
 - 🔌 **MCP Integration** — Connect external tools via Model Context Protocol (GitHub, browser, databases, and more)
@@ -55,19 +56,90 @@ npm link
 
 ### Configure
 
-Copy a settings template and fill in your API key:
+CropCode provides an **interactive login wizard** on first launch. No manual config needed!
 
 ```bash
-# DeepSeek (recommended)
-cp templates/settings/settings.json ~/.cropcode/settings.json
-
-# or OpenAI
-cp templates/settings/settings-openai.json ~/.cropcode/settings.json
+cropcode
 ```
 
-Edit `~/.cropcode/settings.json` and replace the API key:
+You'll see:
+
+```
+ ╭──────────────────────────────────────────────────────────────────╮
+ │  🌾 欢迎使用 CropCode！                                         │
+ │   选择 AI 供应商开始使用（国内直连，无需代理）                     │
+ ╰──────────────────────────────────────────────────────────────────╯
+
+  选择供应商
+ ────────────────────────────────────────────────────
+ ▶ 🔥 DeepSeek            最便宜·代码最强·送500万tokens
+   🧠 智谱 GLM             免费模型可用·Coding Plan·推理最强
+   ☁️ 通义千问              阿里云生态·Coding Plan·90天免费
+   📱 MiMo 小米             1M超长上下文·128K输出·Token Plan·开源
+
+  ↑↓ 选择 · Enter 确认
+```
+
+#### Example 1 — MiMo Token Plan (Subscription)
+
+```
+  选择供应商:          📱 MiMo 小米 ✓
+  接入方式:           编程套餐 (Token Plan) ✓
+  选择模型:
+ ────────────────────────────────────────────────────
+ ▶ MiMo V2.5 Pro        ¥3/¥6   · 1M  [推荐, 旗舰]
+   MiMo V2.5             ¥1/¥2   · 1M  [多模态]
+   MiMo V2 Flash         ¥0.7/¥2.1 · 256K [轻量]
+
+  ↑↓ 选择 · Enter 确认 · Esc 返回
+```
+
+```
+  🔑 MiMo 小米 API Key
+   获取方式：
+   1. 访问 https://platform.xiaomimimo.com/token-plan
+   2. 订阅后获取 tp-... 格式的专属密钥
+   3. Key 格式: tp-...
+
+  >_ tp-cmp1th4pwjpbh396c••••••••••••rj0t69▎
+```
+
+#### Example 2 — DeepSeek Pay-as-you-go (API)
+
+```
+  选择供应商:          🔥 DeepSeek ✓
+  选择模型:
+ ────────────────────────────────────────────────────
+ ▶ DeepSeek V4 Pro      ¥3/¥6   · 1M  [推荐, 代码最强]
+   DeepSeek V4 Flash     ¥1/¥2   · 1M  [轻量快速]
+
+  ↑↓ 选择 · Enter 确认
+```
+
+```
+  🔑 DeepSeek API Key
+   获取方式：
+   1. 访问 https://platform.deepseek.com/api_keys
+   2. 注册送500万tokens（30天有效），充值¥10起
+   3. Key 格式: sk-...
+
+  >_ sk-a1b2c3d4e5f6g7h8••••••••••••x9y0z▎
+```
+
+#### Switch Provider Anytime
+
+```
+> /login            ← Re-enter the login wizard
+> /model            ← Switch model within current provider
+```
+
+<details>
+<summary><b>Manual configuration (advanced)</b></summary>
+
+If you prefer editing config files directly:
 
 ```json
+// ~/.cropcode/settings.json
 {
   "env": {
     "MODEL": "deepseek-v4-pro",
@@ -78,6 +150,8 @@ Edit `~/.cropcode/settings.json` and replace the API key:
   "reasoningEffort": "max"
 }
 ```
+
+</details>
 
 ### Run
 
@@ -218,20 +292,26 @@ Settings are resolved with the following priority (higher overrides lower):
 
 For detailed configuration, see [docs/configuration_en.md](docs/configuration_en.md).
 
-### Supported Models
+### Supported Providers
 
-Any OpenAI-compatible API can be used:
+All providers are OpenAI-compatible — CropCode handles the protocol differences automatically.
 
-| Provider | `BASE_URL` | Example Models |
-|----------|-----------|----------------|
-| DeepSeek | `https://api.deepseek.com` | `deepseek-v4-pro`, `deepseek-v4-flash` |
-| OpenAI | `https://api.openai.com/v1` | `gpt-4o`, `o3` |
+| Provider | Thinking Format | Token Plan | Free Tier | Models |
+|----------|----------------|------------|-----------|--------|
+| 🔥 DeepSeek | `thinking:{type:"enabled"}` + `reasoning_effort` | — | 5M tokens on signup | V4 Pro, V4 Flash |
+| 🧠 GLM (Zhipu) | Same as DeepSeek | 3 tiers (Lite/Pro/Max) | GLM-4.7 Flash free | GLM-5.1, 4.7, 4.6, 4.7 Flash |
+| ☁️ Qwen (Alibaba) | `enable_thinking:true` + `thinking_budget` | 1 tier (Pro) | 90-day free quota | Qwen3 Max, 3.5 Plus, 3.5 Flash |
+| 📱 MiMo (Xiaomi) | Same as DeepSeek (no `reasoning_effort`) | 4 tiers (Lite~Max) | New user credits | V2.5 Pro, V2.5, V2 Flash |
 
 ## 🛠️ Architecture
 
 ```
 ┌─────────────────────────────────────────┐
 │              Terminal UI (Ink/React)     │
+│   ┌─────────────────────────────────┐   │
+│   │  Login Wizard (/login)          │   │
+│   │  Provider → Mode → Model → Key  │   │
+│   └─────────────────────────────────┘   │
 ├─────────────────────────────────────────┤
 │           Session Manager                │
 │  ┌────────────┐  ┌──────────────────┐   │
@@ -239,9 +319,9 @@ Any OpenAI-compatible API can be used:
 │  │ (OpenAI)   │  │  ┌────┐ ┌─────┐  │   │
 │  │            │  │  │Bash│ │Read │  │   │
 │  │ DeepSeek   │  │  ├────┤ ├─────┤  │   │
-│  │ OpenAI     │  │  │Write│ │Edit │  │   │
-│  │ ...        │  │  ├────┤ ├─────┤  │   │
-│  │            │  │  │WebSearch│Ask │  │   │
+│  │ GLM (智谱) │  │  │Write│ │Edit │  │   │
+│  │ Qwen (通义)│  │  ├────┤ ├─────┤  │   │
+│  │ MiMo (小米)│  │  │WebSearch│Ask │  │   │
 │  └────────────┘  │  └─────────┴────┘  │   │
 │                  │  ┌──────────────┐   │   │
 │                  │  │  MCP Manager │   │   │
@@ -285,7 +365,8 @@ Contributions are welcome! Whether it's bug fixes, new features, skills, or docu
 ## ✨ 核心特性
 
 - 🤖 **自主 Agent** — 具备深度思考、工具调用（bash/read/write/edit/web search）和多轮推理能力的自主编程助手
-- 🧠 **深度推理** — 基于 DeepSeek V4，支持思考模式和推理强度控制
+- 🧠 **深度推理** — 可配置思考模式和推理强度，支持多家 LLM 供应商
+- 🔐 **多供应商登录** — 交互式 TUI 向导，一条命令切换 DeepSeek、智谱、通义千问、MiMo
 - 🌱 **数据分析** — 原生 Python (pandas/numpy/scipy/matplotlib) 和 R 集成，支持数据处理和统计计算
 - 📄 **论文工具** — LaTeX 排版、参考文献管理、图表生成
 - 🔌 **MCP 集成** — 通过 Model Context Protocol 连接外部工具（GitHub、浏览器、数据库等）
@@ -305,19 +386,90 @@ npm link
 
 ### 配置
 
-复制配置模板并填入你的 API Key：
+CropCode **首次启动时自动弹出交互式登录向导**，无需手动编辑配置！
 
 ```bash
-# DeepSeek（推荐）
-cp templates/settings/settings.json ~/.cropcode/settings.json
-
-# 或 OpenAI
-cp templates/settings/settings-openai.json ~/.cropcode/settings.json
+cropcode
 ```
 
-编辑 `~/.cropcode/settings.json`，替换 API Key：
+你会看到：
+
+```
+ ╭──────────────────────────────────────────────────────────────────╮
+ │  🌾 欢迎使用 CropCode！                                         │
+ │   选择 AI 供应商开始使用（国内直连，无需代理）                     │
+ ╰──────────────────────────────────────────────────────────────────╯
+
+  选择供应商
+ ────────────────────────────────────────────────────
+ ▶ 🔥 DeepSeek            最便宜·代码最强·送500万tokens
+   🧠 智谱 GLM             免费模型可用·Coding Plan·推理最强
+   ☁️ 通义千问              阿里云生态·Coding Plan·90天免费
+   📱 MiMo 小米             1M超长上下文·128K输出·Token Plan·开源
+
+  ↑↓ 选择 · Enter 确认
+```
+
+#### 示例 1 — MiMo Token Plan（订阅套餐）
+
+```
+  选择供应商:          📱 MiMo 小米 ✓
+  接入方式:           编程套餐 (Token Plan) ✓
+  选择模型:
+ ────────────────────────────────────────────────────
+ ▶ MiMo V2.5 Pro        ¥3/¥6   · 1M  [推荐, 旗舰]
+   MiMo V2.5             ¥1/¥2   · 1M  [多模态]
+   MiMo V2 Flash         ¥0.7/¥2.1 · 256K [轻量]
+
+  ↑↓ 选择 · Enter 确认 · Esc 返回
+```
+
+```
+  🔑 MiMo 小米 API Key
+   获取方式：
+   1. 访问 https://platform.xiaomimimo.com/token-plan
+   2. 订阅后获取 tp-... 格式的专属密钥
+   3. Key 格式: tp-...
+
+  >_ tp-cmp1th4pwjpbh396c••••••••••••rj0t69▎
+```
+
+#### 示例 2 — DeepSeek 按量计费（API Key）
+
+```
+  选择供应商:          🔥 DeepSeek ✓
+  选择模型:
+ ────────────────────────────────────────────────────
+ ▶ DeepSeek V4 Pro      ¥3/¥6   · 1M  [推荐, 代码最强]
+   DeepSeek V4 Flash     ¥1/¥2   · 1M  [轻量快速]
+
+  ↑↓ 选择 · Enter 确认
+```
+
+```
+  🔑 DeepSeek API Key
+   获取方式：
+   1. 访问 https://platform.deepseek.com/api_keys
+   2. 注册送500万tokens（30天有效），充值¥10起
+   3. Key 格式: sk-...
+
+  >_ sk-a1b2c3d4e5f6g7h8••••••••••••x9y0z▎
+```
+
+#### 随时切换供应商
+
+```
+> /login            ← 重新进入登录向导
+> /model            ← 在当前供应商内切换模型
+```
+
+<details>
+<summary><b>手动配置（高级）</b></summary>
+
+如果你更习惯直接编辑配置文件：
 
 ```json
+// ~/.cropcode/settings.json
 {
   "env": {
     "MODEL": "deepseek-v4-pro",
@@ -328,6 +480,8 @@ cp templates/settings/settings-openai.json ~/.cropcode/settings.json
   "reasoningEffort": "max"
 }
 ```
+
+</details>
 
 ### 运行
 
@@ -438,7 +592,10 @@ cropcode plugin install <技能名>@nature-skills
 
 本项目开发过程中参考和使用了以下开源技术：
 
-- [DeepSeek](https://deepseek.com) — LLM 模型服务
+- [DeepSeek](https://platform.deepseek.com) — LLM 模型服务
+- [智谱 GLM](https://open.bigmodel.cn) — LLM 模型服务
+- [通义千问](https://bailian.console.aliyun.com) — LLM 模型服务
+- [MiMo 小米](https://platform.xiaomimimo.com) — LLM 模型服务
 - [OpenAI Node.js SDK](https://github.com/openai/openai-node) — LLM API 调用
 - [Ink](https://github.com/vadimdemedes/ink) — 终端 React 渲染引擎
 - [MCP](https://modelcontextprotocol.io/) — AI 工具集成协议

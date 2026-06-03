@@ -1,25 +1,42 @@
 import type { ReasoningEffort } from "../settings";
+import {
+  getThinkingFormat,
+  supportsThinking as modelSupportsThinking,
+  supportsReasoningEffort,
+} from "./model-capabilities";
 
-type ThinkingConfig = {
-  type: "enabled" | "disabled";
-};
+type ThinkingRequestOptions = Record<string, unknown>;
 
-type ThinkingRequestOptions = {
-  thinking?: ThinkingConfig;
-  extra_body?: {
-    reasoning_effort?: ReasoningEffort;
-  };
-};
+function effortToBudget(effort: ReasoningEffort): number {
+  return effort === "max" ? 10000 : 5000;
+}
 
 export function buildThinkingRequestOptions(
   thinkingEnabled: boolean,
-  _baseURL?: string,
+  model: string = "",
   reasoningEffort: ReasoningEffort = "max"
 ): ThinkingRequestOptions {
-  const thinking: ThinkingConfig = { type: thinkingEnabled ? "enabled" : "disabled" };
+  if (!thinkingEnabled || !modelSupportsThinking(model)) {
+    return {};
+  }
 
-  return {
-    thinking,
-    ...(thinkingEnabled ? { extra_body: { reasoning_effort: reasoningEffort } } : {}),
-  };
+  const format = getThinkingFormat(model);
+
+  switch (format) {
+    case "deepseek": {
+      // DeepSeek and GLM support reasoning_effort; MiMo does not.
+      const opts: ThinkingRequestOptions = { thinking: { type: "enabled" } };
+      if (supportsReasoningEffort(model)) {
+        opts.extra_body = { reasoning_effort: reasoningEffort };
+      }
+      return opts;
+    }
+    case "qwen":
+      return {
+        enable_thinking: true,
+        thinking_budget: effortToBudget(reasoningEffort),
+      };
+    default:
+      return {};
+  }
 }

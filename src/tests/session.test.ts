@@ -48,10 +48,10 @@ test("SessionManager preserves structured system content when building OpenAI me
     projectRoot: process.cwd(),
     createOpenAIClient: () => ({
       client: null,
-      model: "test-model",
+      model: "qwen3-max",
       thinkingEnabled: false,
     }),
-    getResolvedSettings: () => ({ model: "test-model" }),
+    getResolvedSettings: () => ({ model: "qwen3-max" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
   });
@@ -76,7 +76,7 @@ test("SessionManager preserves structured system content when building OpenAI me
     },
   ];
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "test-model") as Array<{
+  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "qwen3-max") as Array<{
     role: string;
     content: unknown;
   }>;
@@ -97,10 +97,10 @@ test("SessionManager filters image content for non-multimodal models", () => {
     projectRoot: process.cwd(),
     createOpenAIClient: () => ({
       client: null,
-      model: "deepseek-chat",
+      model: "deepseek-v4-pro",
       thinkingEnabled: false,
     }),
-    getResolvedSettings: () => ({ model: "deepseek-chat" }),
+    getResolvedSettings: () => ({ model: "deepseek-v4-pro" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
   });
@@ -125,7 +125,7 @@ test("SessionManager filters image content for non-multimodal models", () => {
     },
   ];
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "deepseek-chat") as Array<{
+  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "deepseek-v4-pro") as Array<{
     role: string;
     content: unknown;
   }>;
@@ -139,10 +139,10 @@ test("SessionManager preserves empty reasoning content on assistant tool calls",
     projectRoot: process.cwd(),
     createOpenAIClient: () => ({
       client: null,
-      model: "test-model",
+      model: "qwen3-max",
       thinkingEnabled: false,
     }),
-    getResolvedSettings: () => ({ model: "test-model" }),
+    getResolvedSettings: () => ({ model: "qwen3-max" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
   });
@@ -171,7 +171,7 @@ test("SessionManager preserves empty reasoning content on assistant tool calls",
     reasoning_content: "",
   });
 
-  const openAIMessages = (manager as any).buildOpenAIMessages([message], true, "test-model") as Array<{
+  const openAIMessages = (manager as any).buildOpenAIMessages([message], true, "qwen3-max") as Array<{
     reasoning_content?: string;
   }>;
 
@@ -183,10 +183,10 @@ test("SessionManager repairs legacy thinking tool calls missing reasoning conten
     projectRoot: process.cwd(),
     createOpenAIClient: () => ({
       client: null,
-      model: "test-model",
+      model: "qwen3-max",
       thinkingEnabled: false,
     }),
-    getResolvedSettings: () => ({ model: "test-model" }),
+    getResolvedSettings: () => ({ model: "qwen3-max" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
   });
@@ -214,10 +214,10 @@ test("SessionManager repairs legacy thinking tool calls missing reasoning conten
     },
   ];
 
-  const thinkingMessages = (manager as any).buildOpenAIMessages(messages, true, "test-model") as Array<{
+  const thinkingMessages = (manager as any).buildOpenAIMessages(messages, true, "qwen3-max") as Array<{
     reasoning_content?: string;
   }>;
-  const nonThinkingMessages = (manager as any).buildOpenAIMessages(messages, false, "test-model") as Array<{
+  const nonThinkingMessages = (manager as any).buildOpenAIMessages(messages, false, "qwen3-max") as Array<{
     reasoning_content?: string;
   }>;
 
@@ -230,10 +230,10 @@ test("SessionManager replays normal assistant messages with reasoning content in
     projectRoot: process.cwd(),
     createOpenAIClient: () => ({
       client: null,
-      model: "test-model",
+      model: "qwen3-max",
       thinkingEnabled: false,
     }),
-    getResolvedSettings: () => ({ model: "test-model" }),
+    getResolvedSettings: () => ({ model: "qwen3-max" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
   });
@@ -253,10 +253,10 @@ test("SessionManager replays normal assistant messages with reasoning content in
     },
   ];
 
-  const thinkingMessages = (manager as any).buildOpenAIMessages(messages, true, "test-model") as Array<{
+  const thinkingMessages = (manager as any).buildOpenAIMessages(messages, true, "qwen3-max") as Array<{
     reasoning_content?: string;
   }>;
-  const nonThinkingMessages = (manager as any).buildOpenAIMessages(messages, false, "test-model") as Array<{
+  const nonThinkingMessages = (manager as any).buildOpenAIMessages(messages, false, "qwen3-max") as Array<{
     reasoning_content?: string;
   }>;
 
@@ -543,11 +543,11 @@ test("SessionManager reports configured MCP servers as starting before initializ
     projectRoot: workspace,
     createOpenAIClient: () => ({
       client: null,
-      model: "test-model",
+      model: "qwen3-max",
       thinkingEnabled: false,
     }),
     getResolvedSettings: () => ({
-      model: "test-model",
+      model: "qwen3-max",
       mcpServers: {
         playwright: { command: "npx", args: ["@playwright/mcp@latest"] },
       },
@@ -649,7 +649,7 @@ test("createSession stores /init and sends the active .cropcode project AGENTS p
   const sessionId = await manager.createSession({ text: "/init" });
   const messages = manager.listSessionMessages(sessionId);
   const userMessage = messages.find((message) => message.role === "user");
-  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "test-model") as Array<{
+  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "qwen3-max") as Array<{
     role: string;
     content: string;
   }>;
@@ -684,13 +684,13 @@ test("createSession appends default system prompts in prefix-cache-friendly orde
   assert.equal(systemContents.length >= 4, true);
   assert.match(systemContents[0] ?? "", /# Available Tools/);
   assert.doesNotMatch(systemContents[0] ?? "", /# Local Workspace Environment/);
-  assert.doesNotMatch(systemContents[0] ?? "", /当前LLM模型为test-model/);
+  assert.doesNotMatch(systemContents[0] ?? "", /当前LLM模型为qwen3-max/);
   assert.match(systemContents[1] ?? "", /<agent-drift-guard-skill>/);
   assert.match(systemContents[1] ?? "", /<plan-and-execute-skill>/);
   assert.doesNotMatch(systemContents[1] ?? "", /path="templates\/skills\//);
-  assert.doesNotMatch(systemContents[1] ?? "", /当前LLM模型为test-model/);
+  assert.doesNotMatch(systemContents[1] ?? "", /当前LLM模型为qwen3-max/);
   assert.match(systemContents[2] ?? "", /# Local Workspace Environment/);
-  assert.match(systemContents[2] ?? "", /当前LLM模型为test-model/);
+  assert.match(systemContents[2] ?? "", /当前LLM模型为qwen3-max/);
   const environmentJsonMatch = (systemContents[2] ?? "").match(/```json\n([\s\S]+?)\n```/);
   assert.ok(environmentJsonMatch);
   const environmentInfo = JSON.parse(environmentJsonMatch[1] ?? "{}") as { "root path"?: string };
@@ -714,7 +714,7 @@ test("replySession stores /init and sends the active root project AGENTS path to
   const messages = manager.listSessionMessages(sessionId);
   const userMessages = messages.filter((message) => message.role === "user");
   const replyMessage = userMessages[userMessages.length - 1];
-  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "test-model") as Array<{
+  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "qwen3-max") as Array<{
     role: string;
     content: string;
   }>;
@@ -740,7 +740,7 @@ test("createSession stores /init and sends generate prompt when no project AGENT
   const sessionId = await manager.createSession({ text: "/init" });
   const messages = manager.listSessionMessages(sessionId);
   const userMessage = messages.find((message) => message.role === "user");
-  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "test-model") as Array<{
+  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "qwen3-max") as Array<{
     role: string;
     content: string;
   }>;
@@ -1315,7 +1315,7 @@ test("buildOpenAIMessages inserts interrupted results for missing tool messages"
   const openAIMessages = (manager as any).buildOpenAIMessages(
     [assistantMessage, userMessage],
     false,
-    "test-model"
+    "qwen3-max"
   ) as Array<{
     role: string;
     content: string;
@@ -1365,7 +1365,7 @@ test("buildOpenAIMessages keeps only the first non-interrupted tool result for a
   const openAIMessages = (manager as any).buildOpenAIMessages(
     [assistantMessage, successToolMessage, interruptedToolMessage],
     false,
-    "test-model"
+    "qwen3-max"
   ) as Array<{ role: string; content: string; tool_call_id?: string }>;
   const toolMessages = openAIMessages.filter((message) => message.role === "tool");
 
@@ -1410,7 +1410,7 @@ test("buildOpenAIMessages prefers a later real tool result over an earlier inter
   const openAIMessages = (manager as any).buildOpenAIMessages(
     [assistantMessage, interruptedToolMessage, successToolMessage],
     false,
-    "test-model"
+    "qwen3-max"
   ) as Array<{ role: string; content: string; tool_call_id?: string }>;
   const toolMessages = openAIMessages.filter((message) => message.role === "tool");
 
@@ -1432,7 +1432,7 @@ test("buildOpenAIMessages ignores orphan tool messages", () => {
   const openAIMessages = (manager as any).buildOpenAIMessages(
     [userMessage, orphanToolMessage],
     false,
-    "test-model"
+    "qwen3-max"
   ) as Array<{
     role: string;
   }>;
@@ -1468,7 +1468,7 @@ test("buildOpenAIMessages moves a later paired tool message behind its assistant
   const openAIMessages = (manager as any).buildOpenAIMessages(
     [assistantMessage, userMessage, toolMessage],
     false,
-    "test-model"
+    "qwen3-max"
   ) as Array<{ role: string; content: string }>;
 
   assert.deepEqual(
@@ -1514,7 +1514,7 @@ test("buildOpenAIMessages preserves a complete multi-tool happy path", () => {
   const openAIMessages = (manager as any).buildOpenAIMessages(
     [assistantMessage, firstToolMessage, secondToolMessage, userMessage],
     false,
-    "test-model"
+    "qwen3-max"
   ) as Array<{ role: string; content: string; tool_call_id?: string }>;
 
   assert.deepEqual(
@@ -1555,7 +1555,7 @@ test("buildOpenAIMessages preserves a real failed tool result", () => {
   const openAIMessages = (manager as any).buildOpenAIMessages(
     [assistantMessage, failedToolMessage],
     false,
-    "test-model"
+    "qwen3-max"
   ) as Array<{
     role: string;
     content: string;
@@ -1714,7 +1714,7 @@ test("buildOpenAIMessages repairs mixed missing duplicate and orphan tool messag
   const openAIMessages = (manager as any).buildOpenAIMessages(
     [assistantMessage, orphanToolMessage, pairedToolMessage, duplicateToolMessage, userMessage],
     false,
-    "test-model"
+    "qwen3-max"
   ) as Array<{ role: string; content: string; tool_call_id?: string }>;
   const toolMessages = openAIMessages.filter((message) => message.role === "tool");
 
@@ -1762,7 +1762,7 @@ test("buildOpenAIMessages ignores tool messages that appear before their assista
   const openAIMessages = (manager as any).buildOpenAIMessages(
     [earlyToolMessage, assistantMessage],
     false,
-    "test-model"
+    "qwen3-max"
   ) as Array<{
     role: string;
     content: string;
@@ -1810,7 +1810,7 @@ test("SessionManager accumulates response usage while active tokens track the la
 
   const session = manager.getSession(sessionId);
   const usage = session?.usage as Record<string, any>;
-  const usagePerModel = session?.usagePerModel?.["test-model"] as Record<string, any>;
+  const usagePerModel = session?.usagePerModel?.["qwen3-max"] as Record<string, any>;
   assert.equal(session?.activeTokens, 27);
   assert.equal(usage.prompt_tokens, 30);
   assert.equal(usage.completion_tokens, 12);
@@ -1921,7 +1921,7 @@ test("SessionManager resets active tokens to latest post-compaction response usa
 
   const session = manager.getSession(sessionId);
   const usage = session?.usage as Record<string, any>;
-  const usagePerModel = session?.usagePerModel?.["test-model"] as Record<string, any>;
+  const usagePerModel = session?.usagePerModel?.["qwen3-max"] as Record<string, any>;
   assert.equal(session?.activeTokens, 7);
   assert.equal(usage.prompt_tokens, 140_095);
   assert.equal(usage.completion_tokens, 35);
@@ -1969,11 +1969,11 @@ test("SessionManager streams chat completions and counts reasoning progress", as
     projectRoot: workspace,
     createOpenAIClient: () => ({
       client: client as any,
-      model: "test-model",
+      model: "qwen3-max",
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
     }),
-    getResolvedSettings: () => ({ model: "test-model" }),
+    getResolvedSettings: () => ({ model: "qwen3-max" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
     onLlmStreamProgress: (progress) => {
@@ -2061,11 +2061,11 @@ test("SessionManager treats OpenAI APIUserAbortError as interrupted", async () =
     projectRoot: workspace,
     createOpenAIClient: () => ({
       client: client as any,
-      model: "test-model",
+      model: "qwen3-max",
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
     }),
-    getResolvedSettings: () => ({ model: "test-model" }),
+    getResolvedSettings: () => ({ model: "qwen3-max" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
     onSessionEntryUpdated: (entry) => {
@@ -2232,12 +2232,12 @@ function createSessionManager(projectRoot: string, machineId: string): SessionMa
     projectRoot,
     createOpenAIClient: () => ({
       client: null,
-      model: "test-model",
+      model: "qwen3-max",
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
       machineId,
     }),
-    getResolvedSettings: () => ({ model: "test-model" }),
+    getResolvedSettings: () => ({ model: "qwen3-max" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
   });
@@ -2268,7 +2268,7 @@ function createNotifyingSessionManager(
     projectRoot,
     createOpenAIClient: () => ({
       client: client as any,
-      model: "test-model",
+      model: "qwen3-max",
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
       notify: notifyPath,
@@ -2280,7 +2280,7 @@ function createNotifyingSessionManager(
         TITLE: "stale-title",
       },
     }),
-    getResolvedSettings: () => ({ model: "test-model" }),
+    getResolvedSettings: () => ({ model: "qwen3-max" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
   });
@@ -2303,11 +2303,11 @@ function createMockedClientSessionManager(projectRoot: string, responses: unknow
     projectRoot,
     createOpenAIClient: () => ({
       client: client as any,
-      model: "test-model",
+      model: "qwen3-max",
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
     }),
-    getResolvedSettings: () => ({ model: "test-model" }),
+    getResolvedSettings: () => ({ model: "qwen3-max" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
   });
@@ -2318,11 +2318,11 @@ function createMockedClientSessionManagerWithClient(projectRoot: string, client:
     projectRoot,
     createOpenAIClient: () => ({
       client: client as any,
-      model: "test-model",
+      model: "qwen3-max",
       baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
     }),
-    getResolvedSettings: () => ({ model: "test-model" }),
+    getResolvedSettings: () => ({ model: "qwen3-max" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
   });

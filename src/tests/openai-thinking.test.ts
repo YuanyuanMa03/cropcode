@@ -2,35 +2,49 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildThinkingRequestOptions } from "../common/openai-thinking";
 
-test("buildThinkingRequestOptions explicitly disables thinking", () => {
-  assert.deepEqual(buildThinkingRequestOptions(false, "https://api.deepseek.com"), {
-    thinking: { type: "disabled" },
-  });
+test("buildThinkingRequestOptions returns empty for disabled thinking", () => {
+  assert.deepEqual(buildThinkingRequestOptions(false, "deepseek-v4-pro"), {});
 });
 
-test("buildThinkingRequestOptions uses the same disabled payload for volces endpoints", () => {
-  assert.deepEqual(buildThinkingRequestOptions(false, "https://ark.cn-beijing.volces.com/api/v3"), {
-    thinking: { type: "disabled" },
-  });
+test("buildThinkingRequest returns empty for unknown model", () => {
+  assert.deepEqual(buildThinkingRequestOptions(true, "some-unknown-model"), {});
 });
 
-test("buildThinkingRequestOptions enables thinking with default reasoning effort", () => {
-  assert.deepEqual(buildThinkingRequestOptions(true, "https://api.deepseek.com"), {
+test("buildThinkingRequestOptions returns empty for unknown model", () => {
+  assert.deepEqual(buildThinkingRequestOptions(true, "some-unknown-model"), {});
+});
+
+test("buildThinkingRequestOptions enables deepseek thinking with default effort", () => {
+  assert.deepEqual(buildThinkingRequestOptions(true, "deepseek-v4-pro"), {
     thinking: { type: "enabled" },
     extra_body: { reasoning_effort: "max" },
   });
 });
 
-test("buildThinkingRequestOptions uses the same enabled payload for volces endpoints", () => {
-  assert.deepEqual(buildThinkingRequestOptions(true, "https://ark.cn-beijing.volces.com/api/v3"), {
-    thinking: { type: "enabled" },
-    extra_body: { reasoning_effort: "max" },
-  });
-});
-
-test("buildThinkingRequestOptions accepts high reasoning effort", () => {
-  assert.deepEqual(buildThinkingRequestOptions(true, "https://api.deepseek.com", "high"), {
+test("buildThinkingRequestOptions enables deepseek thinking with high effort", () => {
+  assert.deepEqual(buildThinkingRequestOptions(true, "deepseek-v4-flash", "high"), {
     thinking: { type: "enabled" },
     extra_body: { reasoning_effort: "high" },
+  });
+});
+
+test("buildThinkingRequestOptions enables GLM thinking (same format as deepseek)", () => {
+  assert.deepEqual(buildThinkingRequestOptions(true, "glm-5.1"), {
+    thinking: { type: "enabled" },
+    extra_body: { reasoning_effort: "max" },
+  });
+});
+
+test("buildThinkingRequestOptions enables qwen thinking with budget", () => {
+  assert.deepEqual(buildThinkingRequestOptions(true, "qwen3-max"), {
+    enable_thinking: true,
+    thinking_budget: 10000,
+  });
+});
+
+test("buildThinkingRequestOptions enables qwen thinking with high effort", () => {
+  assert.deepEqual(buildThinkingRequestOptions(true, "qwen3.5-plus", "high"), {
+    enable_thinking: true,
+    thinking_budget: 5000,
   });
 });
