@@ -112,10 +112,12 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   // Ink's <Static> preserves rendered items by key and never removes them.
   // When dismissing the welcome screen, we must clear the terminal so the
   // old welcome output doesn't stay visible and cover new messages.
+  // Use process.stdout.write (not Ink's writeRef) to avoid interfering
+  // with Ink's rendering pipeline.
   const dismissWelcomeScreen = useCallback(() => {
     setShowWelcome(false);
     setWelcomeNonce((n) => n + 1);
-    writeRef.current("[2J[3J[H");
+    process.stdout.write("[2J[3J[H");
   }, []);
 
   // Throttle stream progress updates: LLM fires events per-token (~10-50ms),
