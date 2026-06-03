@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useInput } from "ink";
 import DropdownMenu from "../../DropdownMenu";
 import type { ModelConfigSelection, ReasoningEffort } from "../../../settings";
+import { findProviderById, type ProviderModel } from "../../../common/provider-presets";
+import { getActiveCredential } from "../../../common/providers";
 
 type ModelStep = "model" | "thinking";
 
@@ -10,8 +12,6 @@ type ThinkingModeOption = {
   thinkingEnabled: boolean;
   reasoningEffort?: ReasoningEffort;
 };
-
-export const MODEL_COMMAND_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"] as const;
 
 export const MODEL_COMMAND_THINKING_OPTIONS: ThinkingModeOption[] = [
   { label: "Thinking mode [max]", thinkingEnabled: true, reasoningEffort: "max" },
@@ -27,6 +27,17 @@ function getThinkingOptionIndex(config: Pick<ModelConfigSelection, "thinkingEnab
     return option.thinkingEnabled && option.reasoningEffort === config.reasoningEffort;
   });
   return index >= 0 ? index : 0;
+}
+
+function resolveModels(): ProviderModel[] {
+  const cred = getActiveCredential();
+  if (cred) {
+    const provider = findProviderById(cred.providerId);
+    if (provider) {
+      return provider.models;
+    }
+  }
+  return [];
 }
 
 type Props = {
@@ -49,11 +60,11 @@ const ModelsDropdown: React.FC<Props> = ({
   const [step, setStep] = useState<ModelStep | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [pendingModel, setPendingModel] = useState<string | null>(null);
+  const models = resolveModels();
 
-  // Initialize state when opened
   useEffect(() => {
     if (open) {
-      const currentIndex = MODEL_COMMAND_MODELS.findIndex((m) => m === modelConfig.model);
+      const currentIndex = models.findIndex((m) => m.id === modelConfig.model);
       setPendingModel(null);
       setStep("model");
       setActiveIndex(currentIndex >= 0 ? currentIndex : 0);
@@ -62,12 +73,11 @@ const ModelsDropdown: React.FC<Props> = ({
     }
   }, [open, modelConfig.model]);
 
-  // Validate activeIndex bounds
   useEffect(() => {
     if (!step) {
       return;
     }
-    const optionCount = step === "model" ? MODEL_COMMAND_MODELS.length : MODEL_COMMAND_THINKING_OPTIONS.length;
+    const optionCount = step === "model" ? models.length : MODEL_COMMAND_THINKING_OPTIONS.length;
     if (activeIndex >= optionCount) {
       setActiveIndex(Math.max(0, optionCount - 1));
     }
@@ -75,7 +85,7 @@ const ModelsDropdown: React.FC<Props> = ({
 
   function selectItem(): void {
     if (step === "model") {
-      const model = MODEL_COMMAND_MODELS[activeIndex] ?? modelConfig.model;
+      const model = models[activeIndex]?.id ?? modelConfig.model;
       setPendingModel(model);
       setStep("thinking");
       setActiveIndex(getThinkingOptionIndex(modelConfig));
@@ -107,7 +117,7 @@ const ModelsDropdown: React.FC<Props> = ({
         return;
       }
 
-      const optionCount = step === "model" ? MODEL_COMMAND_MODELS.length : MODEL_COMMAND_THINKING_OPTIONS.length;
+      const optionCount = step === "model" ? models.length : MODEL_COMMAND_THINKING_OPTIONS.length;
 
       if (key.upArrow) {
         setActiveIndex((idx) => (idx - 1 + optionCount) % optionCount);
@@ -135,11 +145,11 @@ const ModelsDropdown: React.FC<Props> = ({
 
   const items =
     step === "model"
-      ? MODEL_COMMAND_MODELS.map((model) => ({
-          key: model,
-          label: model,
-          description: model === modelConfig.model ? "current model" : "",
-          selected: model === (pendingModel ?? modelConfig.model),
+      ? models.map((model) => ({
+          key: model.id,
+          label: model.label || model.id,
+          description: model.id === modelConfig.model ? "current" : "",
+          selected: model.id === (pendingModel ?? modelConfig.model),
         }))
       : MODEL_COMMAND_THINKING_OPTIONS.map((option, i) => ({
           key: option.label,

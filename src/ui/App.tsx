@@ -31,6 +31,16 @@ import { UndoSelector, type UndoRestoreMode } from "./UndoSelector";
 import { buildLoadingText } from "./loadingText";
 import { findExpandedThinkingId } from "./thinkingState";
 import { WelcomeScreen } from "./WelcomeScreen";
+import { LoginScreen } from "./LoginScreen";
+import {
+  hasCredentials,
+  getActiveApiKey,
+  getActiveBaseURL,
+  getActiveModel,
+  getActiveCredential,
+  setActiveCredential,
+} from "../common/providers";
+import { BUILTIN_PROVIDERS } from "../common/provider-presets";
 import { AskUserQuestionPrompt } from "./AskUserQuestionPrompt";
 import { McpStatusList } from "./McpStatusList";
 import { ProcessStdoutView } from "./ProcessStdoutView";
@@ -43,10 +53,12 @@ import { buildExitSummaryText } from "./exitSummary";
 import { RawMode, useRawModeContext } from "./contexts";
 import { renderMessageToStdout } from "./components/MessageView/utils";
 
-const DEFAULT_MODEL = "deepseek-v4-pro";
-const DEFAULT_BASE_URL = "https://api.deepseek.com";
+// Derive defaults from the first provider preset instead of hardcoding a specific vendor
+const FIRST_PROVIDER = BUILTIN_PROVIDERS[0];
+const DEFAULT_MODEL = FIRST_PROVIDER?.models[0]?.id ?? "deepseek-v4-pro";
+const DEFAULT_BASE_URL = FIRST_PROVIDER?.baseURL ?? "https://api.deepseek.com";
 
-type View = "chat" | "session-list" | "undo" | "mcp-status";
+type View = "chat" | "session-list" | "undo" | "mcp-status" | "login";
 
 type AppProps = {
   projectRoot: string;
@@ -65,7 +77,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const writeRef = useRef(write);
   const lastRenderedColumnsRef = useRef<number | null>(null);
   const messagesRef = useRef<SessionMessage[]>([]);
-  const [view, setView] = useState<View>("chat");
+  const [view, setView] = useState<View>(hasCredentials() ? "chat" : "login");
   const [busy, setBusy] = useState(false);
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [messages, setMessages] = useState<SessionMessage[]>([]);
@@ -244,6 +256,11 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         setShowWelcome(false);
         setUndoTargets(sessionManager.listUndoTargets(activeSessionId));
         setView("undo");
+        return;
+      }
+      if (submission.command === "login") {
+        setShowWelcome(false);
+        setView("login");
         return;
       }
       if (submission.command === "mcp") {
@@ -433,6 +450,11 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     (selection: ModelConfigSelection): string => {
       const current = resolveCurrentSettings(projectRoot);
       const { changed } = writeModelConfigSelection(selection, current, projectRoot);
+      // Sync model change to credentials.json if active provider exists
+      const cred = getActiveCredential();
+      if (cred) {
+        setActiveCredential(cred.providerId, cred.apiKey, selection.model, cred.mode);
+      }
       const next = resolveCurrentSettings(projectRoot);
       setResolvedSettings(next);
 
@@ -794,6 +816,14 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
             setShowWelcome(true);
           }}
         />
+      ) : view === "login" ? (
+        <LoginScreen
+          width={screenWidth}
+          onComplete={() => {
+            setView("chat");
+            setShowWelcome(true);
+          }}
+        />
       ) : view === "mcp-status" ? (
         <McpStatusList
           statuses={mcpStatuses}
@@ -967,7 +997,7 @@ export function writeModelConfigSelection(
 }
 
 export function resolveCurrentSettings(projectRoot: string = process.cwd()): ResolvedDeepcodingSettings {
-  return resolveSettingsSources(
+  const base = resolveSettingsSources(
     readSettings(),
     readProjectSettings(projectRoot),
     {
@@ -976,8 +1006,19 @@ export function resolveCurrentSettings(projectRoot: string = process.cwd()): Res
     },
     process.env
   );
-}
 
+  // Overlay credential-based provider settings if credentials exist
+  const credApiKey = getActiveApiKey();
+  const credBaseURL = getActiveBaseURL();
+  const credModel = getActiveModel();
+
+  return {
+    ...base,
+    apiKey: credApiKey || base.apiKey,
+    baseURL: credBaseURL || base.baseURL,
+    model: credModel || base.model,
+  };
+}
 export { createOpenAIClient } from "../common/openai-client";
 
 function getUserSettingsPath(): string {

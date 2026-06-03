@@ -22,6 +22,7 @@ test("buildSlashCommands prefixes skills before built-ins", () => {
   assert.deepEqual(builtinNames, [
     "skills",
     "model",
+    "login",
     "new",
     "init",
     "resume",
