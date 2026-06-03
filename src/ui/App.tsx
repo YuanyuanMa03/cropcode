@@ -77,7 +77,16 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const writeRef = useRef(write);
   const lastRenderedColumnsRef = useRef<number | null>(null);
   const messagesRef = useRef<SessionMessage[]>([]);
-  const [view, setView] = useState<View>(hasCredentials() ? "chat" : "login");
+  // Existing users with settings.json API keys should not be forced into login
+  const hasLegacyApiKey = (() => {
+    try {
+      const s = resolveCurrentSettings(projectRoot);
+      return !!s.apiKey;
+    } catch {
+      return false;
+    }
+  })();
+  const [view, setView] = useState<View>(hasCredentials() || hasLegacyApiKey ? "chat" : "login");
   const [busy, setBusy] = useState(false);
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [messages, setMessages] = useState<SessionMessage[]>([]);

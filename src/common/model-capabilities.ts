@@ -35,7 +35,8 @@ export function supportsReasoningEffort(model: string): boolean {
 
 export function supportsMultimodal(model: string): boolean {
   const m = findModel(model);
-  return m?.multimodal ?? false;
+  if (!m) return true; // unknown custom model: assume multimodal (permissive default)
+  return m.multimodal ?? false;
 }
 
 function parseContextWindow(value: string): number {
