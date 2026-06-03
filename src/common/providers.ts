@@ -8,6 +8,8 @@ export type ProviderCredential = {
   apiKey: string;
   activeModel: string;
   mode: "api" | "coding-plan";
+  thinkingEnabled?: boolean;
+  reasoningEffort?: "high" | "max";
 };
 
 export type CredentialsFile = {
@@ -52,11 +54,13 @@ export function setActiveCredential(
   providerId: string,
   apiKey: string,
   activeModel: string,
-  mode: "api" | "coding-plan" = "api"
+  mode: "api" | "coding-plan" = "api",
+  thinkingEnabled?: boolean,
+  reasoningEffort?: "high" | "max"
 ): void {
   const creds = readCredentials() ?? { activeProvider: providerId, providers: {} };
   creds.activeProvider = providerId;
-  creds.providers[providerId] = { providerId, apiKey, activeModel, mode };
+  creds.providers[providerId] = { providerId, apiKey, activeModel, mode, thinkingEnabled, reasoningEffort };
   writeCredentials(creds);
 }
 
@@ -76,6 +80,14 @@ export function getActiveModel(): string {
 
 export function hasCredentials(): boolean {
   return getActiveCredential() !== null;
+}
+
+export function getActiveThinkingEnabled(): boolean | undefined {
+  return getActiveCredential()?.thinkingEnabled;
+}
+
+export function getActiveReasoningEffort(): "high" | "max" | undefined {
+  return getActiveCredential()?.reasoningEffort;
 }
 
 export function getActiveProviderLabel(): string {
