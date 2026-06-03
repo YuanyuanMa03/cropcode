@@ -216,15 +216,8 @@ export function latexToUnicode(latex: string): string {
     return FRACTIONS[key] ?? `(${num})/(${den})`;
   });
 
-  // Superscripts ^{...} or ^x
-  result = result.replace(/\^\{(.*?)\}/g, (_, inner) => [...inner].map((c: string) => SUPERSCRIPTS[c] ?? c).join(""));
-  result = result.replace(/\^(\S)/g, (_, c: string) => SUPERSCRIPTS[c] ?? "^" + c);
-
-  // Subscripts _{...} or _x
-  result = result.replace(/_\{(.*?)\}/g, (_, inner) => [...inner].map((c: string) => SUBSCRIPTS[c] ?? c).join(""));
-  result = result.replace(/_(\S)/g, (_, c: string) => SUBSCRIPTS[c] ?? "_" + c);
-
-  // Greek letters
+  // Greek letters — must run BEFORE superscript/subscript to avoid
+  // breaking symbols like \infty (\in → \ⁱⁿ)
   result = result.replace(/\\epsilon\b/g, "ε");
   result = result.replace(/\\varphi\b/g, "φ");
   result = result.replace(/\\phi\b/g, "ϕ");
@@ -232,10 +225,18 @@ export function latexToUnicode(latex: string): string {
     result = result.replace(new RegExp(`\\\\${tex}\\b`, "g"), uni);
   }
 
-  // Math symbols
+  // Math symbols — must run BEFORE superscript/subscript
   for (const [tex, uni] of Object.entries(MATH_SYMBOLS)) {
     result = result.replace(new RegExp(`\\\\${tex}\\b`, "g"), uni);
   }
+
+  // Superscripts ^{...} or ^x — after symbols so plain ^ is converted
+  result = result.replace(/\^\{(.*?)\}/g, (_, inner) => [...inner].map((c: string) => SUPERSCRIPTS[c] ?? c).join(""));
+  result = result.replace(/\^(\S)/g, (_, c: string) => SUPERSCRIPTS[c] ?? "^" + c);
+
+  // Subscripts _{...} or _x — after symbols
+  result = result.replace(/_\{(.*?)\}/g, (_, inner) => [...inner].map((c: string) => SUBSCRIPTS[c] ?? c).join(""));
+  result = result.replace(/_(\S)/g, (_, c: string) => SUBSCRIPTS[c] ?? "_" + c);
 
   // sqrt
   result = result.replace(/\\sqrt\{(.*?)\}/g, "√($1)");
