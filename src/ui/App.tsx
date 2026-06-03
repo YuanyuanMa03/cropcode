@@ -39,6 +39,8 @@ import {
   getActiveModel,
   getActiveCredential,
   setActiveCredential,
+  getActiveThinkingEnabled,
+  getActiveReasoningEffort,
 } from "../common/providers";
 import { BUILTIN_PROVIDERS } from "../common/provider-presets";
 import { AskUserQuestionPrompt } from "./AskUserQuestionPrompt";
@@ -462,7 +464,14 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       // Sync model change to credentials.json if active provider exists
       const cred = getActiveCredential();
       if (cred) {
-        setActiveCredential(cred.providerId, cred.apiKey, selection.model, cred.mode);
+        setActiveCredential(
+          cred.providerId,
+          cred.apiKey,
+          selection.model,
+          cred.mode,
+          selection.thinkingEnabled,
+          selection.reasoningEffort
+        );
       }
       const next = resolveCurrentSettings(projectRoot);
       setResolvedSettings(next);
@@ -829,6 +838,8 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         <LoginScreen
           width={screenWidth}
           onComplete={() => {
+            const fresh = resolveCurrentSettings(projectRoot);
+            setResolvedSettings(fresh);
             setView("chat");
             setShowWelcome(true);
           }}
@@ -1013,6 +1024,8 @@ export function resolveCurrentSettings(projectRoot: string = process.cwd()): Res
   const credApiKey = getActiveApiKey();
   const credBaseURL = getActiveBaseURL();
   const credModel = getActiveModel();
+  const credThinkingEnabled = getActiveThinkingEnabled();
+  const credReasoningEffort = getActiveReasoningEffort();
   const hasCred = hasCredentials();
 
   // When credentials exist, use credential values as defaults so they
@@ -1035,6 +1048,8 @@ export function resolveCurrentSettings(projectRoot: string = process.cwd()): Res
     apiKey: hasCred ? credApiKey : base.apiKey,
     baseURL: hasCred ? credBaseURL : base.baseURL,
     model: hasCred ? credModel : base.model,
+    thinkingEnabled: hasCred && credThinkingEnabled !== undefined ? credThinkingEnabled : base.thinkingEnabled,
+    reasoningEffort: hasCred && credReasoningEffort !== undefined ? credReasoningEffort : base.reasoningEffort,
   };
 }
 export { createOpenAIClient } from "../common/openai-client";
