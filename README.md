@@ -57,7 +57,6 @@ CropCode is an **AI-powered coding agent** that runs in your terminal. Think Cla
 - **Paper Tools** — LaTeX typesetting, reference management, figure generation
 - **MCP Integration** — Connect external tools via Model Context Protocol
 - **Session Management** — Multi-session with undo, resume, and automatic context compaction
-- **Terminal Preview** — Inline image rendering (iTerm2/Kitty), LaTeX math → Unicode, CSV/TSV tables, enhanced Markdown — see plots and data without leaving the terminal
 
 ## 🎬 Demo
 
@@ -252,68 +251,6 @@ Connect external services via Model Context Protocol:
 
 See [docs/mcp_en.md](docs/mcp_en.md) for detailed setup.
 
-### Preview & Render — See Everything in Your Terminal
-
-CropCode renders research outputs directly in the terminal — no context switching.
-
-#### Plot Preview
-
-When your code generates a matplotlib plot, CropCode displays it inline (iTerm2 / WezTerm / Kitty):
-
-```
-> 用 Python 画一个正弦波和余弦波的对比图
-
-✦ [Writing plot.py and executing...]
-
-[Image Preview]
-███░░░░████████████████████████████
-████████████░░░░░░░░████████████████  ← Inline plot!
-████████████████████████████████████
-/tmp/cropcode-plot-1717430400.png
-
-✦ Plot saved to plot.png (89 KB). Sine and cosine comparison complete.
-```
-
-#### LaTeX Math in Terminal
-
-```
-> 显示贝叶斯定理的公式
-
-   P(A|B) = (P(B|A) · P(A)) / P(B)
-
-> 显示作物生长 Logistic 模型
-
-   W(t) = Wₘₐₓ · 1/(1 + e⁻ᵏ⁽ᵗ⁻ᵗ⁵⁰⁾)
-
-> 写一个柯西-施瓦茨不等式的证明
-
-   |⟨u, v⟩| ≤ ‖u‖ · ‖v‖
-
-   证明: ∀ ε > 0, ∃ δ > 0: |x - a| < δ ⇒ |f(x) - L| < ε
-```
-
-#### Data Tables
-
-```
-> 分析 results.csv 的前5行
-
-[Data Preview]
-┌──────────────────────────────────────────┐
-│ Variety   │ Yield   │ Protein │ Location  │
-│ ──────────┼─────────┼─────────┼────────── │
-│ Jing411   │ 6850    │ 12.3    │ Beijing   │
-│ Zheng9023 │ 7210    │ 11.8    │ Zhengzhou  │
-│ Yangmai16 │ 6530    │ 13.1    │ Nanjing   │
-└──────────────────────────────────────────┘
-```
-
-#### Markdown with Tables & Math
-
-CropCode renders GFM tables, task lists, and inline LaTeX in any Markdown output.
-
-> **Supported terminals**: iTerm2, WezTerm (inline images) · Kitty (graphics protocol) · All terminals (Unicode math + ASCII tables)
-
-
 ## 🧩 Skills & Marketplace
 
 Extend CropCode with custom skills. Multiple ways to get them:
@@ -470,7 +407,6 @@ CropCode 是一个运行在终端中的 **AI 编程助手**。对标 Claude Code
 - **论文工具** — LaTeX 排版、参考文献管理、论文图表生成
 - **MCP 集成** — Model Context Protocol 连接外部工具
 - **会话管理** — 多会话支持，可撤销、恢复、自动上下文压缩
-- **终端预览** — 内联图片渲染 (iTerm2/Kitty)、LaTeX 公式 → Unicode、CSV/TSV 表格、增强 Markdown — 图表和数据不出终端即可查看
 
 ## 🚀 快速开始
 
@@ -658,62 +594,6 @@ LaTeX 表格生成、出版物级别的图表排版。
 ```
 
 详见 [docs/mcp.md](docs/mcp.md)。
-
-### 终端预览 — 一切尽在终端
-
-CropCode 直接在终端中渲染科研输出 — 无需切换窗口。
-
-#### 图表预览
-
-代码生成的 matplotlib 图表会直接内联显示（iTerm2 / WezTerm / Kitty）：
-
-```
-> 用 Python 分析作物产量数据，画柱状图和误差棒
-
-✦ [执行 analysis.py...]
-
-[Image Preview]
-████████░░░░░░░░░░░░████████████████████
-████████████████████░░░░░░░░████████████  ← 内联柱状图！
-████████████████████████████████████████
-/tmp/cropcode-plot-1717430456.png
-
-✦ 图表已保存到 yield_comparison.pdf 和 yield_comparison.png
-```
-
-#### LaTeX 数学公式
-
-```
-> 显示贝叶斯定理
-
-   P(A|B) = (P(B|A) · P(A)) / P(B)
-
-> 作物生长的 Logistic 模型
-
-   W(t) = Wₘₐₓ · 1/(1 + e⁻ᵏ⁽ᵗ⁻ᵗ⁵⁰⁾)
-
-> 热力学 Gibbs 自由能
-
-   ΔG = ΔH - TΔS
-```
-
-#### 数据表格
-
-```
-> 查看实验结果 result.csv
-
-[Data Preview]
-┌──────────────────────────────────────────┐
-│ 品种     │ 产量   │ 蛋白质 │ 地点       │
-│ ────────┼────────┼────────┼─────────── │
-│ 京411    │ 6850   │ 12.3   │ 北京       │
-│ 郑9023   │ 7210   │ 11.8   │ 郑州       │
-│ 扬麦16   │ 6530   │ 13.1   │ 南京       │
-└──────────────────────────────────────────┘
-```
-
-> **支持终端**: iTerm2, WezTerm (内联图片) · Kitty (图形协议) · 所有终端 (Unicode 数学 + ASCII 表格)
-
 
 ## 🧩 技能与插件市场
 
