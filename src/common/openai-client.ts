@@ -4,18 +4,10 @@ import * as path from "path";
 import OpenAI from "openai";
 import { Agent, fetch as undiciFetch } from "undici";
 import { resolveCurrentSettings } from "../ui/App";
+import { getActiveApiKey, getActiveBaseURL, getActiveModel } from "./providers";
 
-// Custom undici Agent with a 180-second keepAlive timeout.  The default
-// global fetch (undici) only keeps connections alive for 4 seconds, which
-// is too short for a CLI where the user may spend 10–30 seconds reading
-// output between prompts.  By passing a dedicated Agent to undiciFetch we
-// keep connections reusable for three minutes after the last request.
 const keepAliveAgent = new Agent({ keepAliveTimeout: 180_000 });
 
-// Module-level cache for the OpenAI client instance.  The client itself is
-// a stateless fetch wrapper, so it is safe to share across calls as long as
-// the apiKey + baseURL stay the same.  Model, thinking-mode and other
-// settings are always read fresh from the project / user config files.
 let cachedOpenAI: OpenAI | null = null;
 let cachedOpenAIKey = "";
 
@@ -32,11 +24,21 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
   machineId?: string;
 } {
   const settings = resolveCurrentSettings(projectRoot);
-  if (!settings.apiKey) {
+
+  // Prefer credentials.json (multi-provider login) over legacy settings
+  const credentialApiKey = getActiveApiKey();
+  const credentialBaseURL = getActiveBaseURL();
+  const credentialModel = getActiveModel();
+
+  const apiKey = credentialApiKey || settings.apiKey;
+  const baseURL = credentialBaseURL || settings.baseURL;
+  const model = credentialModel || settings.model;
+
+  if (!apiKey) {
     return {
       client: null,
-      model: settings.model,
-      baseURL: settings.baseURL,
+      model,
+      baseURL,
       thinkingEnabled: settings.thinkingEnabled,
       reasoningEffort: settings.reasoningEffort,
       debugLogEnabled: settings.debugLogEnabled,
@@ -47,12 +49,12 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
     };
   }
 
-  const cacheKey = `${settings.apiKey}::${settings.baseURL}`;
+  const cacheKey = `${apiKey}::${baseURL}`;
   if (cachedOpenAI && cachedOpenAIKey === cacheKey) {
     return {
       client: cachedOpenAI,
-      model: settings.model,
-      baseURL: settings.baseURL,
+      model,
+      baseURL,
       thinkingEnabled: settings.thinkingEnabled,
       reasoningEffort: settings.reasoningEffort,
       debugLogEnabled: settings.debugLogEnabled,
@@ -64,16 +66,13 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
   }
 
   cachedOpenAI = new OpenAI({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL || undefined,
+    apiKey,
+    baseURL: baseURL || undefined,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fetch: (url: any, init: any) => undiciFetch(url, { ...init, dispatcher: keepAliveAgent }),
   });
   cachedOpenAIKey = cacheKey;
 
-  // Fire-and-forget warmup: pre-establish TCP+TLS connection to the API
-  // server while the user is composing their first prompt.  Bounded by a
-  // short timeout so a slow / unreachable API never blocks process exit.
   void (async () => {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 3000);
@@ -86,8 +85,8 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
 
   return {
     client: cachedOpenAI,
-    model: settings.model,
-    baseURL: settings.baseURL,
+    model,
+    baseURL,
     thinkingEnabled: settings.thinkingEnabled,
     reasoningEffort: settings.reasoningEffort,
     debugLogEnabled: settings.debugLogEnabled,

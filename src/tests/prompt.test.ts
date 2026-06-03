@@ -66,7 +66,7 @@ test("getRuntimeContext includes current date and model guidance", () => {
 });
 
 test("getSystemPrompt renders Read docs for non-multimodal models", () => {
-  const prompt = getSystemPrompt("/tmp/project", { model: "deepseek-chat" });
+  const prompt = getSystemPrompt("/tmp/project", { model: "deepseek-v4-pro" });
   assert.equal(prompt.includes("the current model is not multimodal"), true);
   assert.equal(prompt.includes("the contents are presented visually"), false);
 });
