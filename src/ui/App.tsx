@@ -995,7 +995,11 @@ export function writeModelConfigSelection(
   const shouldWriteProjectSettings = fs.existsSync(projectSettingsPath);
   const rawSettings = shouldWriteProjectSettings ? readProjectSettings(projectRoot) : readSettings();
   const result = applyModelConfigSelection(rawSettings, current, selection);
-  if (result.changed) {
+
+  // When credentials are active, the model is stored in credentials.json,
+  // not settings.json. Skip writing to avoid polluting settings.json with
+  // stale model fields that would conflict with credential resolution.
+  if (result.changed && !hasCredentials()) {
     if (shouldWriteProjectSettings) {
       writeProjectSettings(result.settings, projectRoot);
     } else {
@@ -1006,26 +1010,31 @@ export function writeModelConfigSelection(
 }
 
 export function resolveCurrentSettings(projectRoot: string = process.cwd()): ResolvedDeepcodingSettings {
+  const credApiKey = getActiveApiKey();
+  const credBaseURL = getActiveBaseURL();
+  const credModel = getActiveModel();
+  const hasCred = hasCredentials();
+
+  // When credentials exist, use credential values as defaults so they
+  // flow through the entire resolution chain rather than a last-step overlay.
+  // This prevents stale settings.json model/apiKey fields from leaking through.
   const base = resolveSettingsSources(
     readSettings(),
     readProjectSettings(projectRoot),
     {
-      model: DEFAULT_MODEL,
-      baseURL: DEFAULT_BASE_URL,
+      model: hasCred ? credModel : DEFAULT_MODEL,
+      baseURL: hasCred ? credBaseURL : DEFAULT_BASE_URL,
     },
     process.env
   );
 
-  // Overlay credential-based provider settings if credentials exist
-  const credApiKey = getActiveApiKey();
-  const credBaseURL = getActiveBaseURL();
-  const credModel = getActiveModel();
-
   return {
     ...base,
-    apiKey: credApiKey || base.apiKey,
-    baseURL: credBaseURL || base.baseURL,
-    model: credModel || base.model,
+    // Hard-override with credential values when active — credential login
+    // is an explicit user choice and must take priority over all other sources.
+    apiKey: hasCred ? credApiKey : base.apiKey,
+    baseURL: hasCred ? credBaseURL : base.baseURL,
+    model: hasCred ? credModel : base.model,
   };
 }
 export { createOpenAIClient } from "../common/openai-client";
