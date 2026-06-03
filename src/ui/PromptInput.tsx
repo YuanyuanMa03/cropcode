@@ -6,16 +6,13 @@ import {
   EMPTY_BUFFER,
   PASTE_MARKER_REGEX,
   backspace,
-  cleanPasteContent,
   deleteForward,
   deletePasteMarkerBackward,
   deletePasteMarkerForward,
   deleteWordBefore,
   deleteWordAfter,
   expandPasteMarkers,
-  findPasteMarkerContaining,
   getCurrentSlashToken,
-  hasActivePasteMarkers,
   insertText,
   isEmpty,
   killLine,
@@ -46,6 +43,7 @@ import {
 } from "./fileMentions";
 import type { FileMentionItem } from "./fileMentions";
 import { readClipboardImageAsync } from "./clipboard";
+import { useHistoryNavigation, usePasteHandling } from "./hooks";
 import type { SessionEntry, SkillInfo } from "../session";
 
 // Re-exported from prompt modules for backward compatibility
@@ -137,9 +135,18 @@ export const PromptInput = React.memo(function PromptInput({
   const { exit } = useApp();
   const { stdout } = useStdout();
   const [buffer, setBuffer] = useState<PromptBufferState>(EMPTY_BUFFER);
+
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<SkillInfo[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const { historyCursor, navigateHistory, exitHistoryBrowsing } = useHistoryNavigation(
+    buffer,
+    setBuffer,
+    promptHistory
+  );
+  const { pastesRef, handlePaste, expandPasteMarkerAtCursor, resetPastes, hasCollapsedMarkers, hasExpandedRegions } =
+    usePasteHandling(buffer, updateBuffer, setStatusMessage);
   const [pendingExit, setPendingExit] = useState(false);
   const [menuIndex, setMenuIndex] = useState(0);
   const [showSkillsDropdown, setShowSkillsDropdown] = useState(false);
@@ -147,20 +154,13 @@ export const PromptInput = React.memo(function PromptInput({
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [fileMentionItems, setFileMentionItems] = useState<FileMentionItem[]>(() => scanFileMentionItems(projectRoot));
   const [dismissedFileMentionKey, setDismissedFileMentionKey] = useState<string | null>(null);
-  const [historyCursor, setHistoryCursor] = useState(-1);
-  const [draftBeforeHistory, setDraftBeforeHistory] = useState<string | null>(null);
+
   const [hasTerminalFocus, setHasTerminalFocus] = useState(true);
   const lastCtrlDAt = React.useRef<number>(0);
   const undoRedoRef = React.useRef(createPromptUndoRedoState());
   const wasBusyRef = React.useRef(busy);
   const hadFileMentionTokenRef = React.useRef(false);
   const appliedDraftNonceRef = React.useRef<number | null>(null);
-  const pastesRef = React.useRef<Map<number, string>>(new Map());
-  const pasteCounterRef = React.useRef<number>(0);
-  // Track expanded paste regions for toggle (Ctrl+O expand / collapse).
-  const expandedRegionsRef = React.useRef<Map<number, { start: number; end: number; content: string; marker: string }>>(
-    new Map()
-  );
 
   const fileMentionToken = getCurrentFileMentionToken(buffer);
   const hasFileMentionToken = fileMentionToken !== null;
@@ -188,8 +188,7 @@ export const PromptInput = React.memo(function PromptInput({
   const showMenu = slashMenu.length > 0;
   const promptHistoryKey = React.useMemo(() => promptHistory.join("\0"), [promptHistory]);
   const hasRunningProcess = runningProcesses && runningProcesses.size > 0;
-  const hasCollapsedMarkers = hasActivePasteMarkers(buffer.text, pastesRef.current);
-  const hasExpandedRegions = expandedRegionsRef.current.size > 0;
+
   const processOrPasteHint = hasRunningProcess
     ? " · ctrl+o view output"
     : hasCollapsedMarkers
@@ -265,16 +264,13 @@ export const PromptInput = React.memo(function PromptInput({
     setSelectedSkills([]);
     setShowSkillsDropdown(false);
     setOpenRawModelDropdown(false);
-    setHistoryCursor(-1);
-    setDraftBeforeHistory(null);
+    exitHistoryBrowsing();
     clearPromptUndoRedoState(undoRedoRef.current);
-    pastesRef.current.clear();
-    expandedRegionsRef.current.clear();
+    resetPastes();
   }, [promptDraft]);
 
   useEffect(() => {
-    setHistoryCursor(-1);
-    setDraftBeforeHistory(null);
+    exitHistoryBrowsing();
   }, [promptHistoryKey]);
 
   useTerminalInput(
@@ -336,7 +332,7 @@ export const PromptInput = React.memo(function PromptInput({
           setBuffer(EMPTY_BUFFER);
           clearUndoRedoStacks();
           pastesRef.current.clear();
-          expandedRegionsRef.current.clear();
+          resetPastes();
         } else {
           setStatusMessage("press ctrl+d to exit");
         }
@@ -527,7 +523,7 @@ export const PromptInput = React.memo(function PromptInput({
       if (key.ctrl && (input === "u" || input === "U")) {
         updateBuffer(() => EMPTY_BUFFER);
         pastesRef.current.clear();
-        expandedRegionsRef.current.clear();
+        resetPastes();
         return;
       }
       if (key.ctrl && (input === "w" || input === "W")) {
@@ -591,11 +587,6 @@ export const PromptInput = React.memo(function PromptInput({
     clearPromptUndoRedoState(undoRedoRef.current);
   }
 
-  function exitHistoryBrowsing(): void {
-    setHistoryCursor(-1);
-    setDraftBeforeHistory(null);
-  }
-
   function updateBuffer(updater: (state: PromptBufferState) => PromptBufferState): void {
     exitHistoryBrowsing();
     setBuffer((current) => {
@@ -603,107 +594,6 @@ export const PromptInput = React.memo(function PromptInput({
       recordPromptEdit(undoRedoRef.current, current, next);
       return next;
     });
-  }
-
-  function handlePaste(pastedText: string): void {
-    const totalChars = pastedText.length;
-
-    if (totalChars <= 1000) {
-      const newlineCount = (pastedText.match(/\n/g) ?? []).length;
-      if (newlineCount <= 9) {
-        const clean = pastedText
-          .replace(/\r\n|\r/g, "\n")
-          .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
-          .replace(/\t/g, "    ");
-        updateBuffer((s) => insertText(s, clean));
-        return;
-      }
-    }
-
-    // Large paste: store raw text, insert marker with line/char count.
-    const lineCount = (pastedText.match(/\n/g) ?? []).length + 1;
-    pasteCounterRef.current += 1;
-    const pasteId = pasteCounterRef.current;
-    pastesRef.current.set(pasteId, pastedText);
-
-    const marker =
-      lineCount > 10 ? `[paste #${pasteId} +${lineCount} lines]` : `[paste #${pasteId} ${totalChars} chars]`;
-
-    updateBuffer((s) => insertText(s, marker));
-  }
-
-  function expandPasteMarkerAtCursor(): void {
-    // First, try to collapse an already-expanded region at the cursor.
-    for (const [id, region] of expandedRegionsRef.current) {
-      if (buffer.cursor >= region.start && buffer.cursor <= region.end) {
-        // Collapse back to marker.
-        expandedRegionsRef.current.delete(id);
-        pastesRef.current.set(id, region.content);
-        setTimeout(() => {
-          updateBuffer((s) => {
-            const text = s.text.slice(0, region.start) + region.marker + s.text.slice(region.end);
-            return { text, cursor: region.start + region.marker.length };
-          });
-        }, 0);
-        return;
-      }
-    }
-
-    // No expanded region at cursor — try to expand a paste marker.
-    const marker = findPasteMarkerContaining(buffer);
-    if (!marker) {
-      setStatusMessage("No paste marker at cursor");
-      return;
-    }
-    const content = pastesRef.current.get(marker.id);
-    if (!content) {
-      setStatusMessage("Paste content not found");
-      return;
-    }
-
-    const pasteId = marker.id;
-    const originalMarker = buffer.text.slice(marker.start, marker.end);
-    pastesRef.current.delete(pasteId);
-
-    setTimeout(() => {
-      updateBuffer((s) => {
-        const text = s.text.slice(0, marker.start) + cleanPasteContent(content) + s.text.slice(marker.end);
-        const newEnd = marker.start + content.length;
-        expandedRegionsRef.current.set(pasteId, {
-          start: marker.start,
-          end: newEnd,
-          content,
-          marker: originalMarker,
-        });
-        return { text, cursor: marker.start };
-      });
-    }, 0);
-  }
-
-  function navigateHistory(direction: -1 | 1): void {
-    if (promptHistory.length === 0) {
-      return;
-    }
-
-    const previousCursor = historyCursor === -1 ? promptHistory.length : historyCursor;
-    const nextCursor = Math.max(0, Math.min(promptHistory.length, previousCursor + direction));
-    const draft = historyCursor === -1 ? buffer.text : draftBeforeHistory;
-
-    if (historyCursor === -1) {
-      setDraftBeforeHistory(buffer.text);
-    }
-
-    if (nextCursor === promptHistory.length) {
-      const text = draft ?? "";
-      setBuffer({ text, cursor: text.length });
-      setHistoryCursor(-1);
-      setDraftBeforeHistory(null);
-      return;
-    }
-
-    const text = promptHistory[nextCursor] ?? "";
-    setBuffer({ text, cursor: text.length });
-    setHistoryCursor(nextCursor);
   }
 
   function insertFileMentionSelection(item: FileMentionItem): void {
@@ -720,9 +610,8 @@ export const PromptInput = React.memo(function PromptInput({
     setImageUrls([]);
     setSelectedSkills([]);
     setShowSkillsDropdown(false);
-    pastesRef.current.clear();
-    expandedRegionsRef.current.clear();
-    pasteCounterRef.current = 0;
+    resetPastes();
+    resetPastes();
   }
 
   function handleSlashSelection(item: SlashCommandItem): void {
