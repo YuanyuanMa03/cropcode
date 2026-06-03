@@ -27,6 +27,7 @@ export type DeepcodingSettings = {
   webSearchTool?: string;
   mcpServers?: Record<string, McpServerConfig>;
   disabledSkills?: string[];
+  permissions?: PermissionSettings;
 };
 
 export type ResolvedDeepcodingSettings = {
@@ -47,6 +48,27 @@ export type ModelConfigSelection = {
   model: string;
   thinkingEnabled: boolean;
   reasoningEffort: ReasoningEffort;
+};
+
+export type PermissionScope =
+  | "read-in-cwd"
+  | "read-out-cwd"
+  | "write-in-cwd"
+  | "write-out-cwd"
+  | "delete-in-cwd"
+  | "delete-out-cwd"
+  | "query-git-log"
+  | "mutate-git-log"
+  | "network"
+  | "mcp";
+
+export type PermissionDefaultMode = "allowAll" | "askAll";
+
+export type PermissionSettings = {
+  allow?: PermissionScope[];
+  deny?: PermissionScope[];
+  ask?: PermissionScope[];
+  defaultMode?: PermissionDefaultMode;
 };
 
 export type SettingsProcessEnv = Record<string, string | undefined>;

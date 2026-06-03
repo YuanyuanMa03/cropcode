@@ -34,10 +34,10 @@ export {
   type InputKey,
 } from "./PromptInput";
 export { getThinkingOptionIndex, MODEL_COMMAND_THINKING_OPTIONS };
-export { disableTerminalExtendedKeys, enableTerminalExtendedKeys, getPromptCursorPlacement } from "./prompt/cursor";
+export { disableTerminalExtendedKeys, enableTerminalExtendedKeys, getPromptCursorPlacement } from "./hooks/cursor";
 export { SessionList, formatSessionTitle, filterSessions, formatSessionStatus } from "./SessionList";
 export { ThemedGradient } from "./ThemedGradient";
-export { UpdatePrompt, type UpdatePromptChoice } from "./UpdatePrompt";
+export { UpdatePrompt, type UpdatePromptChoice } from "./views/UpdatePrompt";
 export { WelcomeScreen, formatHomeRelativePath, buildWelcomeTips } from "./WelcomeScreen";
 export {
   findPendingAskUserQuestion,
@@ -47,9 +47,9 @@ export {
   type AskUserQuestionItem,
   type PendingAskUserQuestion,
   type AskUserQuestionAnswers,
-} from "./askUserQuestion";
-export { readClipboardImage, type ClipboardImage } from "./clipboard";
-export { buildLoadingText, type LoadingTextInput } from "./loadingText";
+} from "./core/ask-user-question";
+export { readClipboardImage, readClipboardImageAsync, type ClipboardImage } from "./core/clipboard";
+export { buildLoadingText, type LoadingTextInput } from "./core/loading-text";
 export { renderMarkdown } from "./components/MessageView/markdown";
 export {
   EMPTY_BUFFER,
@@ -71,7 +71,7 @@ export {
   isEmpty,
   getCurrentSlashToken,
   type PromptBufferState,
-} from "./promptBuffer";
+} from "./core/prompt-buffer";
 export {
   BUILTIN_SLASH_COMMANDS,
   buildSlashCommands,
@@ -81,7 +81,7 @@ export {
   formatSlashCommandLabel,
   type SlashCommandKind,
   type SlashCommandItem,
-} from "./slashCommands";
+} from "./core/slash-commands";
 export {
   filterFileMentionItems,
   formatFileMentionPath,
@@ -90,6 +90,40 @@ export {
   scanFileMentionItems,
   type FileMentionItem,
   type FileMentionToken,
-} from "./fileMentions";
-export { findExpandedThinkingId } from "./thinkingState";
-export { buildExitSummaryText } from "./exitSummary";
+} from "./core/file-mentions";
+export { findExpandedThinkingId, isCollapsedThinking } from "./core/thinking-state";
+export { buildExitSummaryText } from "./exit-summary";
+export {
+  createPromptUndoRedoState,
+  recordPromptEdit,
+  undoPromptEdit,
+  redoPromptEdit,
+  clearPromptUndoRedoState,
+  type PromptUndoRedoState,
+} from "./core/prompt-undo-redo";
+export {
+  useTerminalInput as useTerminalInputHook,
+  parseTerminalInput as parseTerminalInputFn,
+  dispatchTerminalInput as dispatchTerminalInputFn,
+  type InputKey as TerminalInputKey,
+} from "./hooks/useTerminalInput";
+export {
+  useHiddenTerminalCursor,
+  useTerminalExtendedKeys,
+  useBracketedPaste,
+  usePromptTerminalCursor,
+  useTerminalFocusReporting,
+} from "./hooks/cursor";
+export {
+  usePasteHandling,
+  type PasteRegion,
+  type PasteHandlingState,
+  type PasteHandlingActions,
+} from "./hooks/usePasteHandling";
+export {
+  useHistoryNavigation,
+  type HistoryNavigationState,
+  type HistoryNavigationActions,
+} from "./hooks/useHistoryNavigation";
+export { PermissionPrompt, type PermissionPromptResult } from "./views/PermissionPrompt";
+export { buildExitSummaryText as buildExitSummary } from "./exit-summary";

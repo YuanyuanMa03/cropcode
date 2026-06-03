@@ -91,7 +91,7 @@ test("scanFileMentionItems returns relative slash-separated files and directorie
 
     assert.deepEqual(
       scanFileMentionItems(root).map((item) => item.path),
-      ["node_modules/", "node_modules/ignored.js", "src/", "src/index.ts"]
+      ["src/", "src/index.ts"]
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
