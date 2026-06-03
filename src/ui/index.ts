@@ -1,14 +1,7 @@
 import { getThinkingOptionIndex, MODEL_COMMAND_THINKING_OPTIONS } from "./components/ModelsDropdown";
 
-export {
-  readSettings,
-  readProjectSettings,
-  writeSettings,
-  writeProjectSettings,
-  writeModelConfigSelection,
-  resolveCurrentSettings,
-  buildPromptDraftFromSessionMessage,
-} from "./App";
+export { readSettings, readProjectSettings, writeSettings, writeProjectSettings } from "../settings";
+export { writeModelConfigSelection, resolveCurrentSettings, buildPromptDraftFromSessionMessage } from "./App";
 export { createOpenAIClient } from "../common/openai-client";
 export { default as AppContainer } from "./AppContainer";
 export { AskUserQuestionPrompt } from "./AskUserQuestionPrompt";

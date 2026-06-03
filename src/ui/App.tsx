@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { Box, Static, Text, useApp, useStdout, useWindowSize } from "ink";
 import chalk from "chalk";
 import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
 import { createOpenAIClient } from "../common/openai-client";
 import { listMarketplaces, listInstalledPlugins } from "../marketplace";
 import {
@@ -23,6 +21,11 @@ import {
   type ModelConfigSelection,
   type ResolvedDeepcodingSettings,
   resolveSettingsSources,
+  readSettings,
+  readProjectSettings,
+  writeSettings,
+  writeProjectSettings,
+  getProjectSettingsPath,
 } from "../settings";
 import { PromptInput, type PromptDraft, type PromptSubmission } from "./PromptInput";
 import { MessageView, RawModeExitPrompt } from "./components";
@@ -984,41 +987,6 @@ function buildStatusLine(entry: SessionEntry): string {
   return parts.join(" · ");
 }
 
-export function readSettings(): DeepcodingSettings | null {
-  return readSettingsFile(getUserSettingsPath());
-}
-
-export function readProjectSettings(projectRoot: string = process.cwd()): DeepcodingSettings | null {
-  return readSettingsFile(getProjectSettingsPath(projectRoot));
-}
-
-function readSettingsFile(settingsPath: string): DeepcodingSettings | null {
-  try {
-    if (!fs.existsSync(settingsPath)) {
-      return null;
-    }
-    const raw = fs.readFileSync(settingsPath, "utf8");
-    return JSON.parse(raw) as DeepcodingSettings;
-  } catch {
-    return null;
-  }
-}
-
-export function writeSettings(settings: DeepcodingSettings): void {
-  const settingsPath = getUserSettingsPath();
-  writeSettingsFile(settingsPath, settings);
-}
-
-export function writeProjectSettings(settings: DeepcodingSettings, projectRoot: string = process.cwd()): void {
-  const settingsPath = getProjectSettingsPath(projectRoot);
-  writeSettingsFile(settingsPath, settings);
-}
-
-function writeSettingsFile(settingsPath: string, settings: DeepcodingSettings): void {
-  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-  fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
-}
-
 export function writeModelConfigSelection(
   selection: ModelConfigSelection,
   current: ModelConfigSelection = resolveCurrentSettings(),
@@ -1075,14 +1043,6 @@ export function resolveCurrentSettings(projectRoot: string = process.cwd()): Res
   };
 }
 export { createOpenAIClient } from "../common/openai-client";
-
-function getUserSettingsPath(): string {
-  return path.join(os.homedir(), ".cropcode", "settings.json");
-}
-
-function getProjectSettingsPath(projectRoot: string): string {
-  return path.join(projectRoot, ".cropcode", "settings.json");
-}
 
 function formatThinkingMode(settings: Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">): string {
   if (!settings.thinkingEnabled) {
