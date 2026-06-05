@@ -32,36 +32,29 @@ test("getSystemPrompt includes UpdatePlan docs", () => {
 
 test("getSystemPrompt does not include runtime context", () => {
   const prompt = getSystemPrompt("/tmp/project");
-  assert.equal(prompt.includes("# Local Workspace Environment"), false);
+  assert.equal(prompt.includes("# Workspace Environment"), false);
   assert.equal(prompt.includes('"root path": "/tmp/project"'), false);
 });
 
-test("getDefaultSkillPrompt loads default skill templates in order", () => {
+test("getDefaultSkillPrompt returns empty after consolidation", () => {
   const prompt = getDefaultSkillPrompt();
-  const agentDriftIndex = prompt.indexOf("<agent-drift-guard-skill>");
-  const planIndex = prompt.indexOf("<plan-and-execute-skill>");
-
-  assert.notEqual(agentDriftIndex, -1);
-  assert.notEqual(planIndex, -1);
-  assert.equal(agentDriftIndex < planIndex, true);
-  assert.equal(prompt.includes("Use the skill documents below to assist the user:"), true);
-  assert.equal(prompt.includes('path="templates/skills/'), false);
+  assert.equal(prompt, "");
 });
 
 test("getSystemPrompt does not include current date guidance", () => {
   const now = new Date();
-  const expected = `今天是${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日。随着对话的进行，时间在流逝。`;
+  const unexpected = `Today's date is ${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}`;
   const prompt = getSystemPrompt("/tmp/project");
-  assert.equal(prompt.includes(expected), false);
+  assert.equal(prompt.includes(unexpected), false);
 });
 
 test("getRuntimeContext includes current date and model guidance", () => {
   const now = new Date();
-  const expectedDate = `今天是${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日。随着对话的进行，时间在流逝。`;
+  const expectedDate = `Today's date is ${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}`;
   const prompt = getRuntimeContext("/tmp/project", "deepseek-v4-pro");
   assert.equal(prompt.includes(expectedDate), true);
-  assert.equal(prompt.includes("当前LLM模型为deepseek-v4-pro，对话中可通过/model命令切换模型。"), true);
-  assert.equal(prompt.includes("# Local Workspace Environment"), true);
+  assert.equal(prompt.includes("Current LLM model is deepseek-v4-pro"), true);
+  assert.equal(prompt.includes("# Workspace Environment"), true);
   assert.equal(prompt.includes('"root path": "/tmp/project"'), true);
 });
 
@@ -69,6 +62,16 @@ test("getSystemPrompt renders Read docs for non-multimodal models", () => {
   const prompt = getSystemPrompt("/tmp/project", { model: "deepseek-v4-pro" });
   assert.equal(prompt.includes("the current model is not multimodal"), true);
   assert.equal(prompt.includes("the contents are presented visually"), false);
+});
+
+test("getSystemPrompt includes English modular sections", () => {
+  const prompt = getSystemPrompt("/tmp/project");
+  assert.equal(prompt.includes("# Identity"), true);
+  assert.equal(prompt.includes("# Doing Tasks"), true);
+  assert.equal(prompt.includes("# Using Your Tools"), true);
+  assert.equal(prompt.includes("# Communication Style"), true);
+  assert.equal(prompt.includes("# Agricultural Context"), true);
+  assert.equal(prompt.includes("# Task Management"), true);
 });
 
 test("runtime prompt assets live under templates", () => {
