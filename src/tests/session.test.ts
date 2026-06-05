@@ -1998,7 +1998,7 @@ test("SessionManager streams chat completions and counts reasoning progress", as
   assert.equal(progressEvents[2]?.formattedTokens, "3");
 });
 
-test("SessionManager persists session and user message before skill matching is cancelled", async () => {
+test("SessionManager persists session and user message before completion is interrupted", async () => {
   const workspace = createTempDir("cropcode-skill-abort-workspace-");
   const home = createTempDir("cropcode-skill-abort-home-");
   setHomeDir(home);
@@ -2027,10 +2027,10 @@ test("SessionManager persists session and user message before skill matching is 
 
   await manager.handleUserPrompt({ text: "please use demo" });
 
-  // Session and user message are persisted before skill matching triggers an abort.
+  // Session and user message are persisted before completion is interrupted.
   assert.equal(manager.listSessions().length, 1);
   const [session] = manager.listSessions();
-  assert.equal(session?.status, "failed");
+  assert.equal(session?.status, "interrupted");
   const messages = manager.listSessionMessages(session!.id);
   const userMessage = messages.find((m) => m.role === "user");
   assert.equal(userMessage?.content, "please use demo");
