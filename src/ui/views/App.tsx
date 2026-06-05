@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { Box, Static, Text, useApp, useStdout, useWindowSize } from "ink";
 import chalk from "chalk";
 import * as fs from "fs";
-import { createOpenAIClient } from "../common/openai-client";
-import { listMarketplaces, listInstalledPlugins } from "../marketplace";
+import { createOpenAIClient } from "../../common/openai-client";
+import { listMarketplaces, listInstalledPlugins } from "../../marketplace";
 import {
   type LlmStreamProgress,
   type MessageMeta,
@@ -14,11 +14,12 @@ import {
   type SkillInfo,
   type UndoTarget,
   type UserPromptContent,
-} from "../session";
+} from "../../session";
 import {
   applyModelConfigSelection,
   type DeepcodingSettings,
   type ModelConfigSelection,
+  type PermissionScope,
   type ResolvedDeepcodingSettings,
   resolveSettingsSources,
   readSettings,
@@ -26,15 +27,15 @@ import {
   writeSettings,
   writeProjectSettings,
   getProjectSettingsPath,
-} from "../settings";
+} from "../../settings";
 import { PromptInput, type PromptDraft, type PromptSubmission } from "./PromptInput";
-import { MessageView, RawModeExitPrompt } from "./components";
+import { MessageView, RawModeExitPrompt } from "../components";
 import { SessionList } from "./SessionList";
 import { UndoSelector, type UndoRestoreMode } from "./UndoSelector";
-import { buildLoadingText } from "./loadingText";
-import { findExpandedThinkingId } from "./thinkingState";
+import { buildLoadingText } from "../core/loading-text";
+import { findExpandedThinkingId } from "../core/thinking-state";
 import { WelcomeScreen } from "./WelcomeScreen";
-import { LoginScreen } from "./LoginScreen";
+import { LoginScreen } from "../LoginScreen";
 import {
   hasCredentials,
   getActiveApiKey,
@@ -44,20 +45,22 @@ import {
   setActiveCredential,
   getActiveThinkingEnabled,
   getActiveReasoningEffort,
-} from "../common/providers";
-import { BUILTIN_PROVIDERS } from "../common/provider-presets";
+} from "../../common/providers";
+import { BUILTIN_PROVIDERS } from "../../common/provider-presets";
 import { AskUserQuestionPrompt } from "./AskUserQuestionPrompt";
 import { McpStatusList } from "./McpStatusList";
+import { PermissionPrompt, type PermissionPromptResult } from "./PermissionPrompt";
+import type { AskPermissionRequest, UserToolPermission } from "../../common/permissions";
 import { ProcessStdoutView } from "./ProcessStdoutView";
 import {
   type AskUserQuestionAnswers,
   findPendingAskUserQuestion,
   formatAskUserQuestionAnswers,
-} from "./askUserQuestion";
-import { buildExitSummaryText } from "./exitSummary";
-import { RawMode, useRawModeContext } from "./contexts";
-import { renderMessageToStdout } from "./components/MessageView/utils";
-import { ANSI_CLEAR_SCREEN } from "./constants";
+} from "../core/ask-user-question";
+import { buildExitSummaryText } from "../exit-summary";
+import { RawMode, useRawModeContext } from "../contexts";
+import { renderMessageToStdout } from "../components/MessageView/utils";
+import { ANSI_CLEAR_SCREEN } from "../constants";
 
 // Derive defaults from the first provider preset instead of hardcoding a specific vendor
 const FIRST_PROVIDER = BUILTIN_PROVIDERS[0];
@@ -104,6 +107,12 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const [streamProgress, setStreamProgress] = useState<LlmStreamProgress | null>(null);
   const [runningProcesses, setRunningProcesses] = useState<SessionEntry["processes"]>(null);
   const [activeStatus, setActiveStatus] = useState<SessionStatus | null>(null);
+  const [askPermissions, setAskPermissions] = useState<AskPermissionRequest[]>([]);
+  const [pendingPermissionReply, setPendingPermissionReply] = useState<{
+    sessionId: string;
+    permissions: UserToolPermission[];
+    alwaysAllows: PermissionScope[];
+  } | null>(null);
   const [dismissedQuestionIds, setDismissedQuestionIds] = useState<Set<string>>(() => new Set());
   const [isExiting, setIsExiting] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
@@ -139,6 +148,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         setStatusLine(buildStatusLine(entry));
         setRunningProcesses(entry.processes);
         setActiveStatus(entry.status);
+        setAskPermissions(entry.askPermissions ?? []);
       },
       onLlmStreamProgress: (progress) => {
         if (progress.phase === "end") {
@@ -178,7 +188,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     if (!busy) {
       return;
     }
-    const id = setInterval(() => setNowTick((tick) => tick + 1), 2000);
+    const id = setInterval(() => setNowTick((tick) => tick + 1), 500);
     return () => clearInterval(id);
   }, [busy]);
 
@@ -230,6 +240,8 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     setErrorLine(null);
     setRunningProcesses(null);
     setActiveStatus(null);
+    setAskPermissions([]);
+    setPendingPermissionReply(null);
     setDismissedQuestionIds(new Set());
     resetStaticView([]);
     await refreshSkills();
@@ -441,7 +453,16 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         imageUrls: submission.imageUrls,
         skills:
           submission.selectedSkills && submission.selectedSkills.length > 0 ? submission.selectedSkills : undefined,
+        permissions: submission.permissions,
+        alwaysAllows: submission.alwaysAllows,
       };
+      const activeSessionId = sessionManager.getActiveSessionId();
+      const permissionReply =
+        pendingPermissionReply && activeSessionId === pendingPermissionReply.sessionId ? pendingPermissionReply : null;
+      if (permissionReply) {
+        prompt.permissions = permissionReply.permissions;
+        prompt.alwaysAllows = permissionReply.alwaysAllows;
+      }
 
       const trimmedText = (submission.text ?? "").trim();
       const selectedSkillNames = submission.selectedSkills?.map((skill) => skill.name).filter(Boolean) ?? [];
@@ -461,6 +482,9 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       processStdoutRef.current.clear();
       try {
         await sessionManager.handleUserPrompt(prompt);
+        if (permissionReply) {
+          setPendingPermissionReply(null);
+        }
         await refreshSkills();
         refreshSessionsList();
       } catch (error) {
@@ -472,12 +496,58 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         setRunningProcesses(null);
       }
     },
-    [exit, onRestart, sessionManager, refreshSkills, refreshSessionsList, navigateToSubView, resetToWelcome]
+    [
+      exit,
+      onRestart,
+      sessionManager,
+      pendingPermissionReply,
+      refreshSkills,
+      refreshSessionsList,
+      navigateToSubView,
+      resetToWelcome,
+    ]
   );
 
   const handleInterrupt = useCallback(() => {
     sessionManager.interruptActiveSession();
   }, [sessionManager]);
+
+  const handlePermissionResult = useCallback(
+    (result: PermissionPromptResult) => {
+      const sessionId = sessionManager.getActiveSessionId();
+      if (!sessionId) {
+        return;
+      }
+      setPromptDraft(null);
+      if (result.hasDeny) {
+        setPendingPermissionReply({
+          sessionId,
+          permissions: result.permissions,
+          alwaysAllows: result.alwaysAllows,
+        });
+        setStatusLine("Permission denied. Add a reply, then press Enter to continue.");
+        sessionManager.denySessionPermission(sessionId);
+        return;
+      }
+      void handlePrompt({
+        text: "/continue",
+        imageUrls: [],
+        command: "continue",
+        permissions: result.permissions,
+        alwaysAllows: result.alwaysAllows,
+      });
+    },
+    [handlePrompt, sessionManager]
+  );
+
+  const handlePermissionCancel = useCallback(() => {
+    sessionManager.interruptActiveSession();
+    setActiveStatus("interrupted");
+    setAskPermissions([]);
+    setPendingPermissionReply(null);
+    setPromptDraft(null);
+    refreshSessionsList();
+  }, [refreshSessionsList, sessionManager]);
 
   const handleToggleProcessStdout = useCallback(() => {
     setShowProcessStdout(true);
@@ -587,9 +657,13 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       setStatusLine(session ? buildStatusLine(session) : "");
       setRunningProcesses(session?.processes ?? null);
       setActiveStatus(session?.status ?? null);
+      setAskPermissions(session?.askPermissions ?? []);
+      if (pendingPermissionReply && pendingPermissionReply.sessionId !== sessionId) {
+        setPendingPermissionReply(null);
+      }
       await refreshSkills(sessionId);
     },
-    [sessionManager, resetStaticView, refreshSkills]
+    [sessionManager, resetStaticView, pendingPermissionReply, refreshSkills]
   );
 
   const handleDeleteSession = useCallback(
@@ -893,6 +967,12 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           onSubmit={handleQuestionAnswers}
           onCancel={handleQuestionCancel}
         />
+      ) : activeStatus === "ask_permission" && askPermissions.length > 0 && !pendingPermissionReply && !busy ? (
+        <PermissionPrompt
+          requests={askPermissions}
+          onSubmit={handlePermissionResult}
+          onCancel={handlePermissionCancel}
+        />
       ) : isExiting ? null : (
         <PromptInput
           projectRoot={projectRoot}
@@ -977,18 +1057,11 @@ function isCurrentSessionEmpty(sessionManager: SessionManager): boolean {
   return !activeSessionId || !sessionManager.getSession(activeSessionId);
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
-}
-
 function buildStatusLine(entry: SessionEntry): string {
   const parts: string[] = [];
   parts.push(`status: ${entry.status}`);
-  const total = typeof entry.usage?.total_tokens === "number" ? entry.usage.total_tokens : 0;
-  if (total > 0) {
-    parts.push(`session: ${formatTokens(total)}`);
+  if (typeof entry.activeTokens === "number" && entry.activeTokens > 0) {
+    parts.push(`tokens: ${entry.activeTokens}`);
   }
   if (entry.failReason) {
     parts.push(`fail: ${entry.failReason}`);
@@ -1051,7 +1124,7 @@ export function resolveCurrentSettings(projectRoot: string = process.cwd()): Res
     reasoningEffort: hasCred && credReasoningEffort !== undefined ? credReasoningEffort : base.reasoningEffort,
   };
 }
-export { createOpenAIClient } from "../common/openai-client";
+export { createOpenAIClient } from "../../common/openai-client";
 
 function formatThinkingMode(settings: Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">): string {
   if (!settings.thinkingEnabled) {

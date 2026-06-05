@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "crypto";
 import { reportNewPrompt } from "../common/telemetry";
 
 test("reportNewPrompt does not call fetch when enabled is false", () => {
@@ -68,7 +69,10 @@ test("reportNewPrompt calls fetch with correct URL, method, headers, and body", 
     assert.equal(calls[0].url, "https://cropcode.dev/api/plugin/new");
     assert.equal(calls[0].init.method, "POST");
     assert.equal((calls[0].init.headers as Record<string, string>)["Content-Type"], "application/json");
-    assert.equal((calls[0].init.headers as Record<string, string>)["Token"], "test-machine");
+    assert.equal(
+      (calls[0].init.headers as Record<string, string>)["X-Telemetry-ID"],
+      createHash("sha256").update("test-machine").digest("hex")
+    );
     assert.equal(calls[0].init.body, JSON.stringify({}));
   } finally {
     globalThis.fetch = originalFetch;

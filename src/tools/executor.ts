@@ -8,6 +8,8 @@ import { handleUpdatePlanTool } from "./update-plan-handler";
 import { handleWebSearchTool } from "./web-search-handler";
 import { handleWriteTool } from "./write-handler";
 import type { McpManager } from "../mcp/mcp-manager";
+import type { HooksSettings } from "../settings";
+import { executeHooks, aggregateHookResults, type HookInput } from "../hooks";
 
 export type CreateOpenAIClient = () => {
   client: OpenAI | null;
@@ -107,13 +109,26 @@ export class ToolExecutor {
   private readonly createOpenAIClient?: CreateOpenAIClient;
   private readonly mcpManager?: McpManager;
   private readonly toolHandlers = new Map<string, ToolHandler>();
+  private readonly hooksSettings?: HooksSettings;
+  private readonly sessionId: string;
 
-  constructor(projectRoot: string, createOpenAIClient?: CreateOpenAIClient, mcpManager?: McpManager) {
+  constructor(
+    projectRoot: string,
+    createOpenAIClient?: CreateOpenAIClient,
+    mcpManager?: McpManager,
+    hooksSettings?: HooksSettings,
+    sessionId?: string
+  ) {
     this.projectRoot = projectRoot;
     this.createOpenAIClient = createOpenAIClient;
     this.mcpManager = mcpManager;
+    this.hooksSettings = hooksSettings;
+    this.sessionId = sessionId ?? "";
     this.registerToolHandlers();
   }
+
+  // Tools that are safe to run in parallel (read-only, no side effects)
+  private static readonly CONCURRENCY_SAFE_TOOLS = new Set(["read", "Read", "WebSearch"]);
 
   async executeToolCalls(
     sessionId: string,
@@ -124,20 +139,53 @@ export class ToolExecutor {
       .map((toolCall) => this.parseToolCall(toolCall))
       .filter((toolCall): toolCall is ToolCall => Boolean(toolCall));
 
-    const executions: ToolCallExecution[] = [];
+    // Partition into concurrent-safe batches and serial batches
+    const batches: ToolCall[][] = [];
+    let currentBatch: ToolCall[] = [];
     for (const toolCall of parsedCalls) {
-      if (hooks?.shouldStop?.()) {
-        break;
+      if (ToolExecutor.CONCURRENCY_SAFE_TOOLS.has(toolCall.function.name)) {
+        currentBatch.push(toolCall);
+      } else {
+        if (currentBatch.length > 0) {
+          batches.push(currentBatch);
+          currentBatch = [];
+        }
+        batches.push([toolCall]);
       }
-      const result = await this.executeToolCall(sessionId, toolCall, hooks);
-      executions.push({
-        toolCallId: toolCall.id,
-        content: this.formatToolResult(result),
-        result,
-      });
-      if (hooks?.shouldStop?.()) {
-        break;
+    }
+    if (currentBatch.length > 0) {
+      batches.push(currentBatch);
+    }
+
+    const executions: ToolCallExecution[] = [];
+    for (const batch of batches) {
+      if (hooks?.shouldStop?.()) break;
+      if (batch.length === 1) {
+        const result = await this.executeToolCall(sessionId, batch[0], hooks);
+        executions.push({
+          toolCallId: batch[0].id,
+          content: this.formatToolResult(result),
+          result,
+        });
+      } else {
+        // Run concurrent-safe tools in parallel
+        const results = await Promise.allSettled(
+          batch.map((toolCall) => this.executeToolCall(sessionId, toolCall, hooks))
+        );
+        for (let i = 0; i < batch.length; i++) {
+          const settled = results[i];
+          const result =
+            settled.status === "fulfilled"
+              ? settled.value
+              : { ok: false, name: batch[i].function.name, error: settled.reason?.message ?? "Unknown error" };
+          executions.push({
+            toolCallId: batch[i].id,
+            content: this.formatToolResult(result),
+            result,
+          });
+        }
       }
+      if (hooks?.shouldStop?.()) break;
     }
     return executions;
   }
@@ -219,8 +267,28 @@ export class ToolExecutor {
       };
     }
 
+    // PreToolUse hooks
+    if (this.hooksSettings) {
+      const hookInput: HookInput = {
+        event: "PreToolUse",
+        sessionId: sessionId || this.sessionId,
+        projectRoot: this.projectRoot,
+        toolName,
+        toolInput: parsedArgs.args,
+      };
+      const preResults = await executeHooks("PreToolUse", toolName, hookInput, this.hooksSettings);
+      const preAggregated = aggregateHookResults(preResults);
+      if (preAggregated.blocked) {
+        return {
+          ok: false,
+          name: toolName,
+          error: preAggregated.blockReason || "Hook blocked tool execution",
+        };
+      }
+    }
+
     try {
-      return await handler(parsedArgs.args, {
+      const result = await handler(parsedArgs.args, {
         sessionId,
         projectRoot: this.projectRoot,
         toolCall,
@@ -232,6 +300,22 @@ export class ToolExecutor {
         onBeforeFileMutation: hooks?.onBeforeFileMutation,
         onAfterFileMutation: hooks?.onAfterFileMutation,
       });
+
+      // PostToolUse hooks
+      if (this.hooksSettings) {
+        const hookInput: HookInput = {
+          event: result.ok ? "PostToolUse" : "PostToolUseFailure",
+          sessionId: sessionId || this.sessionId,
+          projectRoot: this.projectRoot,
+          toolName,
+          toolInput: parsedArgs.args,
+          toolOutput: result.output,
+          error: result.error,
+        };
+        await executeHooks(result.ok ? "PostToolUse" : "PostToolUseFailure", toolName, hookInput, this.hooksSettings);
+      }
+
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {

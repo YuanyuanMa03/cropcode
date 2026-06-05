@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Box, Text, useApp, useStdout } from "ink";
 import chalk from "chalk";
-import { ARGS_SEPARATOR } from "./constants";
+import { ARGS_SEPARATOR } from "../constants";
 import {
   EMPTY_BUFFER,
   PASTE_MARKER_REGEX,
@@ -24,48 +24,52 @@ import {
   moveWordLeft,
   moveWordRight,
   moveUp,
-} from "./promptBuffer";
-import type { PromptBufferState } from "./promptBuffer";
+} from "../core/prompt-buffer";
+import type { PromptBufferState } from "../core/prompt-buffer";
 import {
   clearPromptUndoRedoState,
   createPromptUndoRedoState,
   recordPromptEdit,
   redoPromptEdit,
   undoPromptEdit,
-} from "./promptUndoRedo";
-import { buildSlashCommands, filterSlashCommands, findExactSlashCommand } from "./slashCommands";
-import type { SlashCommandItem } from "./slashCommands";
+} from "../core/prompt-undo-redo";
+import { buildSlashCommands, filterSlashCommands, findExactSlashCommand } from "../core/slash-commands";
+import type { SlashCommandItem } from "../core/slash-commands";
 import {
   filterFileMentionItems,
   getCurrentFileMentionToken,
   replaceCurrentFileMentionToken,
   scanFileMentionItems,
-} from "./fileMentions";
-import type { FileMentionItem } from "./fileMentions";
-import { readClipboardImageAsync } from "./clipboard";
-import { useHistoryNavigation, usePasteHandling } from "./hooks";
-import type { SessionEntry, SkillInfo } from "../session";
+} from "../core/file-mentions";
+import type { FileMentionItem } from "../core/file-mentions";
+import { readClipboardImageAsync } from "../core/clipboard";
+import { useHistoryNavigation, usePasteHandling } from "../hooks";
+import type { SessionEntry, SkillInfo } from "../../session";
+import type { UserToolPermission } from "../../common/permissions";
+import type { PermissionScope } from "../../settings";
 
 // Re-exported from prompt modules for backward compatibility
-export { useTerminalInput, parseTerminalInput, dispatchTerminalInput } from "./prompt";
-export type { InputKey } from "./prompt";
+export { useTerminalInput, parseTerminalInput, dispatchTerminalInput } from "../hooks/useTerminalInput";
+export type { InputKey } from "../hooks/useTerminalInput";
 
-import { useTerminalInput } from "./prompt";
-import type { InputKey } from "./prompt";
+import { useTerminalInput } from "../hooks/useTerminalInput";
+import type { InputKey } from "../hooks/useTerminalInput";
 import {
   useHiddenTerminalCursor,
   useTerminalExtendedKeys,
   useBracketedPaste,
   useTerminalFocusReporting,
-} from "./prompt";
+} from "../hooks/cursor";
 import SlashCommandMenu, { isSkillSelected } from "./SlashCommandMenu";
-import type { ModelConfigSelection } from "../settings";
-import { FileMentionMenu, ModelsDropdown, RawModelDropdown, SkillsDropdown } from "./components";
+import type { ModelConfigSelection } from "../../settings";
+import { FileMentionMenu, ModelsDropdown, RawModelDropdown, SkillsDropdown } from "../components";
 
 export type PromptSubmission = {
   text: string;
   imageUrls: string[];
   selectedSkills?: SkillInfo[];
+  permissions?: UserToolPermission[];
+  alwaysAllows?: PermissionScope[];
   command?: "new" | "resume" | "continue" | "undo" | "mcp" | "marketplace" | "plugin" | "login" | "exit";
 };
 
@@ -267,11 +271,11 @@ export const PromptInput = React.memo(function PromptInput({
     exitHistoryBrowsing();
     clearPromptUndoRedoState(undoRedoRef.current);
     resetPastes();
-  }, [promptDraft]);
+  }, [promptDraft, exitHistoryBrowsing, resetPastes]);
 
   useEffect(() => {
     exitHistoryBrowsing();
-  }, [promptHistoryKey]);
+  }, [promptHistoryKey, exitHistoryBrowsing]);
 
   useTerminalInput(
     (input, key) => {

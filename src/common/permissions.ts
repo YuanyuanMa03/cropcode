@@ -283,6 +283,30 @@ export function evaluatePermissionScopes(
   if (permissionScopes.every((scope) => settings.allow.includes(scope))) {
     return "allow";
   }
+  // bypassPermissions: auto-allow everything not explicitly denied
+  if (settings.defaultMode === "bypassPermissions") {
+    return "allow";
+  }
+  // plan: read-only mode — allow reads, ask for writes/deletes/network
+  if (settings.defaultMode === "plan") {
+    const isReadOnly = permissionScopes.every(
+      (scope) => scope === "read-in-cwd" || scope === "read-out-cwd" || scope === "query-git-log"
+    );
+    return isReadOnly ? "allow" : "ask";
+  }
+  // acceptEdits: auto-allow file reads/writes, ask for network/mcp/bash
+  if (settings.defaultMode === "acceptEdits") {
+    const isFileOp = permissionScopes.every(
+      (scope) =>
+        scope === "read-in-cwd" ||
+        scope === "read-out-cwd" ||
+        scope === "write-in-cwd" ||
+        scope === "write-out-cwd" ||
+        scope === "delete-in-cwd" ||
+        scope === "query-git-log"
+    );
+    return isFileOp ? "allow" : "ask";
+  }
   return settings.defaultMode === "askAll" ? "ask" : "allow";
 }
 
@@ -309,6 +333,30 @@ export function getPermissionScopesRequiringAsk(
       continue;
     }
     if (settings.allow.includes(scope)) {
+      continue;
+    }
+    if (settings.defaultMode === "bypassPermissions") {
+      continue;
+    }
+    if (settings.defaultMode === "plan") {
+      if (scope === "read-in-cwd" || scope === "read-out-cwd" || scope === "query-git-log") {
+        continue;
+      }
+      result.push(scope);
+      continue;
+    }
+    if (settings.defaultMode === "acceptEdits") {
+      if (
+        scope === "read-in-cwd" ||
+        scope === "read-out-cwd" ||
+        scope === "write-in-cwd" ||
+        scope === "write-out-cwd" ||
+        scope === "delete-in-cwd" ||
+        scope === "query-git-log"
+      ) {
+        continue;
+      }
+      result.push(scope);
       continue;
     }
     if (settings.defaultMode === "askAll") {
@@ -461,8 +509,9 @@ export function appendProjectPermissionAllows(
     return;
   }
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+  const tmpPath = `${settingsPath}.tmp-${Date.now()}-${process.pid}`;
   fs.writeFileSync(
-    settingsPath,
+    tmpPath,
     `${JSON.stringify(
       {
         ...settings,
@@ -478,6 +527,7 @@ export function appendProjectPermissionAllows(
     )}\n`,
     "utf8"
   );
+  fs.renameSync(tmpPath, settingsPath);
 }
 
 export function normalizeAskPermissions(value: unknown): AskPermissionRequest[] | undefined {

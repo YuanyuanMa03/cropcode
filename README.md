@@ -322,6 +322,8 @@ See [docs/configuration_en.md](docs/configuration_en.md) for full details.
 
 Read the full [Architecture Document](docs/architecture.md) for data flow diagrams, model resolution, session lifecycle, and design decisions.
 
+**Interactive diagram:** [docs/architecture-diagram.drawio](docs/architecture-diagram.drawio) — open with [draw.io](https://app.diagrams.net/) for a layered view with drill-down detail.
+
 ## 🧪 Development
 
 ```bash
@@ -665,6 +667,8 @@ cropcode plugin install <技能名>@nature-skills
 ```
 
 完整架构文档：[docs/architecture.md](docs/architecture.md) — 包含数据流图、模型解析、会话生命周期和设计决策。
+
+**交互式架构图：** [docs/architecture-diagram.drawio](docs/architecture-diagram.drawio) — 使用 [draw.io](https://app.diagrams.net/) 打开，支持分层展开查看详情。
 
 ## 🧪 开发
 

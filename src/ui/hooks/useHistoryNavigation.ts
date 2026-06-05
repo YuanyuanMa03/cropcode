@@ -25,31 +25,34 @@ export function useHistoryNavigation(
     setDraftBeforeHistory(null);
   }, []);
 
-  function navigateHistory(direction: -1 | 1): void {
-    if (promptHistory.length === 0) {
-      return;
-    }
+  const navigateHistory = useCallback(
+    (direction: -1 | 1): void => {
+      if (promptHistory.length === 0) {
+        return;
+      }
 
-    const previousCursor = historyCursor === -1 ? promptHistory.length : historyCursor;
-    const nextCursor = Math.max(0, Math.min(promptHistory.length, previousCursor + direction));
-    const draft = historyCursor === -1 ? buffer.text : draftBeforeHistory;
+      const previousCursor = historyCursor === -1 ? promptHistory.length : historyCursor;
+      const nextCursor = Math.max(0, Math.min(promptHistory.length, previousCursor + direction));
+      const draft = historyCursor === -1 ? buffer.text : draftBeforeHistory;
 
-    if (historyCursor === -1) {
-      setDraftBeforeHistory(buffer.text);
-    }
+      if (historyCursor === -1) {
+        setDraftBeforeHistory(buffer.text);
+      }
 
-    if (nextCursor === promptHistory.length) {
-      const text = draft ?? "";
+      if (nextCursor === promptHistory.length) {
+        const text = draft ?? "";
+        setBuffer({ text, cursor: text.length });
+        setHistoryCursor(-1);
+        setDraftBeforeHistory(null);
+        return;
+      }
+
+      const text = promptHistory[nextCursor] ?? "";
       setBuffer({ text, cursor: text.length });
-      setHistoryCursor(-1);
-      setDraftBeforeHistory(null);
-      return;
-    }
-
-    const text = promptHistory[nextCursor] ?? "";
-    setBuffer({ text, cursor: text.length });
-    setHistoryCursor(nextCursor);
-  }
+      setHistoryCursor(nextCursor);
+    },
+    [promptHistory, historyCursor, buffer.text, draftBeforeHistory, setBuffer]
+  );
 
   return {
     historyCursor,

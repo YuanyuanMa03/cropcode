@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import { z } from "zod";
 import * as os from "os";
 import * as path from "path";
 import { defaultsToThinkingMode } from "./common/model-capabilities";
@@ -16,6 +17,7 @@ export type DeepcodingEnv = Record<string, string | undefined> & {
   THINKING_ENABLED?: string;
   REASONING_EFFORT?: string;
   DEBUG_LOG_ENABLED?: string;
+  TELEMETRY_ENABLED?: string;
 };
 
 export type ReasoningEffort = "high" | "max";
@@ -32,6 +34,7 @@ export type DeepcodingSettings = {
   thinkingEnabled?: boolean;
   reasoningEffort?: ReasoningEffort;
   debugLogEnabled?: boolean;
+  telemetryEnabled?: boolean;
   notify?: string;
   webSearchTool?: string;
   mcpServers?: Record<string, McpServerConfig>;
@@ -47,10 +50,13 @@ export type ResolvedDeepcodingSettings = {
   thinkingEnabled: boolean;
   reasoningEffort: ReasoningEffort;
   debugLogEnabled: boolean;
+  telemetryEnabled: boolean;
   notify?: string;
   webSearchTool?: string;
   mcpServers?: Record<string, McpServerConfig>;
   disabledSkills?: string[];
+  permissions?: PermissionSettings;
+  hooks?: HooksSettings;
 };
 
 export type ModelConfigSelection = {
@@ -71,7 +77,7 @@ export type PermissionScope =
   | "network"
   | "mcp";
 
-export type PermissionDefaultMode = "allowAll" | "askAll";
+export type PermissionDefaultMode = "allowAll" | "askAll" | "plan" | "acceptEdits" | "bypassPermissions";
 
 export type PermissionSettings = {
   allow?: PermissionScope[];
@@ -79,6 +85,58 @@ export type PermissionSettings = {
   ask?: PermissionScope[];
   defaultMode?: PermissionDefaultMode;
 };
+
+export type HookEvent =
+  | "PreToolUse"
+  | "PostToolUse"
+  | "PostToolUseFailure"
+  | "SessionStart"
+  | "SessionEnd"
+  | "Stop"
+  | "UserPromptSubmit"
+  | "PreCompact"
+  | "PostCompact";
+
+export type HookConfig = {
+  type: "command";
+  command: string;
+  timeout?: number;
+};
+
+export type HookMatcher = {
+  matcher?: string;
+  hooks: HookConfig[];
+};
+
+export type HooksSettings = Partial<Record<HookEvent, HookMatcher[]>>;
+
+const mcpServerConfigSchema = z.object({
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+});
+
+const permissionSettingsSchema = z.object({
+  allow: z.array(z.string()).optional(),
+  deny: z.array(z.string()).optional(),
+  ask: z.array(z.string()).optional(),
+  defaultMode: z.enum(["allowAll", "askAll"]).optional(),
+});
+
+const deepcodingSettingsSchema = z
+  .object({
+    env: z.record(z.string(), z.string().optional()).optional(),
+    model: z.string().optional(),
+    thinkingEnabled: z.boolean().optional(),
+    reasoningEffort: z.enum(["high", "max"]).optional(),
+    debugLogEnabled: z.boolean().optional(),
+    notify: z.string().optional(),
+    webSearchTool: z.string().optional(),
+    mcpServers: z.record(z.string(), mcpServerConfigSchema).optional(),
+    disabledSkills: z.array(z.string()).optional(),
+    permissions: permissionSettingsSchema.optional(),
+  })
+  .strict();
 
 export type SettingsProcessEnv = Record<string, string | undefined>;
 
@@ -257,6 +315,14 @@ export function resolveSettingsSources(
     parseBoolean(userEnv.DEBUG_LOG_ENABLED) ??
     false;
 
+  const telemetryEnabled =
+    parseBoolean(systemEnv.TELEMETRY_ENABLED) ??
+    parseBoolean(projectSettings?.telemetryEnabled) ??
+    parseBoolean(projectEnv.TELEMETRY_ENABLED) ??
+    parseBoolean(userSettings?.telemetryEnabled) ??
+    parseBoolean(userEnv.TELEMETRY_ENABLED) ??
+    false;
+
   const notify =
     trimString(systemEnv.NOTIFY) || trimString(projectSettings?.notify) || trimString(userSettings?.notify) || "";
   const webSearchTool =
@@ -264,6 +330,8 @@ export function resolveSettingsSources(
     trimString(projectSettings?.webSearchTool) ||
     trimString(userSettings?.webSearchTool) ||
     "";
+
+  const permissions = projectSettings?.permissions ?? userSettings?.permissions;
 
   return {
     env,
@@ -273,10 +341,12 @@ export function resolveSettingsSources(
     thinkingEnabled,
     reasoningEffort,
     debugLogEnabled,
+    telemetryEnabled,
     notify: notify || undefined,
     webSearchTool: webSearchTool || undefined,
     mcpServers: mergeMcpServers(userSettings, projectSettings, userEnv, projectEnv, systemEnv),
     disabledSkills: mergeDisabledSkills(userSettings, projectSettings),
+    permissions,
   };
 }
 
@@ -336,7 +406,12 @@ export function readSettingsFile(settingsPath: string): DeepcodingSettings | nul
       return null;
     }
     const raw = fs.readFileSync(settingsPath, "utf8");
-    return JSON.parse(raw) as DeepcodingSettings;
+    const parsed = JSON.parse(raw);
+    const result = deepcodingSettingsSchema.safeParse(parsed);
+    if (!result.success) {
+      return null;
+    }
+    return result.data as DeepcodingSettings;
   } catch {
     return null;
   }

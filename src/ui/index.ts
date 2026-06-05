@@ -1,10 +1,10 @@
 import { getThinkingOptionIndex, MODEL_COMMAND_THINKING_OPTIONS } from "./components/ModelsDropdown";
 
 export { readSettings, readProjectSettings, writeSettings, writeProjectSettings } from "../settings";
-export { writeModelConfigSelection, resolveCurrentSettings, buildPromptDraftFromSessionMessage } from "./App";
+export { writeModelConfigSelection, resolveCurrentSettings, buildPromptDraftFromSessionMessage } from "./views/App";
 export { createOpenAIClient } from "../common/openai-client";
-export { default as AppContainer } from "./AppContainer";
-export { AskUserQuestionPrompt } from "./AskUserQuestionPrompt";
+export { default as AppContainer } from "./views/AppContainer";
+export { AskUserQuestionPrompt } from "./views/AskUserQuestionPrompt";
 export { MessageView } from "./components";
 export { parseDiffPreview } from "./components/MessageView/utils";
 export {
@@ -25,13 +25,13 @@ export {
   type PromptSubmission,
   type PromptDraft,
   type InputKey,
-} from "./PromptInput";
+} from "./views/PromptInput";
 export { getThinkingOptionIndex, MODEL_COMMAND_THINKING_OPTIONS };
 export { disableTerminalExtendedKeys, enableTerminalExtendedKeys, getPromptCursorPlacement } from "./hooks/cursor";
-export { SessionList, formatSessionTitle, filterSessions, formatSessionStatus } from "./SessionList";
-export { ThemedGradient } from "./ThemedGradient";
+export { SessionList, formatSessionTitle, filterSessions, formatSessionStatus } from "./views/SessionList";
+export { ThemedGradient } from "./views/ThemedGradient";
 export { UpdatePrompt, type UpdatePromptChoice } from "./views/UpdatePrompt";
-export { WelcomeScreen, formatHomeRelativePath, buildWelcomeTips } from "./WelcomeScreen";
+export { WelcomeScreen, formatHomeRelativePath, buildWelcomeTips } from "./views/WelcomeScreen";
 export {
   findPendingAskUserQuestion,
   formatAskUserQuestionAnswers,

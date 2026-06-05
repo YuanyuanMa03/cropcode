@@ -5,10 +5,10 @@ import type { ModelConfigSelection } from "../../settings";
 import type { SessionEntry, SessionMessage } from "../../session";
 import type { SessionManager } from "../../session";
 
-export function renderRawModeMessages(allMessages: SessionMessage[], mode: string | RawMode): void {
+export function renderRawModeMessages(allMessages: SessionMessage[], mode: RawMode): void {
   for (const msg of allMessages) {
     process.stdout.write("\n");
-    process.stdout.write(renderMessageToStdout(msg, mode as RawMode) + "\n\n");
+    process.stdout.write(renderMessageToStdout(msg, mode) + "\n\n");
   }
   if (allMessages.length > 0) {
     process.stdout.write("\n\n");
@@ -24,7 +24,7 @@ export function renderRawModeMessages(allMessages: SessionMessage[], mode: strin
 export function buildSyntheticUserMessage(content: string, imageCount: number): SessionMessage {
   const now = new Date().toISOString();
   return {
-    id: `local-${Math.random().toString(36).slice(2)}`,
+    id: `local-${crypto.randomUUID()}`,
     sessionId: "local",
     role: "user",
     content,
