@@ -59,8 +59,8 @@ const AUTOCOMPACT_BUFFER_400K = 30_000;
 const AUTOCOMPACT_BUFFER_800K = 50_000;
 
 // Microcompact: prune old tool results when count exceeds this
-export const MICROCOMPACT_TRIGGER_THRESHOLD = 10;
-export const MICROCOMPACT_KEEP_RECENT = 5;
+export const MICROCOMPACT_TRIGGER_THRESHOLD = 20;
+export const MICROCOMPACT_KEEP_RECENT = 10;
 
 // Circuit breaker: stop auto-compact after this many consecutive failures
 export const MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3;

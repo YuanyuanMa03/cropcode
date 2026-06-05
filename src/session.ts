@@ -1581,6 +1581,27 @@ ${skillMd}
       },
     };
     sessionMessages.splice(endIndex, 0, summaryMessage);
+
+    const recentlyReadFiles = this.extractRecentlyReadFiles(sessionMessages, endIndex);
+    if (recentlyReadFiles.length > 0) {
+      const contextMessage: SessionMessage = {
+        id: crypto.randomUUID(),
+        sessionId,
+        role: "system",
+        content: `Recently read files in this session:\n${recentlyReadFiles.join("\n")}\nYou can re-read any file if you need its contents.`,
+        contentParams: null,
+        messageParams: null,
+        compacted: false,
+        visible: false,
+        createTime: now,
+        updateTime: now,
+        meta: {
+          isSummary: true,
+        },
+      };
+      sessionMessages.splice(endIndex + 1, 0, contextMessage);
+    }
+
     this.saveSessionMessages(sessionId, sessionMessages);
   }
 
@@ -1608,6 +1629,31 @@ ${skillMd}
       }
     }
     this.saveSessionMessages(sessionId, messages);
+  }
+
+  /**
+   * Extract recently-read file paths from session messages for post-compact re-injection.
+   */
+  private extractRecentlyReadFiles(messages: SessionMessage[], beforeIndex: number): string[] {
+    const filePaths: string[] = [];
+    const seen = new Set<string>();
+    for (let i = beforeIndex - 1; i >= 0; i -= 1) {
+      const msg = messages[i];
+      if (msg.role !== "tool" || !msg.meta?.function) continue;
+      const fn = msg.meta.function as { name?: string; arguments?: string };
+      if (fn.name !== "read" || !fn.arguments) continue;
+      try {
+        const args = JSON.parse(fn.arguments);
+        if (typeof args.file_path === "string" && !seen.has(args.file_path)) {
+          seen.add(args.file_path);
+          filePaths.push(args.file_path);
+        }
+      } catch {
+        // skip unparseable
+      }
+      if (filePaths.length >= 5) break;
+    }
+    return filePaths.reverse();
   }
 
   /**
