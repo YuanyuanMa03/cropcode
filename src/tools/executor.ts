@@ -315,15 +315,27 @@ export class ToolExecutor {
         await executeHooks(result.ok ? "PostToolUse" : "PostToolUseFailure", toolName, hookInput, this.hooksSettings);
       }
 
-      return result;
+      return this.addTrustChainState(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return {
+      return this.addTrustChainState({
         ok: false,
         name: toolName,
         error: message,
-      };
+      });
     }
+  }
+
+  private addTrustChainState(result: ToolExecutionResult): ToolExecutionResult {
+    const metadata = { ...(result.metadata ?? {}) };
+    if (!result.ok) {
+      metadata.tc = "TC_UNCERTAIN";
+    } else if (result.error) {
+      metadata.tc = "TC_CARRY";
+    } else {
+      metadata.tc = "TC_NONE";
+    }
+    return { ...result, metadata };
   }
 
   private parseToolArguments(
