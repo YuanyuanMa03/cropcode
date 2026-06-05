@@ -145,6 +145,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
       {
         id: "glm-5.1",
         label: "GLM-5.1",
+        multimodal: true,
         inputPricePerMTok: 10.1,
         outputPricePerMTok: 31.7,
         contextWindow: "203K",
@@ -231,6 +232,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         contextWindow: "262K",
         supportsThinking: true,
         thinkingFormat: "qwen",
+        reasoningEfforts: ["high", "max"],
         tags: ["旗舰"],
       },
       {
@@ -243,6 +245,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "qwen",
+        reasoningEfforts: ["high", "max"],
         tags: ["推荐", "性价比"],
       },
       {
@@ -255,6 +258,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "qwen",
+        reasoningEfforts: ["high", "max"],
         tags: ["轻量"],
       },
     ],

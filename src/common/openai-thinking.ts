@@ -8,7 +8,7 @@ import {
 type ThinkingRequestOptions = Record<string, unknown>;
 
 function effortToBudget(effort: ReasoningEffort): number {
-  return effort === "max" ? 10000 : 5000;
+  return effort === "max" ? 32768 : 16384;
 }
 
 export function buildThinkingRequestOptions(
