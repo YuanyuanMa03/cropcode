@@ -3,7 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import OpenAI from "openai";
 import { Agent, fetch as undiciFetch } from "undici";
-import { resolveCurrentSettings } from "../ui/App";
+import { resolveCurrentSettings } from "../ui/views/App";
 import { getActiveApiKey, getActiveBaseURL, getActiveModel } from "./providers";
 
 const keepAliveAgent = new Agent({ keepAliveTimeout: 180_000 });
@@ -47,7 +47,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       webSearchTool: settings.webSearchTool,
       env: settings.env,
       machineId: getMachineId(),
-      telemetryEnabled: settings.debugLogEnabled,
+      telemetryEnabled: settings.telemetryEnabled,
     };
   }
 
@@ -64,7 +64,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       webSearchTool: settings.webSearchTool,
       env: settings.env,
       machineId: getMachineId(),
-      telemetryEnabled: settings.debugLogEnabled,
+      telemetryEnabled: settings.telemetryEnabled,
     };
   }
 
@@ -76,11 +76,12 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
   });
   cachedOpenAIKey = cacheKey;
 
+  const warmupClient = cachedOpenAI;
   void (async () => {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 3000);
     try {
-      await cachedOpenAI.models.list({ signal: ac.signal }).catch(() => {});
+      await warmupClient.models.list({ signal: ac.signal }).catch(() => {});
     } finally {
       clearTimeout(timer);
     }
@@ -97,7 +98,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
     webSearchTool: settings.webSearchTool,
     env: settings.env,
     machineId: getMachineId(),
-    telemetryEnabled: settings.debugLogEnabled,
+    telemetryEnabled: settings.telemetryEnabled,
   };
 }
 
@@ -110,7 +111,7 @@ function getMachineId(): string | undefined {
         return raw;
       }
     }
-    const generated = `${os.hostname()}-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+    const generated = `${os.hostname()}-${crypto.randomUUID()}`;
     fs.mkdirSync(path.dirname(idPath), { recursive: true });
     fs.writeFileSync(idPath, generated, "utf8");
     return generated;

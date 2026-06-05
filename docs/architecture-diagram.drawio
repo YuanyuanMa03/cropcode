@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="CropCode" version="24.0.0">
+  <diagram id="cropcode-arch" name="CropCode Architecture">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="&lt;b&gt;CropCode — System Architecture&lt;/b&gt;" style="text;html=1;fontSize=20;align=center;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="500" y="20" width="400" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- ===================== LAYER 1: Terminal UI ===================== -->
+        <mxCell id="layer1" value="&lt;b&gt;Layer 1: Terminal UI (Ink / React)&lt;/b&gt;" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;rounded=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="1320" height="200" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="views" value="&lt;b&gt;views/&lt;/b&gt;&lt;br&gt;App · AppContainer&lt;br&gt;PromptInput · SessionList&lt;br&gt;WelcomeScreen · PermissionPrompt" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer1">
+          <mxGeometry x="20" y="40" width="180" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="components" value="&lt;b&gt;components/&lt;/b&gt;&lt;br&gt;MessageView · Markdown&lt;br&gt;ModelsDropdown · SkillsDropdown&lt;br&gt;FileMentionMenu" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer1">
+          <mxGeometry x="220" y="40" width="180" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="core" value="&lt;b&gt;core/&lt;/b&gt;&lt;br&gt;prompt-buffer · slash-commands&lt;br&gt;file-mentions · clipboard&lt;br&gt;loading-text · thinking-state" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer1">
+          <mxGeometry x="420" y="40" width="180" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="hooks" value="&lt;b&gt;hooks/&lt;/b&gt;&lt;br&gt;useTerminalInput&lt;br&gt;usePasteHandling&lt;br&gt;useHistoryNavigation&lt;br&gt;cursor" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer1">
+          <mxGeometry x="620" y="40" width="160" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="contexts" value="&lt;b&gt;contexts/&lt;/b&gt;&lt;br&gt;SessionContext&lt;br&gt;ThemeContext&lt;br&gt;PermissionContext" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer1">
+          <mxGeometry x="800" y="40" width="140" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="exit_summary" value="&lt;b&gt;exit-summary&lt;/b&gt;&lt;br&gt;(CropCode Only)" style="rounded=1;whiteSpace=wrap;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="layer1">
+          <mxGeometry x="960" y="40" width="130" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="login" value="&lt;b&gt;LoginScreen&lt;/b&gt;&lt;br&gt;(CropCode Only)" style="rounded=1;whiteSpace=wrap;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="layer1">
+          <mxGeometry x="1110" y="40" width="130" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- User interaction arrow -->
+        <mxCell id="user_icon" value="👤 User" style="shape=actor;whiteSpace=wrap;html=1;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="layer1">
+          <mxGeometry x="600" y="140" width="50" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="user_arrow" value="" style="endArrow=block;endFill=1;strokeColor=#666666;dashed=1;" edge="1" parent="layer1" source="user_icon" target="views">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ===================== LAYER 2: Session Manager ===================== -->
+        <mxCell id="layer2" value="&lt;b&gt;Layer 2: Session Manager&lt;/b&gt;" style="swimlane;startSize=30;fillColor=#d5e8d4;strokeColor=#82b366;rounded=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="1320" height="200" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="session_mgr" value="&lt;b&gt;SessionManager&lt;/b&gt;&lt;br&gt;session.ts&lt;br&gt;create · reply · interrupt&lt;br&gt;delete · list · dispose" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer2">
+          <mxGeometry x="20" y="40" width="200" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="llm_loop" value="&lt;b&gt;LLM Loop&lt;/b&gt;&lt;br&gt;streamChat&lt;br&gt;tool call dispatch&lt;br&gt;conversation history" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer2">
+          <mxGeometry x="240" y="40" width="170" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="openai_client" value="&lt;b&gt;OpenAI Client&lt;/b&gt;&lt;br&gt;openai-client.ts&lt;br&gt;multi-provider&lt;br&gt;DeepSeek · GLM · Qwen · MiMo" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer2">
+          <mxGeometry x="430" y="40" width="190" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="persistence" value="&lt;b&gt;Persistence&lt;/b&gt;&lt;br&gt;~/.cropcode/sessions/&lt;br&gt;conversation history&lt;br&gt;session metadata" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer2">
+          <mxGeometry x="640" y="40" width="170" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="state" value="&lt;b&gt;State Cache&lt;/b&gt;&lt;br&gt;common/state.ts&lt;br&gt;file versions&lt;br&gt;snippets · working dir" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer2">
+          <mxGeometry x="830" y="40" width="160" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="telemetry" value="&lt;b&gt;Telemetry&lt;/b&gt;&lt;br&gt;(CropCode Only)" style="rounded=1;whiteSpace=wrap;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="layer2">
+          <mxGeometry x="1010" y="40" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows between layer1 and layer2 -->
+        <mxCell id="l1_l2" value="" style="endArrow=block;endFill=1;strokeColor=#333333;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="280" as="sourcePoint"/>
+            <mxPoint x="700" y="300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="l1_l2_label" value="session lifecycle events" style="edgeLabel;fontSize=10;fontColor=#666666;" vertex="1" connectable="0" parent="l1_l2">
+          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
+        </mxCell>
+
+        <!-- ===================== LAYER 3: Tool System ===================== -->
+        <mxCell id="layer3" value="&lt;b&gt;Layer 3: Tool System&lt;/b&gt;" style="swimlane;startSize=30;fillColor=#e1d5e7;strokeColor=#9673a6;rounded=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="520" width="1320" height="170" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="tool_exec" value="&lt;b&gt;Tool Executor&lt;/b&gt;&lt;br&gt;tools/executor.ts&lt;br&gt;dispatch · permission check" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer3">
+          <mxGeometry x="20" y="40" width="170" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="bash" value="&lt;b&gt;Bash&lt;/b&gt;&lt;br&gt;bash-handler" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="layer3">
+          <mxGeometry x="210" y="40" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="read_write" value="&lt;b&gt;Read/Write&lt;/b&gt;&lt;br&gt;file-handler" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="layer3">
+          <mxGeometry x="325" y="40" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="edit" value="&lt;b&gt;Edit&lt;/b&gt;&lt;br&gt;edit-handler" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="layer3">
+          <mxGeometry x="440" y="40" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="web_search" value="&lt;b&gt;WebSearch&lt;/b&gt;&lt;br&gt;web-handler" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="layer3">
+          <mxGeometry x="555" y="40" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="mcp_tool" value="&lt;b&gt;MCP Tools&lt;/b&gt;&lt;br&gt;mcp-handler" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="layer3">
+          <mxGeometry x="670" y="40" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="notebook" value="&lt;b&gt;Notebook&lt;/b&gt;&lt;br&gt;notebook-handler" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="layer3">
+          <mxGeometry x="785" y="40" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="skill_tool" value="&lt;b&gt;Skill&lt;/b&gt;&lt;br&gt;skill-handler" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="layer3">
+          <mxGeometry x="910" y="40" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="permissions" value="&lt;b&gt;Permissions&lt;/b&gt;&lt;br&gt;scope: allow/deny/ask" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer3">
+          <mxGeometry x="1040" y="40" width="150" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- L2 -> L3 arrow -->
+        <mxCell id="l2_l3" value="" style="endArrow=block;endFill=1;strokeColor=#333333;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="350" y="500" as="sourcePoint"/>
+            <mxPoint x="350" y="520" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="l2_l3_label" value="tool_calls" style="edgeLabel;fontSize=10;fontColor=#666666;" vertex="1" connectable="0" parent="l2_l3">
+          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
+        </mxCell>
+
+        <!-- ===================== LAYER 4: Common Utilities ===================== -->
+        <mxCell id="layer4" value="&lt;b&gt;Layer 4: Common Utilities&lt;/b&gt;" style="swimlane;startSize=30;fillColor=#f8cecc;strokeColor=#b85450;rounded=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="710" width="800" height="150" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="settings" value="&lt;b&gt;Settings&lt;/b&gt;&lt;br&gt;Zod validated&lt;br&gt;user · project · env" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer4">
+          <mxGeometry x="20" y="40" width="130" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="file_history" value="&lt;b&gt;File History&lt;/b&gt;&lt;br&gt;file-history.ts&lt;br&gt;undo/redo" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer4">
+          <mxGeometry x="170" y="40" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="notify" value="&lt;b&gt;Notify&lt;/b&gt;&lt;br&gt;notify.ts" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer4">
+          <mxGeometry x="310" y="40" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="providers" value="&lt;b&gt;Providers&lt;/b&gt;&lt;br&gt;model registry" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer4">
+          <mxGeometry x="430" y="40" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="shell_utils" value="&lt;b&gt;Shell Utils&lt;/b&gt;&lt;br&gt;shell-utils.ts" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer4">
+          <mxGeometry x="570" y="40" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="validate" value="&lt;b&gt;Validate&lt;/b&gt;&lt;br&gt;validate.ts" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer4">
+          <mxGeometry x="700" y="40" width="80" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- ===================== LAYER 5: Extensions ===================== -->
+        <mxCell id="layer5" value="&lt;b&gt;Layer 5: Extensions &amp;amp; Skills&lt;/b&gt;" style="swimlane;startSize=30;fillColor=#ffe6cc;strokeColor=#d79b00;rounded=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="860" y="710" width="500" height="150" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="mcp_mgr" value="&lt;b&gt;MCP Manager&lt;/b&gt;&lt;br&gt;mcp/mcp-client.ts&lt;br&gt;spawn · connect · tools" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer5">
+          <mxGeometry x="20" y="40" width="150" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="marketplace" value="&lt;b&gt;Marketplace&lt;/b&gt;&lt;br&gt;marketplace/&lt;br&gt;install · search · publish" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer5">
+          <mxGeometry x="190" y="40" width="140" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="skills" value="&lt;b&gt;Skills&lt;/b&gt;&lt;br&gt;~/.agents/skills/&lt;br&gt;./.agents/skills/" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="layer5">
+          <mxGeometry x="350" y="40" width="130" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- ===================== External Systems ===================== -->
+        <mxCell id="ext_llm" value="&lt;b&gt;LLM APIs&lt;/b&gt;&lt;br&gt;DeepSeek · GLM&lt;br&gt;Qwen · MiMo&lt;br&gt;OpenAI Compatible" style="rounded=1;whiteSpace=wrap;fillColor=#e6e6e6;strokeColor=#999999;fontSize=11;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="900" width="180" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ext_npm" value="&lt;b&gt;npm / Node.js&lt;/b&gt;&lt;br&gt;package install" style="rounded=1;whiteSpace=wrap;fillColor=#e6e6e6;strokeColor=#999999;fontSize=11;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="250" y="900" width="150" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ext_fs" value="&lt;b&gt;File System&lt;/b&gt;&lt;br&gt;project files" style="rounded=1;whiteSpace=wrap;fillColor=#e6e6e6;strokeColor=#999999;fontSize=11;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="430" y="900" width="140" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ext_mcp" value="&lt;b&gt;MCP Servers&lt;/b&gt;&lt;br&gt;external tools" style="rounded=1;whiteSpace=wrap;fillColor=#e6e6e6;strokeColor=#999999;fontSize=11;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="900" width="140" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- L3 -> External arrows -->
+        <mxCell id="to_llm" value="" style="endArrow=block;endFill=1;strokeColor=#999999;dashed=1;" edge="1" parent="1" source="openai_client" target="ext_llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="to_fs" value="" style="endArrow=block;endFill=1;strokeColor=#999999;dashed=1;" edge="1" parent="1" source="read_write" target="ext_fs">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="to_mcp" value="" style="endArrow=block;endFill=1;strokeColor=#999999;dashed=1;" edge="1" parent="1" source="mcp_mgr" target="ext_mcp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="to_npm" value="" style="endArrow=block;endFill=1;strokeColor=#999999;dashed=1;" edge="1" parent="1" source="marketplace" target="ext_npm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ===================== Legend ===================== -->
+        <mxCell id="legend" value="&lt;b&gt;Legend&lt;/b&gt;" style="swimlane;startSize=25;fillColor=#f5f5f5;strokeColor=#666666;rounded=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="800" y="900" width="560" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg1" value="Shared" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="legend">
+          <mxGeometry x="10" y="30" width="60" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg1t" value="= both projects" style="text;fontSize=10;align=left;" vertex="1" parent="legend">
+          <mxGeometry x="75" y="32" width="90" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg2" value="CropCode" style="rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="legend">
+          <mxGeometry x="170" y="30" width="65" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg2t" value="= CropCode only" style="text;fontSize=10;align=left;" vertex="1" parent="legend">
+          <mxGeometry x="240" y="32" width="95" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg3" value="Tool" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="legend">
+          <mxGeometry x="340" y="30" width="45" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg3t" value="= tool handler" style="text;fontSize=10;align=left;" vertex="1" parent="legend">
+          <mxGeometry x="390" y="32" width="80" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg4" value="External" style="rounded=1;fillColor=#e6e6e6;strokeColor=#999999;fontSize=10;dashed=1;" vertex="1" parent="legend">
+          <mxGeometry x="475" y="30" width="60" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg4t" value="= external system" style="text;fontSize=10;align=left;" vertex="1" parent="legend">
+          <mxGeometry x="540" y="32" width="90" height="20" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

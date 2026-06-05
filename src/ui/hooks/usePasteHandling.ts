@@ -32,8 +32,16 @@ export function usePasteHandling(
   const pastesRef = useRef<Map<number, string>>(new Map());
   const pasteCounterRef = useRef<number>(0);
   const expandedRegionsRef = useRef<Map<number, PasteRegion>>(new Map());
+  const mountedRef = useRef(true);
   const [hasCollapsedMarkers, setHasCollapsedMarkers] = useState(false);
   const [hasExpandedRegions, setHasExpandedRegions] = useState(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   function refreshDerivedFlags(): void {
     setHasCollapsedMarkers(hasActivePasteMarkers(buffer.text, pastesRef.current));
@@ -78,6 +86,7 @@ export function usePasteHandling(
         expandedRegionsRef.current.delete(id);
         pastesRef.current.set(id, region.content);
         setTimeout(() => {
+          if (!mountedRef.current) return;
           updateBuffer((s) => {
             const text = s.text.slice(0, region.start) + region.marker + s.text.slice(region.end);
             return { text, cursor: region.start + region.marker.length };
@@ -105,6 +114,7 @@ export function usePasteHandling(
     pastesRef.current.delete(pasteId);
 
     setTimeout(() => {
+      if (!mountedRef.current) return;
       updateBuffer((s) => {
         const text = s.text.slice(0, marker.start) + cleanPasteContent(content) + s.text.slice(marker.end);
         const newEnd = marker.start + content.length;

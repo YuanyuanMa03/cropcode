@@ -7,8 +7,16 @@ import matter from "gray-matter";
 import ejs from "ejs";
 import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
 import { launchNotifyScript } from "./common/notify";
+import { withRetry } from "./common/retry";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
-import { getCompactPromptTokenThreshold, supportsMultimodal } from "./common/model-capabilities";
+import {
+  getCompactPromptTokenThreshold,
+  getMaxOutputTokens,
+  supportsMultimodal,
+  MICROCOMPACT_TRIGGER_THRESHOLD,
+  MICROCOMPACT_KEEP_RECENT,
+  MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES,
+} from "./common/model-capabilities";
 import {
   getCompactPrompt,
   getDefaultSkillPrompt,
@@ -24,12 +32,15 @@ import {
   type ProcessTimeoutInfo,
 } from "./tools/executor";
 import { McpManager } from "./mcp/mcp-manager";
-import type { McpServerConfig } from "./settings";
+import type { McpServerConfig, PermissionSettings, HooksSettings } from "./settings";
+import { readProjectSettings } from "./settings";
+import type { AskPermissionRequest } from "./common/permissions";
 import { logApiError } from "./common/error-logger";
 import { logOpenAIChatCompletionDebug, normalizeDebugError } from "./common/debug-logger";
 import { killProcessTree } from "./common/process-tree";
 import {
   appendProjectPermissionAllows,
+  normalizeAskPermissions,
   buildPermissionToolExecution,
   computeToolCallPermissions,
   hasUserPermissionReplies,
@@ -44,6 +55,8 @@ import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { GitFileHistory, type FileHistoryCheckpointResult } from "./common/file-history";
 
 const MAX_SESSION_ENTRIES = 50;
+const MAX_TOOL_RESULT_CHARS = 50_000;
+const DEFAULT_SESSION_RETENTION_DAYS = 30;
 const DEFAULT_NEW_PROMPT_API_URL = "https://cropcode.local/api/plugin/new";
 const NEW_PROMPT_REPORT_TIMEOUT_MS = 3000;
 
@@ -177,12 +190,13 @@ export type SessionEntry = {
   toolCalls: unknown[] | null;
   status: SessionStatus;
   failReason: string | null;
-  askPermissions?: import("./common/permissions").AskPermissionRequest[];
+  askPermissions?: AskPermissionRequest[];
   usage: ModelUsage | null;
   usagePerModel: Record<string, ModelUsage> | null;
   activeTokens: number;
   createTime: string;
   updateTime: string;
+  lastAccessTime: string;
   processes: Map<string, SessionProcessEntry> | null; // {pid: process info}
 };
 
@@ -253,7 +267,8 @@ type SessionManagerOptions = {
     webSearchTool?: string;
     mcpServers?: Record<string, McpServerConfig>;
     disabledSkills?: string[];
-    permissions?: import("./settings").PermissionSettings;
+    permissions?: PermissionSettings;
+    hooks?: HooksSettings;
   };
   renderMarkdown: (text: string) => string;
   onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
@@ -282,7 +297,8 @@ export class SessionManager {
     webSearchTool?: string;
     mcpServers?: Record<string, McpServerConfig>;
     disabledSkills?: string[];
-    permissions?: import("./settings").PermissionSettings;
+    permissions?: PermissionSettings;
+    hooks?: HooksSettings;
   };
   private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   private readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
@@ -296,6 +312,7 @@ export class SessionManager {
   private readonly toolExecutor: ToolExecutor;
   private readonly mcpManager = new McpManager();
   private mcpToolDefinitions: ToolDefinition[] = [];
+  private consecutiveCompactFailures = 0;
 
   constructor(options: SessionManagerOptions) {
     this.projectRoot = options.projectRoot;
@@ -306,19 +323,40 @@ export class SessionManager {
     this.onLlmStreamProgress = options.onLlmStreamProgress;
     this.onMcpStatusChanged = options.onMcpStatusChanged;
     this.onProcessStdout = options.onProcessStdout;
-    this.toolExecutor = new ToolExecutor(this.projectRoot, this.createOpenAIClient, this.mcpManager);
+    this.toolExecutor = new ToolExecutor(
+      this.projectRoot,
+      this.createOpenAIClient,
+      this.mcpManager,
+      this.getResolvedSettings().hooks
+    );
     this.mcpManager.prepare(this.getResolvedSettings().mcpServers);
   }
 
-  async initMcpServers(servers?: Record<string, McpServerConfig>): Promise<void> {
+  async initMcpServers(
+    servers?: Record<string, McpServerConfig>,
+    options?: { includeProjectServers?: boolean }
+  ): Promise<void> {
     this.mcpManager.setOnToolsListChanged(() => {
       this.mcpToolDefinitions = this.mcpManager.getMcpToolDefinitions();
     });
-    // 设置状态变更回调，通知 UI 更新
     this.mcpManager.setOnStatusChanged(() => {
       this.onMcpStatusChanged?.();
     });
-    await this.mcpManager.initialize(servers);
+    let serversToStart = servers;
+    if (!options?.includeProjectServers && servers) {
+      const projectSettings = readProjectSettings(this.projectRoot);
+      const projectServerNames = new Set(Object.keys(projectSettings?.mcpServers ?? {}));
+      if (projectServerNames.size > 0) {
+        const filtered: Record<string, McpServerConfig> = {};
+        for (const [name, config] of Object.entries(servers)) {
+          if (!projectServerNames.has(name)) {
+            filtered[name] = config;
+          }
+        }
+        serversToStart = Object.keys(filtered).length > 0 ? filtered : undefined;
+      }
+    }
+    await this.mcpManager.initialize(serversToStart);
     this.mcpToolDefinitions = this.mcpManager.getMcpToolDefinitions();
   }
 
@@ -438,12 +476,20 @@ export class SessionManager {
 
     let response: unknown;
     try {
-      response = await (
-        client.chat.completions.create as unknown as (
-          body: Record<string, unknown>,
-          options?: Record<string, unknown>
-        ) => Promise<unknown>
-      )(streamRequest, options);
+      response = await withRetry(
+        () =>
+          (
+            client.chat.completions.create as unknown as (
+              body: Record<string, unknown>,
+              options?: Record<string, unknown>
+            ) => Promise<unknown>
+          )(streamRequest, options),
+        {
+          onRetry: (attempt, error, delayMs) => {
+            console.error(`[retry] attempt ${attempt}, retrying in ${Math.round(delayMs)}ms: ${error.message}`);
+          },
+        }
+      );
     } catch (error) {
       this.logChatCompletionDebug(debug, {
         timestamp: new Date().toISOString(),
@@ -976,6 +1022,7 @@ The candidate skills are as follows:\n\n`;
       activeTokens: 0,
       createTime: now,
       updateTime: now,
+      lastAccessTime: now,
       processes: null,
     };
     index.entries.push(entry);
@@ -992,80 +1039,94 @@ The candidate skills are as follows:\n\n`;
     const droppedEntries = sortedEntries.filter((item) => !keptIds.has(item.id));
     index.entries = keptEntries;
     this.saveSessionsIndex(index);
-    this.removeSessionMessages(droppedEntries.map((item) => item.id));
-
-    const promptToolOptions = this.getPromptToolOptions();
-    const systemPrompt = getSystemPrompt(this.projectRoot, promptToolOptions);
-    const systemMessage = this.buildSystemMessage(sessionId, systemPrompt);
-    this.appendSessionMessage(sessionId, systemMessage);
-
-    const defaultSkillPrompt = getDefaultSkillPrompt();
-    if (defaultSkillPrompt) {
-      const defaultSkillMessage = this.buildSystemMessage(sessionId, defaultSkillPrompt);
-      this.appendSessionMessage(sessionId, defaultSkillMessage);
+    for (const dropped of droppedEntries) {
+      this.cleanupSessionResources(dropped.id, {
+        removeMessages: true,
+        processIds: this.getProcessIds(dropped.processes ?? null),
+      });
     }
 
-    const runtimeContextMessage = this.buildSystemMessage(
-      sessionId,
-      getRuntimeContext(this.projectRoot, promptToolOptions.model)
-    );
-    this.appendSessionMessage(sessionId, runtimeContextMessage);
+    try {
+      const promptToolOptions = this.getPromptToolOptions();
+      const systemParts: string[] = [getSystemPrompt(this.projectRoot, promptToolOptions)];
 
-    const agentInstructions = this.loadAgentInstructions();
-    if (agentInstructions) {
-      const instructionsMessage = this.buildSystemMessage(sessionId, agentInstructions);
-      this.appendSessionMessage(sessionId, instructionsMessage);
-    }
-
-    const userMessage = this.buildUserMessage(sessionId, userPrompt);
-    this.appendSessionMessage(sessionId, userMessage);
-
-    if (userPrompt.text) {
-      const skills = await this.listSkills();
-      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal });
-      this.throwIfAborted(signal);
-      const skillSet = new Set(skillNames);
-      const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
-      if (Array.isArray(userPrompt.skills)) {
-        userPrompt.skills.push(...matchedSkill);
-      } else if (matchedSkill.length > 0) {
-        userPrompt.skills = matchedSkill;
+      const defaultSkillPrompt = getDefaultSkillPrompt();
+      if (defaultSkillPrompt) {
+        systemParts.push(defaultSkillPrompt);
       }
-    }
-    userPrompt.skills = await this.normalizeSkills(userPrompt.skills);
-    this.throwIfAborted(signal);
 
-    if (userPrompt.skills && userPrompt.skills.length > 0) {
-      for (const skill of userPrompt.skills) {
-        if (skill.isLoaded) {
-          continue;
+      systemParts.push(getRuntimeContext(this.projectRoot, promptToolOptions.model));
+
+      const agentInstructions = this.loadAgentInstructions();
+      if (agentInstructions) {
+        systemParts.push(agentInstructions);
+      }
+
+      const mergedSystemMessage = this.buildSystemMessage(sessionId, systemParts.join("\n\n"));
+      this.appendSessionMessage(sessionId, mergedSystemMessage);
+
+      const userMessage = this.buildUserMessage(sessionId, userPrompt);
+      this.appendSessionMessage(sessionId, userMessage);
+
+      if (userPrompt.text) {
+        const skills = await this.listSkills();
+        const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal });
+        this.throwIfAborted(signal);
+        const skillSet = new Set(skillNames);
+        const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
+        if (Array.isArray(userPrompt.skills)) {
+          userPrompt.skills.push(...matchedSkill);
+        } else if (matchedSkill.length > 0) {
+          userPrompt.skills = matchedSkill;
         }
-        if (skill.disabled) {
-          continue;
-        }
-        const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
-        const skillPrompt = `Use the skill document below to assist the user:\n
+      }
+      userPrompt.skills = await this.normalizeSkills(userPrompt.skills);
+      this.throwIfAborted(signal);
+
+      if (userPrompt.skills && userPrompt.skills.length > 0) {
+        for (const skill of userPrompt.skills) {
+          if (skill.isLoaded) {
+            continue;
+          }
+          if (skill.disabled) {
+            continue;
+          }
+          let skillMd: string;
+          try {
+            skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
+          } catch {
+            continue;
+          }
+          const skillPrompt = `Use the skill document below to assist the user:\n
 <${skill.name}-skill path="${this.resolveSkillPath(skill.path)}">
 ${skillMd}
 </${skill.name}-skill>`;
-        const skillMessage = this.buildSkillMessage(sessionId, skillPrompt, skill);
-        this.appendSessionMessage(sessionId, skillMessage);
-        this.onAssistantMessage(skillMessage, true);
+          const skillMessage = this.buildSkillMessage(sessionId, skillPrompt, skill);
+          this.appendSessionMessage(sessionId, skillMessage);
+          this.onAssistantMessage(skillMessage, true);
+        }
       }
-    }
 
-    this.activeSessionId = sessionId;
-    await this.activateSession(sessionId, controller);
-    return sessionId;
+      this.activeSessionId = sessionId;
+      await this.activateSession(sessionId, controller);
+      return sessionId;
+    } catch (error) {
+      const failNow = new Date().toISOString();
+      this.updateSessionEntry(sessionId, (entry) => ({
+        ...entry,
+        status: "failed",
+        failReason: error instanceof Error ? error.message : String(error),
+        updateTime: failNow,
+      }));
+      throw error;
+    }
   }
 
   async replySession(sessionId: string, userPrompt: UserPromptContent, controller?: AbortController): Promise<void> {
     const signal = controller?.signal;
     this.throwIfAborted(signal);
     appendProjectPermissionAllows(this.projectRoot, userPrompt.alwaysAllows, {
-      inheritedPermissions: this.getResolvedSettings().permissions as
-        | Required<import("./settings").PermissionSettings>
-        | undefined,
+      inheritedPermissions: this.getResolvedSettings().permissions as Required<PermissionSettings> | undefined,
     });
     const now = new Date().toISOString();
     const updated = this.updateSessionEntry(sessionId, (entry) => ({
@@ -1130,7 +1191,12 @@ ${skillMd}
         if (skill.disabled) {
           continue;
         }
-        const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
+        let skillMd: string;
+        try {
+          skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
+        } catch {
+          continue;
+        }
         const skillPrompt = `Use the skill document below to assist the user:\n
 <${skill.name}-skill path="${this.resolveSkillPath(skill.path)}">
 ${skillMd}
@@ -1141,7 +1207,18 @@ ${skillMd}
       }
     }
     this.activeSessionId = sessionId;
-    await this.activateSession(sessionId, controller);
+    try {
+      await this.activateSession(sessionId, controller);
+    } catch (error) {
+      const failNow = new Date().toISOString();
+      this.updateSessionEntry(sessionId, (entry) => ({
+        ...entry,
+        status: "failed",
+        failReason: error instanceof Error ? error.message : String(error),
+        updateTime: failNow,
+      }));
+      throw error;
+    }
   }
 
   private isContinuePrompt(userPrompt: UserPromptContent): boolean {
@@ -1237,8 +1314,14 @@ ${skillMd}
           }
         }
 
+        // Microcompact: prune old tool results before full compaction
+        this.microcompactSession(sessionId);
+
         const compactPromptTokenThreshold = getCompactPromptTokenThreshold(model);
-        if (session.activeTokens > compactPromptTokenThreshold) {
+        if (
+          session.activeTokens > compactPromptTokenThreshold &&
+          this.consecutiveCompactFailures < MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES
+        ) {
           const message = this.buildAssistantMessage(
             sessionId,
             "The conversation is getting long, compacting...",
@@ -1246,28 +1329,52 @@ ${skillMd}
           );
           message.meta = { asThinking: true };
           this.onAssistantMessage(message, false);
-          await this.compactSession(sessionId, sessionController.signal);
+          try {
+            await this.compactSession(sessionId, sessionController.signal);
+            this.consecutiveCompactFailures = 0;
+          } catch {
+            this.consecutiveCompactFailures += 1;
+          }
         }
 
-        const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId), thinkingEnabled, model);
-        const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, model, reasoningEffort);
-        const response = await this.createChatCompletionStream(
-          client,
-          {
-            model,
-            messages,
-            tools: getTools(this.getPromptToolOptions(), this.mcpToolDefinitions),
-            ...thinkingOptions,
-          },
-          { signal: sessionController.signal },
-          sessionId,
-          {
-            enabled: debugLogEnabled,
-            location: "SessionManager.activateSession",
-            baseURL,
-            params: { iteration, thinkingEnabled, reasoningEffort },
+        let response;
+        try {
+          const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId), thinkingEnabled, model);
+          const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, model, reasoningEffort);
+          response = await this.createChatCompletionStream(
+            client,
+            {
+              model,
+              messages,
+              tools: getTools(this.getPromptToolOptions(), this.mcpToolDefinitions),
+              max_tokens: getMaxOutputTokens(model),
+              ...thinkingOptions,
+            },
+            { signal: sessionController.signal },
+            sessionId,
+            {
+              enabled: debugLogEnabled,
+              location: "SessionManager.activateSession",
+              baseURL,
+              params: { iteration, thinkingEnabled, reasoningEffort },
+            }
+          );
+        } catch (apiError) {
+          const apiErrMsg = apiError instanceof Error ? apiError.message : String(apiError);
+          const isPromptTooLong =
+            apiErrMsg.includes("context_length_exceeded") ||
+            apiErrMsg.includes("prompt is too long") ||
+            apiErrMsg.includes("maximum context length") ||
+            apiErrMsg.includes("too many tokens");
+          if (isPromptTooLong) {
+            const recovered = await this.reactiveCompact(sessionId, sessionController.signal);
+            if (recovered) {
+              iteration -= 1;
+              continue;
+            }
           }
-        );
+          throw apiError;
+        }
 
         const message = response.choices?.[0]?.message;
         const rawContent = message?.content;
@@ -1288,9 +1395,7 @@ ${skillMd}
               sessionId,
               projectRoot: this.projectRoot,
               toolCalls,
-              settings: this.getResolvedSettings().permissions as
-                | Required<import("./settings").PermissionSettings>
-                | undefined,
+              settings: this.getResolvedSettings().permissions as Required<PermissionSettings> | undefined,
             })
           : null;
         if (permissionPlan) {
@@ -1429,6 +1534,7 @@ ${skillMd}
       {
         model,
         messages: [{ role: "user", content: compactPrompt }],
+        max_tokens: 20_000,
         ...thinkingOptions,
       },
       signal ? { signal } : undefined,
@@ -1476,6 +1582,47 @@ ${skillMd}
     };
     sessionMessages.splice(endIndex, 0, summaryMessage);
     this.saveSessionMessages(sessionId, sessionMessages);
+  }
+
+  /**
+   * Microcompact: prune old tool results to free context without a full compaction.
+   * Keeps the most recent MICROCOMPACT_KEEP_RECENT tool messages, clears the rest.
+   */
+  private microcompactSession(sessionId: string): void {
+    const messages = this.listSessionMessages(sessionId);
+    const toolMessages = messages.filter((m) => m.role === "tool" && !m.compacted && m.visible);
+    if (toolMessages.length <= MICROCOMPACT_TRIGGER_THRESHOLD) {
+      return;
+    }
+    // Keep the most recent N, clear content of the rest
+    const toClear = toolMessages.slice(0, toolMessages.length - MICROCOMPACT_KEEP_RECENT);
+    const now = new Date().toISOString();
+    for (const msg of toClear) {
+      const idx = messages.findIndex((m) => m.id === msg.id);
+      if (idx >= 0) {
+        messages[idx] = {
+          ...messages[idx],
+          content: "[Previous tool result cleared to save context]",
+          updateTime: now,
+        };
+      }
+    }
+    this.saveSessionMessages(sessionId, messages);
+  }
+
+  /**
+   * Reactive compact: triggered when API returns prompt-too-long error.
+   * Attempts to compact and retry.
+   */
+  async reactiveCompact(sessionId: string, signal?: AbortSignal): Promise<boolean> {
+    try {
+      await this.compactSession(sessionId, signal);
+      this.consecutiveCompactFailures = 0;
+      return true;
+    } catch {
+      this.consecutiveCompactFailures += 1;
+      return false;
+    }
   }
 
   private getPromptToolOptions(): { model: string; webSearchEnabled: boolean } {
@@ -1547,6 +1694,8 @@ ${skillMd}
       processes: null,
       updateTime: now,
     }));
+    clearSessionState(sessionId);
+    clearSessionWorkingDir(sessionId);
 
     const contentParts = ["Interrupted."];
     if (killedPids.length > 0) {
@@ -1655,6 +1804,36 @@ ${skillMd}
     if (options.removeMessages) {
       this.removeSessionMessages([sessionId]);
     }
+  }
+
+  cleanupExpiredSessions(retentionDays: number = DEFAULT_SESSION_RETENTION_DAYS): number {
+    if (retentionDays <= 0) {
+      return 0;
+    }
+    const index = this.loadSessionsIndex();
+    const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+    const kept: SessionEntry[] = [];
+    const dropped: SessionEntry[] = [];
+    for (const entry of index.entries) {
+      const accessTime = Date.parse(entry.lastAccessTime || entry.updateTime);
+      if (Number.isNaN(accessTime) || accessTime >= cutoff) {
+        kept.push(entry);
+      } else {
+        dropped.push(entry);
+      }
+    }
+    if (dropped.length === 0) {
+      return 0;
+    }
+    index.entries = kept;
+    this.saveSessionsIndex(index);
+    for (const entry of dropped) {
+      this.cleanupSessionResources(entry.id, {
+        removeMessages: true,
+        processIds: this.getProcessIds(entry.processes ?? null),
+      });
+    }
+    return dropped.length;
   }
 
   listSessions(): SessionEntry[] {
@@ -1933,6 +2112,10 @@ ${skillMd}
     if (entryIndex === -1) {
       return null;
     }
+    index.entries[entryIndex] = {
+      ...index.entries[entryIndex],
+      lastAccessTime: new Date().toISOString(),
+    };
 
     const updated = updater({ ...index.entries[entryIndex] });
     index.entries[entryIndex] = updated;
@@ -2173,16 +2356,19 @@ ${skillMd}
       .map((toolCall) => parseToolCallForPermissions(toolCall))
       .filter((toolCall): toolCall is PermissionToolCall => Boolean(toolCall));
     const toolExecutions = [];
+    const blockedResults = [];
+    const allowedToolCalls = [];
     for (const toolCall of parsedToolCalls) {
-      if (hooks.shouldStop?.()) {
-        break;
-      }
       const blockedResult = buildPermissionToolExecution(toolCall, options);
       if (blockedResult) {
-        toolExecutions.push(blockedResult);
-        continue;
+        blockedResults.push(blockedResult);
+      } else {
+        allowedToolCalls.push(toolCall);
       }
-      const executions = await this.toolExecutor.executeToolCalls(sessionId, [toolCall], hooks);
+    }
+    toolExecutions.push(...blockedResults);
+    if (allowedToolCalls.length > 0 && !hooks.shouldStop?.()) {
+      const executions = await this.toolExecutor.executeToolCalls(sessionId, allowedToolCalls, hooks);
       toolExecutions.push(...executions);
     }
     if (this.isInterrupted(sessionId)) {
@@ -2310,7 +2496,16 @@ ${skillMd}
     if (message.role === "user" && message.content === "/init") {
       return this.renderInitCommandPrompt();
     }
-    return message.content ?? "";
+    const content = message.content ?? "";
+    if (message.role === "tool" && content.length > MAX_TOOL_RESULT_CHARS) {
+      const half = Math.floor(MAX_TOOL_RESULT_CHARS / 2);
+      return (
+        content.slice(0, half) +
+        `\n\n... [truncated ${content.length - MAX_TOOL_RESULT_CHARS} chars] ...\n\n` +
+        content.slice(-half)
+      );
+    }
+    return content;
   }
 
   private pairToolMessages(messages: SessionMessage[]): Map<string, number> {
@@ -2726,8 +2921,14 @@ ${skillMd}
       activeTokens: typeof value.activeTokens === "number" ? value.activeTokens : 0,
       createTime: typeof value.createTime === "string" ? value.createTime : new Date().toISOString(),
       updateTime: typeof value.updateTime === "string" ? value.updateTime : new Date().toISOString(),
+      lastAccessTime:
+        typeof value.lastAccessTime === "string"
+          ? value.lastAccessTime
+          : typeof value.updateTime === "string"
+            ? value.updateTime
+            : new Date().toISOString(),
       processes: this.deserializeProcesses(value.processes),
-      askPermissions: Array.isArray(value.askPermissions) ? value.askPermissions : undefined,
+      askPermissions: normalizeAskPermissions(value.askPermissions),
     };
   }
 
@@ -2854,7 +3055,12 @@ ${skillMd}
         if (skill.isLoaded) {
           continue;
         }
-        const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
+        let skillMd: string;
+        try {
+          skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
+        } catch {
+          continue;
+        }
         const skillPrompt = `Use the skill document below to assist the user:\n\n<${skill.name}-skill path="${this.resolveSkillPath(skill.path)}">\n${skillMd}\n</${skill.name}-skill>`;
         const skillMessage = this.buildSkillMessage(sessionId, skillPrompt, skill);
         this.appendSessionMessage(sessionId, skillMessage);

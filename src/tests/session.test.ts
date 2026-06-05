@@ -660,8 +660,9 @@ test("createSession stores /init and sends the active .cropcode project AGENTS p
 
   assert.equal(userMessage?.content, "/init");
   assert.match(openAIUserMessage?.content ?? "", /CropCode Project Instructions/);
-  assert.ok(systemContents.includes("cropcode project instructions"));
-  assert.ok(!systemContents.includes("root project instructions"));
+  const mergedSystem = systemContents.join("\n");
+  assert.match(mergedSystem, /cropcode project instructions/);
+  assert.doesNotMatch(mergedSystem, /root project instructions/);
 });
 
 test("createSession appends default system prompts in prefix-cache-friendly order", async () => {
@@ -681,21 +682,19 @@ test("createSession appends default system prompts in prefix-cache-friendly orde
     .filter((message) => message.role === "system")
     .map((message) => message.content ?? "");
 
-  assert.equal(systemContents.length >= 4, true);
-  assert.match(systemContents[0] ?? "", /# Available Tools/);
-  assert.doesNotMatch(systemContents[0] ?? "", /# Local Workspace Environment/);
-  assert.doesNotMatch(systemContents[0] ?? "", /当前LLM模型为qwen3-max/);
-  assert.match(systemContents[1] ?? "", /<agent-drift-guard-skill>/);
-  assert.match(systemContents[1] ?? "", /<plan-and-execute-skill>/);
-  assert.doesNotMatch(systemContents[1] ?? "", /path="templates\/skills\//);
-  assert.doesNotMatch(systemContents[1] ?? "", /当前LLM模型为qwen3-max/);
-  assert.match(systemContents[2] ?? "", /# Local Workspace Environment/);
-  assert.match(systemContents[2] ?? "", /当前LLM模型为qwen3-max/);
-  const environmentJsonMatch = (systemContents[2] ?? "").match(/```json\n([\s\S]+?)\n```/);
-  assert.ok(environmentJsonMatch);
-  const environmentInfo = JSON.parse(environmentJsonMatch[1] ?? "{}") as { "root path"?: string };
+  assert.ok(systemContents.length >= 1, "should have at least 1 system message");
+  const mergedSystem = systemContents[0] ?? "";
+  assert.match(mergedSystem, /# Available Tools/);
+  assert.match(mergedSystem, /# Local Workspace Environment/);
+  assert.match(mergedSystem, /当前LLM模型为qwen3-max/);
+  assert.match(mergedSystem, /<agent-drift-guard-skill>/);
+  assert.match(mergedSystem, /<plan-and-execute-skill>/);
+  assert.doesNotMatch(mergedSystem, /path="templates\/skills\//);
+  assert.match(mergedSystem, /root project instructions/);
+  const environmentSection = mergedSystem.match(/# Local Workspace Environment\s*\n\s*```json\n([\s\S]+?)\n```/);
+  assert.ok(environmentSection, "should contain Local Workspace Environment JSON block");
+  const environmentInfo = JSON.parse(environmentSection[1] ?? "{}") as { "root path"?: string };
   assert.equal(environmentInfo["root path"], workspace);
-  assert.equal(systemContents[3], "root project instructions");
 });
 
 test("replySession stores /init and sends the active root project AGENTS path to the LLM", async () => {
@@ -1897,9 +1896,9 @@ test("SessionManager resets active tokens to latest post-compaction response usa
 
   const responses = [
     createChatResponse("large", {
-      prompt_tokens: 139_990,
+      prompt_tokens: 249_990,
       completion_tokens: 10,
-      total_tokens: 140_000,
+      total_tokens: 250_000,
     }),
     createChatResponse("summary", {
       prompt_tokens: 100,
@@ -1915,7 +1914,7 @@ test("SessionManager resets active tokens to latest post-compaction response usa
   const manager = createMockedClientSessionManager(workspace, responses);
 
   const sessionId = await manager.createSession({ text: "" });
-  assert.equal(manager.getSession(sessionId)?.activeTokens, 140_000);
+  assert.equal(manager.getSession(sessionId)?.activeTokens, 250_000);
 
   await manager.replySession(sessionId, { text: "" });
 
@@ -1923,12 +1922,12 @@ test("SessionManager resets active tokens to latest post-compaction response usa
   const usage = session?.usage as Record<string, any>;
   const usagePerModel = session?.usagePerModel?.["qwen3-max"] as Record<string, any>;
   assert.equal(session?.activeTokens, 7);
-  assert.equal(usage.prompt_tokens, 140_095);
+  assert.equal(usage.prompt_tokens, 250_095);
   assert.equal(usage.completion_tokens, 35);
-  assert.equal(usage.total_tokens, 140_130);
-  assert.equal(usagePerModel.prompt_tokens, 140_095);
+  assert.equal(usage.total_tokens, 250_130);
+  assert.equal(usagePerModel.prompt_tokens, 250_095);
   assert.equal(usagePerModel.completion_tokens, 35);
-  assert.equal(usagePerModel.total_tokens, 140_130);
+  assert.equal(usagePerModel.total_tokens, 250_130);
   assert.equal(usagePerModel.total_reqs, 3);
 });
 
@@ -2031,7 +2030,7 @@ test("SessionManager persists session and user message before skill matching is 
   // Session and user message are persisted before skill matching triggers an abort.
   assert.equal(manager.listSessions().length, 1);
   const [session] = manager.listSessions();
-  assert.equal(session?.status, "pending");
+  assert.equal(session?.status, "failed");
   const messages = manager.listSessionMessages(session!.id);
   const userMessage = messages.find((m) => m.role === "user");
   assert.equal(userMessage?.content, "please use demo");

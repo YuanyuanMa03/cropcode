@@ -2,13 +2,13 @@ import React, { useMemo, useState } from "react";
 import { Box, Text } from "ink";
 import * as os from "node:os";
 import path from "node:path";
-import type { SkillInfo } from "../session";
-import type { ResolvedDeepcodingSettings } from "../settings";
-import { buildSlashCommands, formatSlashCommandDescription } from "./slashCommands";
-import { getActiveProviderLabel, getActiveModelLabel } from "../common/providers";
+import type { SkillInfo } from "../../session";
+import type { ResolvedDeepcodingSettings } from "../../settings";
+import { buildSlashCommands, formatSlashCommandDescription } from "../core/slash-commands";
+import { getActiveProviderLabel, getActiveModelLabel } from "../../common/providers";
 import { ThemedGradient, THEME_COLORS } from "./ThemedGradient";
-import { AsciiLogo } from "../AsciiArt";
-import { useAppContext } from "./contexts";
+import { AsciiLogo } from "../../AsciiArt";
+import { useAppContext } from "../contexts";
 
 type WelcomeScreenProps = {
   projectRoot: string;

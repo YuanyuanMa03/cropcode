@@ -112,6 +112,7 @@ function buildSessions(overrides: Array<Partial<SessionEntry>>): SessionEntry[] 
     activeTokens: 0,
     createTime: new Date().toISOString(),
     updateTime: new Date().toISOString(),
+    lastAccessTime: new Date().toISOString(),
     processes: null,
   }));
 }

@@ -43,60 +43,40 @@ const PASTE_END_LENGTH = 6;
 const CTRL_MINUS_SEQUENCES = new Set(["[45;5u", "[27;5;45~"]);
 const CTRL_SHIFT_MINUS_SEQUENCES = new Set(["[45;6u", "[27;6;45~"]);
 
+const EMPTY_KEY: InputKey = {
+  upArrow: false,
+  downArrow: false,
+  leftArrow: false,
+  rightArrow: false,
+  home: false,
+  end: false,
+  pageDown: false,
+  pageUp: false,
+  return: false,
+  escape: false,
+  ctrl: false,
+  shift: false,
+  tab: false,
+  backspace: false,
+  delete: false,
+  meta: false,
+  focusIn: false,
+  focusOut: false,
+  paste: false,
+};
+
 export function parseTerminalInput(data: Buffer | string): { input: string; key: InputKey } {
   const raw = String(data);
   let input = raw;
 
   if (CTRL_MINUS_SEQUENCES.has(raw)) {
     input = "-";
-    const key: InputKey = {
-      upArrow: false,
-      downArrow: false,
-      leftArrow: false,
-      rightArrow: false,
-      home: false,
-      end: false,
-      pageDown: false,
-      pageUp: false,
-      return: false,
-      escape: false,
-      ctrl: true,
-      shift: false,
-      tab: false,
-      backspace: false,
-      delete: false,
-      meta: false,
-      focusIn: false,
-      focusOut: false,
-      paste: false,
-    };
-    return { input, key };
+    return { input, key: { ...EMPTY_KEY, ctrl: true } };
   }
 
   if (CTRL_SHIFT_MINUS_SEQUENCES.has(raw) || raw === "") {
     input = "-";
-    const key: InputKey = {
-      upArrow: false,
-      downArrow: false,
-      leftArrow: false,
-      rightArrow: false,
-      home: false,
-      end: false,
-      pageDown: false,
-      pageUp: false,
-      return: false,
-      escape: false,
-      ctrl: true,
-      shift: true,
-      tab: false,
-      backspace: false,
-      delete: false,
-      meta: false,
-      focusIn: false,
-      focusOut: false,
-      paste: false,
-    };
-    return { input, key };
+    return { input, key: { ...EMPTY_KEY, ctrl: true, shift: true } };
   }
 
   const key: InputKey = {
@@ -191,28 +171,6 @@ export function dispatchTerminalInput(
   const { input, key } = parseTerminalInput(data);
   inputHandler(input, key);
 }
-
-const EMPTY_KEY: InputKey = {
-  upArrow: false,
-  downArrow: false,
-  leftArrow: false,
-  rightArrow: false,
-  home: false,
-  end: false,
-  pageDown: false,
-  pageUp: false,
-  return: false,
-  escape: false,
-  ctrl: false,
-  shift: false,
-  tab: false,
-  backspace: false,
-  delete: false,
-  meta: false,
-  focusIn: false,
-  focusOut: false,
-  paste: false,
-};
 
 export function useTerminalInput(
   inputHandler: (input: string, key: InputKey) => void,

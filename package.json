@@ -1,7 +1,7 @@
 {
   "name": "cropcode",
   "version": "0.2.0",
-  "description": "CropCode - AI coding agent for agricultural research",
+  "description": "CropCode - AI coding agent CLI powered by LLM",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -22,7 +22,7 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=18"
   },
   "scripts": {
     "typecheck": "tsc -p ./ --noEmit",
@@ -45,7 +45,7 @@
     "gray-matter": "^4.0.3",
     "ignore": "^7.0.5",
     "ink": "^7.0.1",
-    "ink-gradient": "^4.0.0",
+    "ink-gradient": "^4.0.1",
     "openai": "^6.35.0",
     "react": "^19.2.5",
     "undici": "^7.25.0",
@@ -67,5 +67,17 @@
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.2"
-  }
+  },
+  "keywords": [
+    "ai",
+    "coding-agent",
+    "cli",
+    "terminal",
+    "llm",
+    "developer-tools"
+  ],
+  "bugs": {
+    "url": "https://github.com/mayuanyuan/cropcode/issues"
+  },
+  "author": "mayuanyuan"
 }
