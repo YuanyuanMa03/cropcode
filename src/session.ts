@@ -2498,13 +2498,26 @@ ${skillMd}
       return this.renderInitCommandPrompt();
     }
     const content = message.content ?? "";
-    if (message.role === "tool" && content.length > MAX_TOOL_RESULT_CHARS) {
-      const half = Math.floor(MAX_TOOL_RESULT_CHARS / 2);
-      return (
-        content.slice(0, half) +
-        `\n\n... [truncated ${content.length - MAX_TOOL_RESULT_CHARS} chars] ...\n\n` +
-        content.slice(-half)
-      );
+    if (message.role === "tool") {
+      let tcPrefix = "";
+      try {
+        const parsed = JSON.parse(content);
+        if (typeof parsed?.metadata?.tc === "string") {
+          tcPrefix = `[${parsed.metadata.tc}] `;
+        }
+      } catch {
+        // not JSON, skip
+      }
+      if (content.length > MAX_TOOL_RESULT_CHARS) {
+        const half = Math.floor(MAX_TOOL_RESULT_CHARS / 2);
+        return (
+          tcPrefix +
+          content.slice(0, half) +
+          `\n\n... [truncated ${content.length - MAX_TOOL_RESULT_CHARS} chars] ...\n\n` +
+          content.slice(-half)
+        );
+      }
+      return tcPrefix + content;
     }
     return content;
   }
