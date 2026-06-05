@@ -1,6 +1,6 @@
 # Agent Intelligence Overhaul Design
 
-> Principle: Copy Claude Code's proven patterns directly. Innovate only where Claude Code's approach is suboptimal for CropCode's multi-provider, agricultural-domain context.
+> Principle: Copy Claude Code's proven patterns directly. Innovate only where Claude Code's approach is suboptimal. Supplement with proven patterns from Hex4Code where it surpasses both.
 
 ## Problem
 
@@ -369,6 +369,7 @@ Qwen's current 5000/10000 budgets are too conservative. Increase to match the de
 | 3 | Context management (Module 3) | High — fixes "forgetting" in long sessions | High |
 | 4 | Performance (Module 4a, 4b) | Medium — reduces latency | Low |
 | 5 | Model adaptations (Module 5) | Low — incremental improvements | Low |
+| 6 | Hex4Code innovations (Module 6) | Medium — token savings + confidence awareness | Medium |
 
 ## Files to Modify
 
@@ -388,6 +389,147 @@ Qwen's current 5000/10000 budgets are too conservative. Increase to match the de
 | `src/common/model-capabilities.ts` | Updated thresholds |
 | `src/common/provider-presets.ts` | GLM-5.1 multimodal, Qwen thinking budgets |
 | `src/common/openai-thinking.ts` | Qwen budget increase |
+
+### Module 6: Hex4Code-Inspired Innovations
+
+**Source: Hex4Code `packages/core/src/`**
+
+These are patterns Hex4Code has that neither Claude Code nor CropCode currently have. Worth adopting.
+
+#### 6a) DualTrit Tool Result Compression
+
+**Source: Hex4Code `compression/dual-trit.ts`**
+
+Compress tool result JSON field names to single characters before sending to the model. ~44% token savings on tool results.
+
+```typescript
+const FIELD_MAP: Record<string, string> = {
+  ok: "k", name: "n", output: "o", error: "e",
+  metadata: "m", bytes: "b", encoding: "c", exitCode: "x",
+  truncated: "t", cwd: "w", snippet: "s", replacedCount: "r",
+};
+
+function compressToolResult(result: object): object {
+  // Recursively shorten field names using FIELD_MAP
+  // Reverse on the prompt side not needed — model reads compressed format directly
+}
+
+function decompressToolResult(compressed: object): object {
+  // Reverse mapping for display/logging
+}
+```
+
+**Why**: Tool results are the biggest token consumer in agentic conversations. 44% savings means more room for code and context. Claude Code doesn't have this.
+
+**Scope**: Apply to bash, read, write, edit tool results. Skip for AskUserQuestion (small results).
+
+#### 6b) Trust Chain (TC) Confidence Propagation
+
+**Source: Hex4Code `tools/executor.ts`, `orchestration/pipeline-tc.ts`**
+
+A lightweight 4-state confidence model that propagates through serial tool calls:
+
+```typescript
+enum TCState {
+  NONE = "TC_NONE",         // Certain, no issues
+  CARRY = "TC_CARRY",       // Minor uncertainty (e.g., warnings)
+  UNCERTAIN = "TC_UNCERTAIN", // Significant doubt (e.g., test failures)
+  MIXED = "TC_MIXED",       // Conflicting signals
+}
+```
+
+After each tool execution, compute TC state:
+- Bash: exit code 0 → NONE, exit code 0 with warnings in stderr → CARRY, non-zero → UNCERTAIN
+- Edit: successful match → NONE, tab correction → CARRY, no match (retry needed) → UNCERTAIN
+- Build/Test: pass → NONE, warnings → CARRY, errors → UNCERTAIN, mixed → MIXED
+
+Inject TC summary into the next LLM context:
+```
+[Tool execution confidence: TC_CARRY — 2/3 tools succeeded, 1 had warnings]
+```
+
+**Why**: This gives the model self-awareness about result reliability. If a bash command returned warnings, the model knows to investigate rather than assuming success. Extremely cheap to implement (no extra API calls). Claude Code doesn't have this.
+
+#### 6c) Session RAG — Learning from Past Sessions
+
+**Source: Hex4Code `knowledge/session-rag.ts`**
+
+Index past session JSONL files for retrieval-augmented generation:
+
+1. **Tokenization**: English words + Chinese character bigrams
+2. **Error pattern extraction**: Detect build/test failures and the fix sequences that followed
+3. **Cosine similarity search**: Match current query against past session content
+4. **Integration**: When starting a new session or encountering an error, search past sessions for similar patterns
+
+```typescript
+class SessionRAG {
+  // Index all past session JSONL files
+  async indexSessions(projectRoot: string): Promise<void>;
+
+  // Search for similar error/fix patterns
+  async searchSimilarErrors(errorContext: string): Promise<SessionSnippet[]>;
+
+  // Search for relevant past work
+  async searchRelevantWork(query: string): Promise<SessionSnippet[]>;
+}
+```
+
+**Scope for initial implementation**: Only error pattern extraction. Skip the full RAG system for now — just index build/test failures and their fixes from past sessions. When the model encounters a similar error, inject the past fix as context.
+
+#### 6d) Semantic Cache for Repeated Queries
+
+**Source: Hex4Code `cache/semantic-cache.ts`**
+
+3-gram fingerprinting with cosine similarity for caching LLM responses:
+
+```typescript
+class SemanticCache {
+  private threshold = 0.85;     // similarity threshold
+  private maxSize = 200;         // max entries
+  private ttlMs = 3600_000;     // 1 hour TTL
+
+  async get(query: string): Promise<CachedResponse | null>;
+  async set(query: string, response: string): Promise<void>;
+}
+```
+
+**Why**: Users often ask similar questions across sessions. The cache avoids redundant LLM calls. For CropCode's multi-provider context, this saves both money and latency.
+
+**Scope for initial implementation**: Cache only the skill matching LLM call (which we're already replacing with keyword matching in Module 4a). Defer general-purpose caching to later.
+
+## Implementation Priority
+
+| Phase | Modules | Impact | Effort |
+|-------|---------|--------|--------|
+| 1 | System prompt (Module 1) | Highest — directly affects all model behavior | Medium |
+| 2 | Tool results (Module 2) | High — fixes truncation and edit issues | Medium |
+| 3 | Context management (Module 3) | High — fixes "forgetting" in long sessions | High |
+| 4 | Performance (Module 4a, 4b) | Medium — reduces latency | Low |
+| 5 | Model adaptations (Module 5) | Low — incremental improvements | Low |
+| 6 | Hex4Code innovations (Module 6) | Medium — token savings + confidence awareness | Medium |
+| 6 | Hex4Code innovations (Module 6) | Medium — token savings + confidence awareness | Medium |
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/prompt.ts` | Rewrite system prompt assembly |
+| `templates/tools/*.md` | Rewrite in English with anti-patterns |
+| `templates/skills/agent-drift-guard.md` | Remove (merged into main prompt) |
+| `templates/skills/plan-and-execute.md` | Remove (merged into main prompt) |
+| `templates/skills/karpathy-guidelines.md` | Remove (merged into main prompt) |
+| `src/tools/bash-handler.ts` | Head+tail truncation + persistence + TC state |
+| `src/tools/read-handler.ts` | Token-aware rejection + truncation warnings |
+| `src/tools/edit-handler.ts` | Remove LLM fallback layers |
+| `src/tools/write-handler.ts` | Result persistence |
+| `src/session.ts` | Microcompact thresholds + re-injection + compact re-injection + TC propagation |
+| `src/common/tool-result-storage.ts` | NEW — persistence mechanism |
+| `src/common/model-capabilities.ts` | Updated thresholds |
+| `src/common/provider-presets.ts` | GLM-5.1 multimodal, Qwen thinking budgets |
+| `src/common/openai-thinking.ts` | Qwen budget increase |
+| `src/common/dual-trit.ts` | NEW — DualTrit compression from Hex4Code |
+| `src/common/trust-chain.ts` | NEW — TC confidence propagation from Hex4Code |
+| `src/common/session-rag.ts` | NEW — error pattern extraction from Hex4Code |
 
 ## What We're NOT Changing
 
