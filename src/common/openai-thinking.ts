@@ -7,14 +7,25 @@ import {
 
 type ThinkingRequestOptions = Record<string, unknown>;
 
-function effortToBudget(effort: ReasoningEffort): number {
-  return effort === "max" ? 10000 : 5000;
+function effortToBudget(effort: string): number {
+  switch (effort) {
+    case "max":
+      return 32768;
+    case "high":
+      return 16384;
+    case "medium":
+      return 8192;
+    case "low":
+      return 4096;
+    default:
+      return 16384;
+  }
 }
 
 export function buildThinkingRequestOptions(
   thinkingEnabled: boolean,
   model: string = "",
-  reasoningEffort: ReasoningEffort = "max"
+  reasoningEffort: string = "max"
 ): ThinkingRequestOptions {
   if (!thinkingEnabled || !modelSupportsThinking(model)) {
     return {};
@@ -24,7 +35,7 @@ export function buildThinkingRequestOptions(
 
   switch (format) {
     case "deepseek": {
-      // DeepSeek and GLM support reasoning_effort; MiMo does not.
+      // DeepSeek, GLM, and MiMo support reasoning_effort.
       const opts: ThinkingRequestOptions = { thinking: { type: "enabled" } };
       if (supportsReasoningEffort(model)) {
         opts.extra_body = { reasoning_effort: reasoningEffort };

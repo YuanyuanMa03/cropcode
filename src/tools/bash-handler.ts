@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import { DEFAULT_BASH_TIMEOUT_MS, clampBashTimeoutMs } from "../common/bash-timeout";
 import { killProcessTree } from "../common/process-tree";
+import { truncateWithTail, maybePersistToolResult, BASH_PERSIST_THRESHOLD } from "../common/tool-result-storage";
 import type { ProcessTimeoutControl, ProcessTimeoutInfo, ToolExecutionContext, ToolExecutionResult } from "./executor";
 import {
   buildDisableExtglobCommand,
@@ -11,7 +12,7 @@ import {
   toNativeCwd,
 } from "../common/shell-utils";
 
-const MAX_OUTPUT_CHARS = 30000;
+const MAX_OUTPUT_CHARS = 50_000;
 const MAX_CAPTURE_CHARS = 10 * 1024 * 1024;
 const sessionWorkingDirs = new Map<string, string>();
 
@@ -69,10 +70,10 @@ export async function handleBashTool(
 
   if (execution.error || result.exitCode !== 0 || result.signal !== null) {
     const errorMessage = buildErrorMessage(result.exitCode, result.signal, execution.error, execution.timedOut);
-    return formatResult({ ...result, ok: false }, "bash", errorMessage);
+    return formatResult({ ...result, ok: false }, "bash", errorMessage, context.projectRoot);
   }
 
-  return formatResult(result, "bash");
+  return formatResult(result, "bash", undefined, context.projectRoot);
 }
 
 function getSessionCwd(sessionId: string, fallback: string): string {
@@ -317,7 +318,7 @@ function truncateOutput(output: string): { text: string; truncated: boolean } {
   if (output.length <= MAX_OUTPUT_CHARS) {
     return { text: output, truncated: false };
   }
-  return { text: output.slice(0, MAX_OUTPUT_CHARS), truncated: true };
+  return { text: truncateWithTail(output, MAX_OUTPUT_CHARS), truncated: true };
 }
 
 function buildErrorMessage(exitCode: number | null, signal: string | null, error?: string, timedOut = false): string {
@@ -336,7 +337,12 @@ function buildErrorMessage(exitCode: number | null, signal: string | null, error
   return "Command failed.";
 }
 
-function formatResult(result: ToolCommandResult, name: string, errorMessage?: string): ToolExecutionResult {
+function formatResult(
+  result: ToolCommandResult,
+  name: string,
+  errorMessage?: string,
+  projectRoot?: string
+): ToolExecutionResult {
   const metadata: Record<string, unknown> = {
     exitCode: result.exitCode,
     signal: result.signal,
@@ -355,7 +361,10 @@ function formatResult(result: ToolCommandResult, name: string, errorMessage?: st
     metadata.deadlineAt = result.deadlineAt;
   }
 
-  const outputValue = result.output ? result.output : undefined;
+  let outputValue = result.output ? result.output : undefined;
+  if (outputValue && projectRoot && outputValue.length >= BASH_PERSIST_THRESHOLD) {
+    outputValue = maybePersistToolResult(outputValue, BASH_PERSIST_THRESHOLD, projectRoot);
+  }
 
   return {
     ok: result.ok,

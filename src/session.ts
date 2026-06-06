@@ -700,76 +700,32 @@ export class SessionManager {
     logOpenAIChatCompletionDebug(entry);
   }
 
-  async identifyMatchingSkillNames(
-    skills: SkillInfo[],
-    userPrompt: string,
-    options?: { signal?: AbortSignal; sessionId?: string }
-  ): Promise<string[]> {
-    this.throwIfAborted(options?.signal);
-    let systemPrompt = `When users ask you to perform tasks, check if any of the available skills match. Skills provide specialized capabilities and domain knowledge.\n
-Response in JSON format:
-\`\`\`
-{
-  "skillNames": ["", ...]
-}
-\`\`\`\n
-If none of the available skills match, respond with an empty array, i.e. \`{"skillNames": []}\`.\n
-The candidate skills are as follows:\n\n`;
-    const simpleSkills = skills
-      .filter((x) => !x.isLoaded && !x.disabled)
-      .map((x) => {
-        return { name: x.name, description: x.description };
-      });
-    if (simpleSkills.length === 0) {
-      return [];
-    }
-    systemPrompt += "```\n" + JSON.stringify(simpleSkills, null, 2) + "\n```";
-
-    const { client, model, baseURL, debugLogEnabled } = this.createOpenAIClient();
-    if (!client) {
+  identifyMatchingSkillNames(skills: SkillInfo[], userPrompt: string): string[] {
+    const available = skills.filter((x) => !x.isLoaded && !x.disabled);
+    if (available.length === 0) {
       return [];
     }
 
-    try {
-      const response = await this.createChatCompletionStream(
-        client,
-        {
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          response_format: { type: "json_object" },
-        },
-        options?.signal ? { signal: options.signal } : undefined,
-        options?.sessionId,
-        {
-          enabled: debugLogEnabled,
-          location: "SessionManager.identifyMatchingSkillNames",
-          baseURL,
-          params: { purpose: "skill-matching" },
-        }
-      );
-      this.throwIfAborted(options?.signal);
+    const promptLower = userPrompt.toLowerCase();
+    const words = new Set(promptLower.split(/[\s,;.!?()[\]{}\-_/\\]+/).filter((w) => w.length > 2));
+    const matched: string[] = [];
 
-      const rawContent = response.choices?.[0]?.message?.content;
-      const content = typeof rawContent === "string" ? rawContent : "";
-      if (!content) {
-        return [];
+    for (const skill of available) {
+      const nameLower = skill.name.toLowerCase();
+      const descLower = skill.description.toLowerCase();
+      const nameWords = nameLower.split(/[\s\-_/]+/);
+      if (words.has(nameLower) || nameWords.some((nw) => words.has(nw))) {
+        matched.push(skill.name);
+        continue;
       }
-
-      const parsed = JSON.parse(content);
-      if (parsed && Array.isArray(parsed.skillNames)) {
-        return parsed.skillNames;
+      const descWords = descLower.split(/[\s,;.!?()[\]{}\-_/\\]+/).filter((w) => w.length > 3);
+      const overlap = descWords.filter((dw) => words.has(dw));
+      if (overlap.length >= 2) {
+        matched.push(skill.name);
       }
-
-      return [];
-    } catch (error) {
-      if (this.isAbortLikeError(error) || options?.signal?.aborted) {
-        throw error;
-      }
-      return [];
     }
+
+    return matched;
   }
 
   async listSkills(sessionId?: string): Promise<SkillInfo[]> {
@@ -1070,8 +1026,7 @@ The candidate skills are as follows:\n\n`;
 
       if (userPrompt.text) {
         const skills = await this.listSkills();
-        const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal });
-        this.throwIfAborted(signal);
+        const skillNames = this.identifyMatchingSkillNames(skills, userPrompt.text);
         const skillSet = new Set(skillNames);
         const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
         if (Array.isArray(userPrompt.skills)) {
@@ -1170,7 +1125,7 @@ ${skillMd}
 
     if (userPrompt.text) {
       const skills = await this.listSkills(sessionId);
-      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal, sessionId });
+      const skillNames = this.identifyMatchingSkillNames(skills, userPrompt.text);
       this.throwIfAborted(signal);
       const skillSet = new Set(skillNames);
       const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
@@ -1581,6 +1536,27 @@ ${skillMd}
       },
     };
     sessionMessages.splice(endIndex, 0, summaryMessage);
+
+    const recentlyReadFiles = this.extractRecentlyReadFiles(sessionMessages, endIndex);
+    if (recentlyReadFiles.length > 0) {
+      const contextMessage: SessionMessage = {
+        id: crypto.randomUUID(),
+        sessionId,
+        role: "system",
+        content: `Recently read files in this session:\n${recentlyReadFiles.join("\n")}\nYou can re-read any file if you need its contents.`,
+        contentParams: null,
+        messageParams: null,
+        compacted: false,
+        visible: false,
+        createTime: now,
+        updateTime: now,
+        meta: {
+          isSummary: true,
+        },
+      };
+      sessionMessages.splice(endIndex + 1, 0, contextMessage);
+    }
+
     this.saveSessionMessages(sessionId, sessionMessages);
   }
 
@@ -1608,6 +1584,31 @@ ${skillMd}
       }
     }
     this.saveSessionMessages(sessionId, messages);
+  }
+
+  /**
+   * Extract recently-read file paths from session messages for post-compact re-injection.
+   */
+  private extractRecentlyReadFiles(messages: SessionMessage[], beforeIndex: number): string[] {
+    const filePaths: string[] = [];
+    const seen = new Set<string>();
+    for (let i = beforeIndex - 1; i >= 0; i -= 1) {
+      const msg = messages[i];
+      if (msg.role !== "tool" || !msg.meta?.function) continue;
+      const fn = msg.meta.function as { name?: string; arguments?: string };
+      if (fn.name !== "read" || !fn.arguments) continue;
+      try {
+        const args = JSON.parse(fn.arguments);
+        if (typeof args.file_path === "string" && !seen.has(args.file_path)) {
+          seen.add(args.file_path);
+          filePaths.push(args.file_path);
+        }
+      } catch {
+        // skip unparseable
+      }
+      if (filePaths.length >= 5) break;
+    }
+    return filePaths.reverse();
   }
 
   /**
@@ -2497,13 +2498,26 @@ ${skillMd}
       return this.renderInitCommandPrompt();
     }
     const content = message.content ?? "";
-    if (message.role === "tool" && content.length > MAX_TOOL_RESULT_CHARS) {
-      const half = Math.floor(MAX_TOOL_RESULT_CHARS / 2);
-      return (
-        content.slice(0, half) +
-        `\n\n... [truncated ${content.length - MAX_TOOL_RESULT_CHARS} chars] ...\n\n` +
-        content.slice(-half)
-      );
+    if (message.role === "tool") {
+      let tcPrefix = "";
+      try {
+        const parsed = JSON.parse(content);
+        if (typeof parsed?.metadata?.tc === "string") {
+          tcPrefix = `[${parsed.metadata.tc}] `;
+        }
+      } catch {
+        // not JSON, skip
+      }
+      if (content.length > MAX_TOOL_RESULT_CHARS) {
+        const half = Math.floor(MAX_TOOL_RESULT_CHARS / 2);
+        return (
+          tcPrefix +
+          content.slice(0, half) +
+          `\n\n... [truncated ${content.length - MAX_TOOL_RESULT_CHARS} chars] ...\n\n` +
+          content.slice(-half)
+        );
+      }
+      return tcPrefix + content;
     }
     return content;
   }
@@ -3038,7 +3052,7 @@ ${skillMd}
     this.appendSessionMessage(sessionId, userMessage);
     if (userPrompt.text) {
       const skills = await this.listSkills(sessionId);
-      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal, sessionId });
+      const skillNames = this.identifyMatchingSkillNames(skills, userPrompt.text);
       this.throwIfAborted(signal);
       const skillSet = new Set(skillNames);
       const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));

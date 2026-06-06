@@ -438,9 +438,13 @@ function readTextFile(filePath: string, offset: number | null, limit: number): T
   const startLine = startIndex + 1;
   const endLine = selected.length > 0 ? startIndex + selected.length : startLine;
   const isPartialView = startLine !== 1 || endLine < lines.length;
+  let output = formatWithLineNumbers(selected, startLine);
+  if (isPartialView) {
+    output += `\n\n[File has ${lines.length} total lines. Shown lines ${startLine}-${endLine}. Use offset=${endLine + 1} to continue reading.]`;
+  }
   return {
     content: selected.join("\n"),
-    output: formatWithLineNumbers(selected, startLine),
+    output,
     startLine,
     endLine,
     totalLines: lines.length,
@@ -455,8 +459,10 @@ function formatWithLineNumbers(lines: string[], startLineNumber: number): string
   return lines
     .map((line, index) => {
       const lineNumber = startLineNumber + index;
-      const trimmedLine = line.length > MAX_LINE_LENGTH ? line.slice(0, MAX_LINE_LENGTH) : line;
-      return `${String(lineNumber).padStart(LINE_NUMBER_WIDTH, " ")}\t${trimmedLine}`;
+      const truncated = line.length > MAX_LINE_LENGTH;
+      const trimmedLine = truncated ? line.slice(0, MAX_LINE_LENGTH) : line;
+      const suffix = truncated ? ` ... [line truncated, ${line.length} chars total]` : "";
+      return `${String(lineNumber).padStart(LINE_NUMBER_WIDTH, " ")}\t${trimmedLine}${suffix}`;
     })
     .join("\n");
 }

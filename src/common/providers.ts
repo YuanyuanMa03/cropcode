@@ -9,7 +9,7 @@ export type ProviderCredential = {
   activeModel: string;
   mode: "api" | "coding-plan";
   thinkingEnabled?: boolean;
-  reasoningEffort?: "high" | "max";
+  reasoningEffort?: string;
 };
 
 export type CredentialsFile = {
@@ -56,7 +56,7 @@ export function setActiveCredential(
   activeModel: string,
   mode: "api" | "coding-plan" = "api",
   thinkingEnabled?: boolean,
-  reasoningEffort?: "high" | "max"
+  reasoningEffort?: string
 ): void {
   const creds = readCredentials() ?? { activeProvider: providerId, providers: {} };
   creds.activeProvider = providerId;
@@ -86,7 +86,7 @@ export function getActiveThinkingEnabled(): boolean | undefined {
   return getActiveCredential()?.thinkingEnabled;
 }
 
-export function getActiveReasoningEffort(): "high" | "max" | undefined {
+export function getActiveReasoningEffort(): string | undefined {
   return getActiveCredential()?.reasoningEffort;
 }
 

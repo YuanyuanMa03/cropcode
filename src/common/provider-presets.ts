@@ -25,7 +25,7 @@ export type ProviderModel = {
   supportsThinking?: boolean;
   defaultThinking?: boolean;
   thinkingFormat?: ThinkingFormat;
-  reasoningEfforts?: ("high" | "max")[];
+  reasoningEfforts?: string[];
   tags?: string[];
   deprecated?: string;
 };
@@ -147,7 +147,19 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         label: "GLM-5.1",
         inputPricePerMTok: 10.1,
         outputPricePerMTok: 31.7,
-        contextWindow: "203K",
+        contextWindow: "200K",
+        supportsThinking: true,
+        defaultThinking: true,
+        thinkingFormat: "deepseek",
+        reasoningEfforts: ["high", "max"],
+        tags: ["旗舰"],
+      },
+      {
+        id: "glm-5-turbo",
+        label: "GLM-5 Turbo",
+        inputPricePerMTok: 10.1,
+        outputPricePerMTok: 31.7,
+        contextWindow: "200K",
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
@@ -177,6 +189,16 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         thinkingFormat: "deepseek",
         reasoningEfforts: ["high", "max"],
         tags: ["稳定"],
+      },
+      {
+        id: "glm-4.5-air",
+        label: "GLM-4.5 Air",
+        inputPricePerMTok: 0,
+        outputPricePerMTok: 0,
+        contextWindow: "200K",
+        free: true,
+        supportsThinking: false,
+        tags: ["免费"],
       },
       {
         id: "glm-4.7-flash",
@@ -231,6 +253,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         contextWindow: "262K",
         supportsThinking: true,
         thinkingFormat: "qwen",
+        reasoningEfforts: ["high", "max"],
         tags: ["旗舰"],
       },
       {
@@ -243,6 +266,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "qwen",
+        reasoningEfforts: ["high", "max"],
         tags: ["推荐", "性价比"],
       },
       {
@@ -255,6 +279,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "qwen",
+        reasoningEfforts: ["high", "max"],
         tags: ["轻量"],
       },
     ],
@@ -320,6 +345,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
+        reasoningEfforts: ["low", "medium", "high"],
         tags: ["推荐", "旗舰"],
       },
       {
@@ -333,6 +359,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
+        reasoningEfforts: ["low", "medium", "high"],
         tags: ["多模态"],
       },
       {
@@ -346,6 +373,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
+        reasoningEfforts: ["low", "medium", "high"],
         tags: ["轻量"],
       },
     ],

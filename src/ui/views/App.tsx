@@ -27,6 +27,7 @@ import {
   writeSettings,
   writeProjectSettings,
   getProjectSettingsPath,
+  type ReasoningEffort,
 } from "../../settings";
 import { PromptInput, type PromptDraft, type PromptSubmission } from "./PromptInput";
 import { MessageView, RawModeExitPrompt } from "../components";
@@ -1121,7 +1122,9 @@ export function resolveCurrentSettings(projectRoot: string = process.cwd()): Res
     baseURL: hasCred ? credBaseURL : base.baseURL,
     model: hasCred ? credModel : base.model,
     thinkingEnabled: hasCred && credThinkingEnabled !== undefined ? credThinkingEnabled : base.thinkingEnabled,
-    reasoningEffort: hasCred && credReasoningEffort !== undefined ? credReasoningEffort : base.reasoningEffort,
+    reasoningEffort: (hasCred && credReasoningEffort !== undefined
+      ? credReasoningEffort
+      : base.reasoningEffort) as ReasoningEffort,
   };
 }
 export { createOpenAIClient } from "../../common/openai-client";
