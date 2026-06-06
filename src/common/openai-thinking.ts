@@ -7,14 +7,14 @@ import {
 
 type ThinkingRequestOptions = Record<string, unknown>;
 
-function effortToBudget(effort: ReasoningEffort): number {
+function effortToBudget(effort: string): number {
   return effort === "max" ? 32768 : 16384;
 }
 
 export function buildThinkingRequestOptions(
   thinkingEnabled: boolean,
   model: string = "",
-  reasoningEffort: ReasoningEffort = "max"
+  reasoningEffort: string = "max"
 ): ThinkingRequestOptions {
   if (!thinkingEnabled || !modelSupportsThinking(model)) {
     return {};

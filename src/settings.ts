@@ -20,7 +20,7 @@ export type DeepcodingEnv = Record<string, string | undefined> & {
   TELEMETRY_ENABLED?: string;
 };
 
-export type ReasoningEffort = "high" | "max";
+export type ReasoningEffort = "low" | "medium" | "high" | "max";
 
 export type McpServerConfig = {
   command: string;

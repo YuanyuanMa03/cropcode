@@ -25,7 +25,7 @@ export type ProviderModel = {
   supportsThinking?: boolean;
   defaultThinking?: boolean;
   thinkingFormat?: ThinkingFormat;
-  reasoningEfforts?: ("high" | "max")[];
+  reasoningEfforts?: string[];
   tags?: string[];
   deprecated?: string;
 };
@@ -324,6 +324,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
+        reasoningEfforts: ["low", "medium", "high"],
         tags: ["推荐", "旗舰"],
       },
       {
@@ -337,6 +338,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
+        reasoningEfforts: ["low", "medium", "high"],
         tags: ["多模态"],
       },
       {
@@ -350,6 +352,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
+        reasoningEfforts: ["low", "medium", "high"],
         tags: ["轻量"],
       },
     ],
