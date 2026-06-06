@@ -1,4 +1,3 @@
-import type { ReasoningEffort } from "../settings";
 import {
   getThinkingFormat,
   supportsThinking as modelSupportsThinking,
