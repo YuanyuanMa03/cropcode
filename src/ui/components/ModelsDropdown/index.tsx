@@ -16,6 +16,8 @@ type ThinkingModeOption = {
 export const MODEL_COMMAND_THINKING_OPTIONS: ThinkingModeOption[] = [
   { label: "Thinking mode [max]", thinkingEnabled: true, reasoningEffort: "max" },
   { label: "Thinking mode [high]", thinkingEnabled: true, reasoningEffort: "high" },
+  { label: "Thinking mode [medium]", thinkingEnabled: true, reasoningEffort: "medium" },
+  { label: "Thinking mode [low]", thinkingEnabled: true, reasoningEffort: "low" },
   { label: "No thinking", thinkingEnabled: false },
 ];
 
