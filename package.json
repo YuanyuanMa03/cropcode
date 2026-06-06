@@ -1,14 +1,17 @@
 {
-  "name": "@cropcode/cli",
+  "name": "@YuanyuanMa03/cropcode",
   "version": "1.0.0",
   "description": "CropCode - AI coding agent CLI powered by LLM",
   "license": "MIT",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mayuanyuan/cropcode.git"
+    "url": "https://github.com/YuanyuanMa03/cropcode.git"
   },
-  "homepage": "https://github.com/mayuanyuan/cropcode",
+  "homepage": "https://github.com/YuanyuanMa03/cropcode",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "bin": {
     "cropcode": "./dist/cli.js"
   },
