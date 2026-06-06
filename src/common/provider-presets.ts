@@ -145,10 +145,9 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
       {
         id: "glm-5.1",
         label: "GLM-5.1",
-        multimodal: true,
         inputPricePerMTok: 10.1,
         outputPricePerMTok: 31.7,
-        contextWindow: "203K",
+        contextWindow: "200K",
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
