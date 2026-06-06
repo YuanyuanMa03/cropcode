@@ -1,6 +1,6 @@
 {
   "name": "cropcode",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "CropCode - AI coding agent CLI powered by LLM",
   "license": "MIT",
   "type": "module",
