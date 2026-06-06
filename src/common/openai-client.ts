@@ -16,7 +16,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
   model: string;
   baseURL: string;
   thinkingEnabled: boolean;
-  reasoningEffort: "high" | "max";
+  reasoningEffort: string;
   debugLogEnabled: boolean;
   notify?: string;
   webSearchTool?: string;

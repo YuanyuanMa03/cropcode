@@ -685,14 +685,14 @@ test("createSession appends default system prompts in prefix-cache-friendly orde
   assert.ok(systemContents.length >= 1, "should have at least 1 system message");
   const mergedSystem = systemContents[0] ?? "";
   assert.match(mergedSystem, /# Available Tools/);
-  assert.match(mergedSystem, /# Local Workspace Environment/);
-  assert.match(mergedSystem, /当前LLM模型为qwen3-max/);
-  assert.match(mergedSystem, /<agent-drift-guard-skill>/);
-  assert.match(mergedSystem, /<plan-and-execute-skill>/);
+  assert.match(mergedSystem, /# Workspace Environment/);
+  assert.match(mergedSystem, /Current LLM model is qwen3-max/);
+  assert.match(mergedSystem, /# Identity/);
+  assert.match(mergedSystem, /# Doing Tasks/);
   assert.doesNotMatch(mergedSystem, /path="templates\/skills\//);
   assert.match(mergedSystem, /root project instructions/);
-  const environmentSection = mergedSystem.match(/# Local Workspace Environment\s*\n\s*```json\n([\s\S]+?)\n```/);
-  assert.ok(environmentSection, "should contain Local Workspace Environment JSON block");
+  const environmentSection = mergedSystem.match(/# Workspace Environment\s*\n\s*```json\n([\s\S]+?)\n```/);
+  assert.ok(environmentSection, "should contain Workspace Environment JSON block");
   const environmentInfo = JSON.parse(environmentSection[1] ?? "{}") as { "root path"?: string };
   assert.equal(environmentInfo["root path"], workspace);
 });
@@ -1998,7 +1998,7 @@ test("SessionManager streams chat completions and counts reasoning progress", as
   assert.equal(progressEvents[2]?.formattedTokens, "3");
 });
 
-test("SessionManager persists session and user message before skill matching is cancelled", async () => {
+test("SessionManager persists session and user message before completion is interrupted", async () => {
   const workspace = createTempDir("cropcode-skill-abort-workspace-");
   const home = createTempDir("cropcode-skill-abort-home-");
   setHomeDir(home);
@@ -2027,10 +2027,10 @@ test("SessionManager persists session and user message before skill matching is 
 
   await manager.handleUserPrompt({ text: "please use demo" });
 
-  // Session and user message are persisted before skill matching triggers an abort.
+  // Session and user message are persisted before completion is interrupted.
   assert.equal(manager.listSessions().length, 1);
   const [session] = manager.listSessions();
-  assert.equal(session?.status, "failed");
+  assert.equal(session?.status, "interrupted");
   const messages = manager.listSessionMessages(session!.id);
   const userMessage = messages.find((m) => m.role === "user");
   assert.equal(userMessage?.content, "please use demo");

@@ -405,7 +405,7 @@ test("replace_all requires expected_occurrences for broad short-fragment replace
   );
 });
 
-test("Edit accepts a unique loose-escape match when only escaping differs", async () => {
+test("Edit rejects over-escaped strings without LLM fallback", async () => {
   const workspace = createTempWorkspace();
   const filePath = path.join(workspace, "query.py");
   fs.writeFileSync(filePath, "params['city_json'] = f'\"{city}\"'\n", "utf8");
@@ -419,39 +419,14 @@ test("Edit accepts a unique loose-escape match when only escaping differs", asyn
       old_string: "params['city_json'] = f'\\\\\"{city}\\\\\"'",
       new_string: "params['city_json'] = city",
     },
-    createContext(sessionId, workspace, {
-      createOpenAIClient: () => ({
-        client: {
-          chat: {
-            completions: {
-              create: async () => ({
-                choices: [
-                  {
-                    message: {
-                      content:
-                        "<response>" +
-                        "<corrected_old_string><![CDATA[params['city_json'] = f'\"{city}\"']]></corrected_old_string>" +
-                        "<corrected_new_string><![CDATA[params['city_json'] = city]]></corrected_new_string>" +
-                        "</response>",
-                    },
-                  },
-                ],
-              }),
-            },
-          },
-        } as any,
-        model: "test-model",
-        thinkingEnabled: false,
-      }),
-    })
+    createContext(sessionId, workspace)
   );
 
-  assert.equal(editResult.ok, true);
-  assert.equal(editResult.metadata?.matched_via, "llm_escape_correction");
-  assert.equal(fs.readFileSync(filePath, "utf8"), "params['city_json'] = city\n");
+  assert.equal(editResult.ok, false);
+  assert.equal(editResult.error, "old_string not found in file.");
 });
 
-test("Edit accepts a unique loose-escape match for over-escaped unicode sequences", async () => {
+test("Edit rejects over-escaped unicode sequences without LLM fallback", async () => {
   const workspace = createTempWorkspace();
   const filePath = path.join(workspace, "keys.ts");
   fs.writeFileSync(filePath, 'const sequence = "\\u001B[13;2~";\n', "utf8");
@@ -459,48 +434,17 @@ test("Edit accepts a unique loose-escape match for over-escaped unicode sequence
   const sessionId = "unicode-loose-escape";
   await handleReadTool({ file_path: filePath }, createContext(sessionId, workspace));
 
-  let llmCalls = 0;
   const editResult = await handleEditTool(
     {
       file_path: filePath,
       old_string: 'const sequence = "\\\\u001B[13;2~";',
       new_string: 'const sequence = "\\\\u001B[13;130u";',
     },
-    createContext(sessionId, workspace, {
-      createOpenAIClient: () => ({
-        client: {
-          chat: {
-            completions: {
-              create: async (request: { messages?: Array<{ content?: string }> }) => {
-                llmCalls += 1;
-                assert.match(String(request.messages?.[1]?.content ?? ""), /<matched_text><!\[CDATA\[/);
-                return {
-                  choices: [
-                    {
-                      message: {
-                        content:
-                          "<response>" +
-                          '<corrected_old_string><![CDATA[const sequence = "\\u001B[13;2~";]]></corrected_old_string>' +
-                          '<corrected_new_string><![CDATA[const sequence = "\\u001B[13;130u";]]></corrected_new_string>' +
-                          "</response>",
-                      },
-                    },
-                  ],
-                };
-              },
-            },
-          },
-        } as any,
-        model: "test-model",
-        thinkingEnabled: false,
-      }),
-    })
+    createContext(sessionId, workspace)
   );
 
-  assert.equal(editResult.ok, true);
-  assert.equal(llmCalls, 1);
-  assert.equal(editResult.metadata?.matched_via, "llm_escape_correction");
-  assert.equal(fs.readFileSync(filePath, "utf8"), 'const sequence = "\\u001B[13;130u";\n');
+  assert.equal(editResult.ok, false);
+  assert.equal(editResult.error, "old_string not found in file.");
 });
 
 test("Edit strips accidental read-result tabs after newlines when that creates a unique match", async () => {
