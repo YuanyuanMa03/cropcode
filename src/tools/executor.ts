@@ -16,7 +16,7 @@ export type CreateOpenAIClient = () => {
   model: string;
   baseURL?: string;
   thinkingEnabled: boolean;
-  reasoningEffort?: ReasoningEffort;
+  reasoningEffort?: string;
   debugLogEnabled?: boolean;
   notify?: string;
   webSearchTool?: string;
