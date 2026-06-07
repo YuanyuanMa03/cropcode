@@ -36,9 +36,11 @@ test("getSystemPrompt does not include runtime context", () => {
   assert.equal(prompt.includes('"root path": "/tmp/project"'), false);
 });
 
-test("getDefaultSkillPrompt returns empty after consolidation", () => {
+test("getDefaultSkillPrompt returns built-in skills", () => {
   const prompt = getDefaultSkillPrompt();
-  assert.equal(prompt, "");
+  assert.ok(prompt.includes("agent-drift-guard"));
+  assert.ok(prompt.includes("karpathy-guidelines"));
+  assert.ok(prompt.includes("plan-and-execute"));
 });
 
 test("getSystemPrompt does not include current date guidance", () => {

@@ -38,13 +38,13 @@ test("buildThinkingRequestOptions enables GLM thinking (same format as deepseek)
 test("buildThinkingRequestOptions enables qwen thinking with budget", () => {
   assert.deepEqual(buildThinkingRequestOptions(true, "qwen3-max"), {
     enable_thinking: true,
-    thinking_budget: 10000,
+    thinking_budget: 32768,
   });
 });
 
 test("buildThinkingRequestOptions enables qwen thinking with high effort", () => {
   assert.deepEqual(buildThinkingRequestOptions(true, "qwen3.5-plus", "high"), {
     enable_thinking: true,
-    thinking_budget: 5000,
+    thinking_budget: 16384,
   });
 });
