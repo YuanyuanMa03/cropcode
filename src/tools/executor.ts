@@ -2,6 +2,8 @@ import type OpenAI from "openai";
 import { handleAskUserQuestionTool } from "./ask-user-question-handler";
 import { handleBashTool } from "./bash-handler";
 import { handleEditTool } from "./edit-handler";
+import { handleGlobTool } from "./glob-handler";
+import { handleGrepTool } from "./grep-handler";
 import { handleReadTool } from "./read-handler";
 import { handleUpdatePlanTool } from "./update-plan-handler";
 import { handleWebSearchTool } from "./web-search-handler";
@@ -127,7 +129,7 @@ export class ToolExecutor {
   }
 
   // Tools that are safe to run in parallel (read-only, no side effects)
-  private static readonly CONCURRENCY_SAFE_TOOLS = new Set(["read", "Read", "WebSearch"]);
+  private static readonly CONCURRENCY_SAFE_TOOLS = new Set(["read", "Read", "WebSearch", "grep", "glob"]);
 
   async executeToolCalls(
     sessionId: string,
@@ -197,6 +199,8 @@ export class ToolExecutor {
     this.toolHandlers.set("AskUserQuestion", handleAskUserQuestionTool);
     this.toolHandlers.set("UpdatePlan", handleUpdatePlanTool);
     this.toolHandlers.set("WebSearch", handleWebSearchTool);
+    this.toolHandlers.set("grep", handleGrepTool);
+    this.toolHandlers.set("glob", handleGlobTool);
   }
 
   private parseToolCall(toolCall: unknown): ToolCall | null {
