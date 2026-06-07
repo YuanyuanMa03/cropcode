@@ -848,6 +848,15 @@ export class SessionManager {
     }
   }
 
+  private formatSkillListing(skills: SkillInfo[]): string {
+    const enabled = skills.filter((s) => !s.disabled);
+    if (enabled.length === 0) {
+      return "";
+    }
+    const lines = enabled.map((skill) => `- /${skill.name}: ${skill.description || "(no description)"}`);
+    return `# Available Skills\n\nThe following skills are available. When a user references "/<name>", they mean a skill. To invoke a skill, respond with the skill name prefixed by "/".\n\n${lines.join("\n")}`;
+  }
+
   private getSkillKey(skill: Pick<SkillInfo, "path">): string {
     return `path:${skill.path}`;
   }
@@ -1018,6 +1027,12 @@ export class SessionManager {
         systemParts.push(agentInstructions);
       }
 
+      const availableSkills = await this.listSkills();
+      const skillListing = this.formatSkillListing(availableSkills);
+      if (skillListing) {
+        systemParts.push(skillListing);
+      }
+
       const mergedSystemMessage = this.buildSystemMessage(sessionId, systemParts.join("\n\n"));
       this.appendSessionMessage(sessionId, mergedSystemMessage);
 
@@ -1025,10 +1040,9 @@ export class SessionManager {
       this.appendSessionMessage(sessionId, userMessage);
 
       if (userPrompt.text) {
-        const skills = await this.listSkills();
-        const skillNames = this.identifyMatchingSkillNames(skills, userPrompt.text);
+        const skillNames = this.identifyMatchingSkillNames(availableSkills, userPrompt.text);
         const skillSet = new Set(skillNames);
-        const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
+        const matchedSkill = availableSkills.filter((skill) => skillSet.has(skill.name));
         if (Array.isArray(userPrompt.skills)) {
           userPrompt.skills.push(...matchedSkill);
         } else if (matchedSkill.length > 0) {

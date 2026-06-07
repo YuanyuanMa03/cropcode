@@ -107,21 +107,13 @@ You are CropCode, an open-source AI coding assistant specialized in agricultural
 - Read files before modifying them. Do not blindly edit code you haven't read.
 - Prefer the Edit tool over Write for modifying existing files. Use Write only for new files or intentional full-file rewrites.
 - After changes, run typecheck and tests to verify correctness.
-- Do not add features, refactor, or introduce abstractions beyond what the task requires.
-- Do not add error handling, fallbacks, or validation for scenarios that can't happen. Only validate at system boundaries (user input, external APIs).
-- Default to writing no comments. Only add one when the WHY is non-obvious.
-- Do not over-engineer. Three similar lines is better than a premature abstraction.
-- Do not expand scope. If the user asks to fix a bug, fix that bug — don't refactor the surrounding code.
-- Use the most direct approach. When multiple solutions exist, pick the simplest one.
 - Think before coding. State assumptions, consider alternatives, then implement.
 
 # Executing Actions
 
 - Consider reversibility and blast radius before acting. Freely take local, reversible actions (editing files, running tests).
 - For actions hard to reverse or affecting shared systems (git push, deleting branches, modifying CI), confirm with the user first.
-- Do not bypass safety checks (git hooks, pre-commit). If a hook fails, fix the underlying issue.
 - When a tool call fails, analyze the error before retrying. Do not retry the exact same failing command.
-- If a task is beyond your capability, tell the user clearly.
 
 # Using Your Tools
 
@@ -161,7 +153,7 @@ type PromptToolOptions = {
   webSearchEnabled?: boolean;
 };
 
-const DEFAULT_SKILL_TEMPLATES: string[] = [];
+const DEFAULT_SKILL_TEMPLATES = ["agent-drift-guard.md", "karpathy-guidelines.md", "plan-and-execute.md"];
 
 function readToolDocs(extensionRoot: string, options: PromptToolOptions = {}): string {
   const toolsDir = path.join(extensionRoot, "templates", "tools");
@@ -594,6 +586,96 @@ export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDe
   for (const tool of externalTools) {
     tools.push(tool);
   }
+
+  tools.push({
+    type: "function",
+    function: {
+      name: "grep",
+      description:
+        "Search file contents using ripgrep. Supports regex, file type filtering, context lines, and pagination. Use to find code, symbols, strings, or patterns across the project.",
+      parameters: {
+        type: "object",
+        properties: {
+          pattern: {
+            type: "string",
+            description: "Regex pattern to search for.",
+          },
+          path: {
+            type: "string",
+            description: "File or directory to search in. Defaults to project root.",
+          },
+          glob: {
+            type: "string",
+            description: 'Glob filter, e.g. "*.ts", "*.{ts,tsx}".',
+          },
+          output_mode: {
+            type: "string",
+            enum: ["files_with_matches", "content", "count"],
+            description:
+              "What to return: 'files_with_matches' lists matching files, 'content' shows matching lines with context, 'count' shows match counts per file.",
+          },
+          i: {
+            type: "boolean",
+            description: "Case insensitive search.",
+          },
+          context: {
+            type: "number",
+            description: "Number of lines before and after each match.",
+          },
+          B: {
+            type: "number",
+            description: "Number of lines before each match.",
+          },
+          A: {
+            type: "number",
+            description: "Number of lines after each match.",
+          },
+          type: {
+            type: "string",
+            description: "File type filter (js, ts, py, rust, go, java, etc.).",
+          },
+          head_limit: {
+            type: "number",
+            description: "Maximum number of results. Default 250. Use 0 for unlimited.",
+          },
+          offset: {
+            type: "number",
+            description: "Skip first N results for pagination.",
+          },
+        },
+        required: ["pattern"],
+        additionalProperties: false,
+      },
+    },
+  });
+
+  tools.push({
+    type: "function",
+    function: {
+      name: "glob",
+      description:
+        "Fast file pattern matching tool. Use to find files by name or glob pattern (e.g. *.ts, **/*.test.js). Prefer over bash `find` for file discovery.",
+      parameters: {
+        type: "object",
+        properties: {
+          pattern: {
+            type: "string",
+            description: 'Glob pattern to match files, e.g. "*.ts", "**/*.test.*".',
+          },
+          path: {
+            type: "string",
+            description: "Directory to search in. Defaults to project root.",
+          },
+          head_limit: {
+            type: "number",
+            description: "Maximum number of results. Default 250. Use 0 for unlimited.",
+          },
+        },
+        required: ["pattern"],
+        additionalProperties: false,
+      },
+    },
+  });
 
   // Sort alphabetically for prompt cache stability (same order = cache hit)
   tools.sort((a, b) => a.function.name.localeCompare(b.function.name));
