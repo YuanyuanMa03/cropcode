@@ -66,14 +66,9 @@ test("getSystemPrompt renders Read docs for non-multimodal models", () => {
   assert.equal(prompt.includes("the contents are presented visually"), false);
 });
 
-test("getSystemPrompt includes English modular sections", () => {
+test("getSystemPrompt includes minimal Chinese system prompt", () => {
   const prompt = getSystemPrompt("/tmp/project");
-  assert.equal(prompt.includes("# Identity"), true);
-  assert.equal(prompt.includes("# Doing Tasks"), true);
-  assert.equal(prompt.includes("# Using Your Tools"), true);
-  assert.equal(prompt.includes("# Communication Style"), true);
-  assert.equal(prompt.includes("# Agricultural Context"), true);
-  assert.equal(prompt.includes("# Task Management"), true);
+  assert.equal(prompt.includes("你是一个在终端环境中工作的AI编码助手"), true);
 });
 
 test("runtime prompt assets live under templates", () => {

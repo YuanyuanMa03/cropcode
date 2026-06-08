@@ -688,8 +688,7 @@ test("createSession appends default system prompts in prefix-cache-friendly orde
   assert.match(mergedSystem, /# Available Tools/);
   assert.match(mergedSystem, /# 本地工作区环境/);
   assert.match(mergedSystem, /当前LLM模型为qwen3-max/);
-  assert.match(mergedSystem, /# Identity/);
-  assert.match(mergedSystem, /# Doing Tasks/);
+  assert.match(mergedSystem, /你是一个在终端环境中工作的AI编码助手/);
   assert.doesNotMatch(mergedSystem, /path="templates\/skills\//);
   assert.match(mergedSystem, /root project instructions/);
   const environmentSection = mergedSystem.match(/# 本地工作区环境\s*\n\s*```json\n([\s\S]+?)\n```/);
