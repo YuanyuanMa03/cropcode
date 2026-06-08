@@ -313,6 +313,7 @@ export class SessionManager {
   private readonly mcpManager = new McpManager();
   private mcpToolDefinitions: ToolDefinition[] = [];
   private consecutiveCompactFailures = 0;
+  private readonly liveProcessKeys = new Set<string>();
 
   constructor(options: SessionManagerOptions) {
     this.projectRoot = options.projectRoot;
@@ -370,6 +371,7 @@ export class SessionManager {
   }
 
   dispose(): void {
+    this.killLiveProcesses();
     const controller = this.activePromptController;
     if (controller && !controller.signal.aborted) {
       controller.abort();
@@ -1682,18 +1684,7 @@ ${skillMd}
   }
 
   interruptSession(sessionId: string): void {
-    const session = this.getSession(sessionId);
-    const processIds = this.getProcessIds(session?.processes ?? null);
-    const killedPids: number[] = [];
-    const failedPids: number[] = [];
-    for (const pid of processIds) {
-      this.processTimeoutControls.delete(this.getProcessControlKey(sessionId, pid));
-      if (killProcessTree(pid, "SIGKILL")) {
-        killedPids.push(pid);
-        continue;
-      }
-      failedPids.push(pid);
-    }
+    this.killLiveProcesses();
 
     const controller = this.sessionControllers.get(sessionId);
     if (controller) {
@@ -1712,15 +1703,7 @@ ${skillMd}
     clearSessionState(sessionId);
     clearSessionWorkingDir(sessionId);
 
-    const contentParts = ["Interrupted."];
-    if (killedPids.length > 0) {
-      contentParts.push(`Killed processes: ${killedPids.join(", ")}.`);
-    }
-    if (failedPids.length > 0) {
-      contentParts.push(`Failed to kill processes: ${failedPids.join(", ")}.`);
-    }
-
-    this.onAssistantMessage(this.buildUserMessage(sessionId, { text: contentParts.join(" ") }), false);
+    this.onAssistantMessage(this.buildUserMessage(sessionId, { text: "Interrupted." }), false);
   }
 
   private isInterrupted(sessionId: string): boolean {
@@ -2833,6 +2816,7 @@ ${skillMd}
         updateTime: now,
       };
     });
+    this.addLiveProcess(sessionId, processId);
   }
 
   private removeSessionProcess(sessionId: string, processId: string | number): void {
@@ -2847,6 +2831,7 @@ ${skillMd}
         updateTime: now,
       };
     });
+    this.removeLiveProcess(sessionId, processId);
   }
 
   private setSessionProcessTimeoutControl(
@@ -2898,6 +2883,38 @@ ${skillMd}
 
   private getProcessControlKey(sessionId: string, processId: string | number): string {
     return `${sessionId}:${String(processId)}`;
+  }
+
+  private addLiveProcess(sessionId: string, processId: string | number): void {
+    this.liveProcessKeys.add(this.getProcessControlKey(sessionId, processId));
+  }
+
+  private removeLiveProcess(sessionId: string, processId: string | number): void {
+    this.liveProcessKeys.delete(this.getProcessControlKey(sessionId, processId));
+  }
+
+  private killLiveProcesses(): void {
+    const snapshot = Array.from(this.liveProcessKeys);
+    for (const key of snapshot) {
+      const [, pidStr] = key.split(":");
+      const pid = Number(pidStr);
+      if (Number.isInteger(pid) && pid > 0) {
+        this.killTrackedProcess(pid);
+      }
+    }
+    this.liveProcessKeys.clear();
+  }
+
+  private killTrackedProcess(pid: number): void {
+    try {
+      killProcessTree(pid, "SIGKILL");
+    } catch {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // ignore
+      }
+    }
   }
 
   private getProcessIds(processes: Map<string, SessionProcessEntry> | null): number[] {
