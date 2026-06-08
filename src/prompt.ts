@@ -479,8 +479,35 @@ export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDe
               description:
                 'Clear, concise description of what this command does in active voice. Never use words like "complex" or "risk" in the description - just describe what it does.',
             },
+            sideEffects: {
+              type: "string",
+              enum: [
+                "read-in-cwd",
+                "read-out-cwd",
+                "write-in-cwd",
+                "write-out-cwd",
+                "delete-in-cwd",
+                "delete-out-cwd",
+                "query-git-log",
+                "mutate-git-log",
+                "network",
+                "mcp",
+              ],
+              description:
+                "Permission scope that best describes the side effects of this command. Required for every bash call.",
+            },
+            run_in_background: {
+              type: "boolean",
+              description:
+                "Set to true to run this command in the background. You will be notified when it finishes. Only use this if you don't need the result immediately and are OK being notified when it completes. You do not need to use '&' at the end of the command when using this parameter.",
+            },
+            stopCommand: {
+              type: "string",
+              description:
+                "If run_in_background is true, an optional command to stop the background process (e.g. 'Ctrl+C', 'kill %1').",
+            },
           },
-          required: ["command"],
+          required: ["command", "sideEffects"],
           additionalProperties: false,
         },
       },
