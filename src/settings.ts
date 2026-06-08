@@ -120,7 +120,7 @@ const permissionSettingsSchema = z.object({
   allow: z.array(z.string()).optional(),
   deny: z.array(z.string()).optional(),
   ask: z.array(z.string()).optional(),
-  defaultMode: z.enum(["allowAll", "askAll"]).optional(),
+  defaultMode: z.enum(["allowAll", "askAll", "plan", "acceptEdits", "bypassPermissions"]).optional(),
 });
 
 const deepcodingSettingsSchema = z
