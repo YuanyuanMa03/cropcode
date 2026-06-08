@@ -11,7 +11,7 @@ CropCode is the **agricultural vertical enhanced edition** of DeepCode. It must:
 
 Port all missing DeepCode features into CropCode, organized as independent commits.
 
-## Feature List (13 items, ordered by dependency)
+## Feature List (14 items, ordered by dependency)
 
 ---
 
@@ -206,6 +206,55 @@ Port all missing DeepCode features into CropCode, organized as independent commi
 **What to port:**
 - Export `SkillPromptDocument` type (with `name`, `content`, `path?`, `skillFilePath?` fields)
 - This type is needed by the skill resource discovery system (Feature 4) and by the session layer for skill loading
+
+**File:** `src/prompt.ts`
+
+---
+
+### Feature 14: System Prompt — Minimal Chinese Alignment (极简对齐)
+
+**Source:** `deepcode-cli/src/prompt.ts` (`SYSTEM_PROMPT_BASE`)
+
+**Strategy:** Adopt DeepCode's minimal Chinese system prompt approach. The system prompt is kept short (3 lines). Detailed behavioral guidelines are expressed through tool docs (`templates/tools/*.md`) and skill templates (`templates/skills/*.md`), not in the system prompt itself.
+
+**What to change:**
+
+Replace CropCode's current 57-line English `SYSTEM_PROMPT_BASE` with DeepCode's minimal 3-line Chinese structure:
+
+```
+You are an AI coding agent working in a terminal environment. Your role is to help users with software engineering tasks.
+
+The current working directory is the project root. All file paths are relative to it unless otherwise noted.
+
+Never run commands that modify or access files outside the working directory unless explicitly instructed.
+```
+
+Adapted for CropCode with slight agricultural lean:
+
+```typescript
+const SYSTEM_PROMPT_BASE = `你是一个在终端环境中工作的AI编码助手。你的角色是帮助用户完成软件工程任务。
+
+当前工作目录是项目根目录。所有文件路径相对于此目录，除非另有说明。
+
+不要运行修改或访问工作目录之外文件的命令，除非用户明确指示。`;
+```
+
+**What stays the same:**
+- Runtime context section (workspace info, date, model, git status, etc.)
+- Tool definitions and their parameter schemas
+- Skill templates and their content
+- MCP tool definitions
+
+**What moves:**
+- "Executing Actions with Care" guidelines → already in tool docs (bash.md, edit.md)
+- "Using Your Tools" guidelines → already in tool docs
+- "Communication Style" → move to a skill template if needed
+- "Agricultural Context" → move to a skill template (e.g., `agricultural-context.md`)
+- "Task Management" → move to a skill template
+
+**CropCode-exclusive additions to preserve:**
+- Keep the tool alphabet sorting (cache optimization)
+- Keep CropCode's extended tool set (glob, grep)
 
 **File:** `src/prompt.ts`
 
