@@ -676,7 +676,13 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
 
   const handleDeleteSession = useCallback(
     (sessionId: string): void => {
+      const activeSessionId = sessionManager.getActiveSessionId();
       sessionManager.deleteSession(sessionId);
+      if (sessionId === activeSessionId) {
+        sessionManager.setActiveSessionId(null);
+        setShowWelcome(true);
+        setView("chat");
+      }
       refreshSessionsList();
     },
     [sessionManager, refreshSessionsList]
