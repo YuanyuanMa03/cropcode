@@ -32,6 +32,15 @@ const AGRICULTURAL_TIPS = [
   { label: "📐 Refactoring", description: "Improve code structure while preserving behavior" },
 ];
 
+const KEYBOARD_SHORTCUT_TIPS = [
+  { label: "Enter", description: "Send the prompt" },
+  { label: "Shift+Enter", description: "Insert a newline" },
+  { label: "Ctrl+V", description: "Paste an image from clipboard" },
+  { label: "Esc", description: "Interrupt the current model turn" },
+  { label: "/", description: "Open the skills/commands menu" },
+  { label: "Ctrl+D", description: "Exit CropCode" },
+];
+
 export function WelcomeScreen({
   projectRoot,
   settings,
@@ -134,7 +143,7 @@ export function buildWelcomeTips(skills: SkillInfo[]): Array<{ label: string; de
       description: formatSlashCommandDescription(item.description),
     }));
 
-  return [...AGRICULTURAL_TIPS, ...slashTips];
+  return [...AGRICULTURAL_TIPS, ...KEYBOARD_SHORTCUT_TIPS, ...slashTips];
 }
 
 function randomTipIndex(length: number): number {
