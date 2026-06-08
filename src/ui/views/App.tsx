@@ -62,6 +62,13 @@ import { buildExitSummaryText } from "../exit-summary";
 import { RawMode, useRawModeContext } from "../contexts";
 import { renderMessageToStdout } from "../components/MessageView/utils";
 import { ANSI_CLEAR_SCREEN } from "../constants";
+import {
+  buildSyntheticUserMessage,
+  buildStatusLine,
+  formatModelConfig,
+  isCurrentSessionEmpty,
+  extractImageUrlsFromContentParams,
+} from "../utils";
 
 // Derive defaults from the first provider preset instead of hardcoding a specific vendor
 const FIRST_PROVIDER = BUILTIN_PROVIDERS[0];
@@ -1007,67 +1014,12 @@ function isCollapsedThinking(message: SessionMessage, expandedId: string | null)
   return message.id !== expandedId;
 }
 
-function buildSyntheticUserMessage(content: string, imageCount: number): SessionMessage {
-  const now = new Date().toISOString();
-  return {
-    id: `local-${Math.random().toString(36).slice(2)}`,
-    sessionId: "local",
-    role: "user",
-    content,
-    contentParams:
-      imageCount > 0
-        ? Array.from({ length: imageCount }, () => ({
-            type: "image_url",
-            image_url: { url: "" },
-          }))
-        : null,
-    messageParams: null,
-    compacted: false,
-    visible: true,
-    createTime: now,
-    updateTime: now,
-  };
-}
-
 export function buildPromptDraftFromSessionMessage(message: SessionMessage, nonce: number): PromptDraft {
   return {
     nonce,
     text: typeof message.content === "string" ? message.content : "",
     imageUrls: extractImageUrlsFromContentParams(message.contentParams),
   };
-}
-
-function extractImageUrlsFromContentParams(contentParams: unknown): string[] {
-  const params = Array.isArray(contentParams) ? contentParams : contentParams ? [contentParams] : [];
-  const imageUrls: string[] = [];
-  for (const param of params) {
-    if (!param || typeof param !== "object") {
-      continue;
-    }
-    const record = param as { type?: unknown; image_url?: { url?: unknown } };
-    const url = record.image_url?.url;
-    if (record.type === "image_url" && typeof url === "string" && url) {
-      imageUrls.push(url);
-    }
-  }
-  return imageUrls;
-}
-
-function isCurrentSessionEmpty(sessionManager: SessionManager): boolean {
-  const activeSessionId = sessionManager.getActiveSessionId();
-  return !activeSessionId || !sessionManager.getSession(activeSessionId);
-}
-
-function buildStatusLine(entry: SessionEntry): string {
-  const parts: string[] = [];
-  parts.push(`status: ${entry.status}`);
-  if (typeof entry.activeTokens === "number" && entry.activeTokens > 0) {
-    parts.push(`tokens: ${entry.activeTokens}`);
-  }
-  if (entry.failReason) {
-    parts.push(`fail: ${entry.failReason}`);
-  }
-  return parts.join(" · ");
 }
 
 export function writeModelConfigSelection(
@@ -1128,14 +1080,3 @@ export function resolveCurrentSettings(projectRoot: string = process.cwd()): Res
   };
 }
 export { createOpenAIClient } from "../../common/openai-client";
-
-function formatThinkingMode(settings: Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">): string {
-  if (!settings.thinkingEnabled) {
-    return "no thinking";
-  }
-  return `thinking ${settings.reasoningEffort}`;
-}
-
-function formatModelConfig(settings: ModelConfigSelection): string {
-  return `${settings.model}, ${formatThinkingMode(settings)}`;
-}
