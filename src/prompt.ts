@@ -135,19 +135,21 @@ function readToolDocs(extensionRoot: string, options: PromptToolOptions = {}): s
   return docs.join("\n\n");
 }
 
-function readDefaultSkillDocs(extensionRoot: string): Array<{ name: string; content: string }> {
+function readDefaultSkillDocs(extensionRoot: string): SkillPromptDocument[] {
   const skillsDir = path.join(extensionRoot, "templates", "skills");
-  return DEFAULT_SKILL_TEMPLATES.map((entry) => {
+  return DEFAULT_SKILL_TEMPLATES.map<SkillPromptDocument | null>((entry) => {
     const fullPath = path.join(skillsDir, entry);
     try {
       return {
         name: path.basename(entry, ".md"),
         content: fs.readFileSync(fullPath, "utf8").trim(),
+        path: fullPath,
+        skillFilePath: fullPath,
       };
     } catch {
       return null;
     }
-  }).filter((skill): skill is { name: string; content: string } => Boolean(skill?.content));
+  }).filter((skill): skill is SkillPromptDocument => Boolean(skill?.content));
 }
 
 const DEFAULT_SKILL_RESOURCE_FILE_LIMIT = 50;
@@ -237,16 +239,7 @@ export function buildSkillDocumentsPrompt(docs: SkillPromptDocument[]): string {
 
 export function getDefaultSkillPrompt(): string {
   const skillDocs = readDefaultSkillDocs(getExtensionRoot());
-  if (skillDocs.length === 0) {
-    return "";
-  }
-
-  const blocks = skillDocs.map(
-    (skill) => `<${skill.name}-skill>
-${skill.content}
-</${skill.name}-skill>`
-  );
-  return `Use the skill documents below to assist the user:\n${blocks.join("\n\n")}`;
+  return buildSkillDocumentsPrompt(skillDocs);
 }
 
 function getCurrentDateAndModelPrompt(model?: string): string {
@@ -601,7 +594,7 @@ export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDe
           properties: {
             file_path: {
               type: "string",
-              description: "Absolute path to file. Optional when snippet_id is provided.",
+              description: "Absolute path to file. Optional. Used as a guard alongside snippet_id.",
             },
             snippet_id: {
               type: "string",
