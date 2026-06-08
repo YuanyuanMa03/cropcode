@@ -686,13 +686,13 @@ test("createSession appends default system prompts in prefix-cache-friendly orde
   assert.ok(systemContents.length >= 1, "should have at least 1 system message");
   const mergedSystem = systemContents[0] ?? "";
   assert.match(mergedSystem, /# Available Tools/);
-  assert.match(mergedSystem, /# Workspace Environment/);
-  assert.match(mergedSystem, /Current LLM model is qwen3-max/);
+  assert.match(mergedSystem, /# 本地工作区环境/);
+  assert.match(mergedSystem, /当前LLM模型为qwen3-max/);
   assert.match(mergedSystem, /# Identity/);
   assert.match(mergedSystem, /# Doing Tasks/);
   assert.doesNotMatch(mergedSystem, /path="templates\/skills\//);
   assert.match(mergedSystem, /root project instructions/);
-  const environmentSection = mergedSystem.match(/# Workspace Environment\s*\n\s*```json\n([\s\S]+?)\n```/);
+  const environmentSection = mergedSystem.match(/# 本地工作区环境\s*\n\s*```json\n([\s\S]+?)\n```/);
   assert.ok(environmentSection, "should contain Workspace Environment JSON block");
   const environmentInfo = JSON.parse(environmentSection[1] ?? "{}") as { "root path"?: string };
   assert.equal(environmentInfo["root path"], workspace);

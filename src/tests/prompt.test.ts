@@ -32,7 +32,7 @@ test("getSystemPrompt includes UpdatePlan docs", () => {
 
 test("getSystemPrompt does not include runtime context", () => {
   const prompt = getSystemPrompt("/tmp/project");
-  assert.equal(prompt.includes("# Workspace Environment"), false);
+  assert.equal(prompt.includes("# 本地工作区环境"), false);
   assert.equal(prompt.includes('"root path": "/tmp/project"'), false);
 });
 
@@ -45,18 +45,18 @@ test("getDefaultSkillPrompt returns built-in skills", () => {
 
 test("getSystemPrompt does not include current date guidance", () => {
   const now = new Date();
-  const unexpected = `Today's date is ${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}`;
+  const unexpected = `今天是${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
   const prompt = getSystemPrompt("/tmp/project");
   assert.equal(prompt.includes(unexpected), false);
 });
 
 test("getRuntimeContext includes current date and model guidance", () => {
   const now = new Date();
-  const expectedDate = `Today's date is ${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}`;
+  const expectedDate = `今天是${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
   const prompt = getRuntimeContext("/tmp/project", "deepseek-v4-pro");
   assert.equal(prompt.includes(expectedDate), true);
-  assert.equal(prompt.includes("Current LLM model is deepseek-v4-pro"), true);
-  assert.equal(prompt.includes("# Workspace Environment"), true);
+  assert.equal(prompt.includes("当前LLM模型为deepseek-v4-pro"), true);
+  assert.equal(prompt.includes("# 本地工作区环境"), true);
   assert.equal(prompt.includes('"root path": "/tmp/project"'), true);
 });
 

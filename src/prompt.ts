@@ -298,10 +298,8 @@ ${skill.content}
 
 function getCurrentDateAndModelPrompt(model?: string): string {
   const date = new Date();
-  let prompt = `Today's date is ${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}. As the conversation progresses, time passes.`;
-  prompt += model
-    ? `\nCurrent LLM model is ${model}. You can switch models during conversation with the /model command.`
-    : "";
+  let prompt = `今天是${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日。随着对话的进行，时间在流逝。`;
+  prompt += model ? `\n当前LLM模型为${model}，对话中可通过/model命令切换模型。` : "";
   return prompt;
 }
 
@@ -347,7 +345,7 @@ export function getRuntimeContext(projectRoot: string, model?: string): string {
   };
   return `${getCurrentDateAndModelPrompt(model)}
 
-# Workspace Environment
+# 本地工作区环境
 
 \`\`\`json
 ${JSON.stringify(env, null, 2)}
