@@ -1,7 +1,7 @@
 import React from "react";
 import { render } from "ink";
 import { setShellIfWindows } from "./common/shell-utils";
-import { checkForNpmUpdate, promptForPendingUpdate, type PackageInfo } from "./updateCheck";
+import { checkForNpmUpdate, promptForPendingUpdate, type PackageInfo } from "./common/update-check";
 import { AppContainer } from "./ui";
 
 const args = process.argv.slice(2);
@@ -209,6 +209,9 @@ async function handleMarketplaceCommand(argv: string[]): Promise<void> {
 
 async function main(): Promise<void> {
   const updatePromptResult = await promptForPendingUpdate(packageInfo);
+  if (updatePromptResult.installed) {
+    process.exit(0);
+  }
 
   const restartRef: { current: (() => void) | null } = { current: null };
 
@@ -241,9 +244,7 @@ async function main(): Promise<void> {
     });
   }
 
-  if (!updatePromptResult.installed) {
-    void checkForNpmUpdate(packageInfo);
-  }
+  void checkForNpmUpdate(packageInfo);
 
   startApp();
 }
