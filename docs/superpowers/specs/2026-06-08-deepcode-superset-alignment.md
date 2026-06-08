@@ -11,7 +11,9 @@ CropCode is the **agricultural vertical enhanced edition** of DeepCode. It must:
 
 Port all missing DeepCode features into CropCode, organized as independent commits.
 
-## Feature List (8 items, ordered by dependency)
+## Feature List (13 items, ordered by dependency)
+
+---
 
 ### Feature 1: Permission Normalization & Merging
 
@@ -24,9 +26,9 @@ Port all missing DeepCode features into CropCode, organized as independent commi
 - `mergePermissionLists()` — concatenates user + project scopes with dedup
 - `mergePermissions()` — merges user/project permission settings with precedence logic
 
-**Adaptation needed:**
-- CropCode's `PermissionDefaultMode` includes `"plan"`, `"acceptEdits"`, `"bypassPermissions"` beyond DeepCode's `"allowAll" | "askAll"`. The `normalizePermissionDefaultMode()` must accept all CropCode values.
-- CropCode's `PermissionScope` includes `"mcp"` which DeepCode has. Keep CropCode's extended scopes.
+**Adaptation:**
+- CropCode's `PermissionDefaultMode` includes `"plan"`, `"acceptEdits"`, `"bypassPermissions"` — must accept all
+- CropCode's `PermissionScope` includes `"mcp"` — keep it
 
 **File:** `src/settings.ts`
 
@@ -38,18 +40,14 @@ Port all missing DeepCode features into CropCode, organized as independent commi
 
 **What to port:**
 - `liveProcessKeys: Set<string>` — tracks all active processes as `sessionId:pid`
-- `getProcessControlKey()` — generates the composite key
-- `addSessionProcess()` — adds to tracking set when process starts
-- `removeSessionProcess()` — removes from tracking set when process exits
-- `killLiveProcesses()` — iterates snapshot, SIGKILL each via `killTrackedProcess`
+- `getProcessControlKey()`, `addSessionProcess()`, `removeSessionProcess()`
+- `killLiveProcesses()` — iterates snapshot, SIGKILL each
 - `killTrackedProcess()` — sends SIGKILL via `killProcessTree`, fallback to `process.kill`
 - Integrate into `dispose()`, `interruptSession()`, `cleanupSessionResources()`
 
-**Adaptation needed:**
-- CropCode already has `killProcessTree` in `common/process-tree.ts` — reuse it
-- CropCode's session.ts has different structure — port the tracking mechanism, not the exact line numbers
+**Adaptation:** Reuse CropCode's existing `killProcessTree` from `common/process-tree.ts`
 
-**Files:** `src/session.ts`
+**File:** `src/session.ts`
 
 ---
 
@@ -59,17 +57,13 @@ Port all missing DeepCode features into CropCode, organized as independent commi
 
 **What to port:**
 - `addBackgroundProcessCompletionMessage()` — builds system message with command, status, exit info, duration
-- `buildBackgroundFailureLogTailSlice()` — reads last 4KB of output file, wraps in `<background_task_failure_log>` XML tag
-- `readTextFileTail()` — reads last N bytes of a text file with truncation info
-- `BACKGROUND_FAILURE_LOG_TAIL_CHARS = 4000` constant
-- `formatBackgroundDuration()` — human-readable duration formatting
-- Wire into `onBackgroundProcessComplete` hook in tool execution
+- `buildBackgroundFailureLogTailSlice()` — reads last 4KB of output file, wraps in `<background_task_failure_log>` XML
+- `readTextFileTail()` — reads last N bytes with truncation info
+- `BACKGROUND_FAILURE_LOG_TAIL_CHARS = 4000`
+- `formatBackgroundDuration()`
+- Wire into `onBackgroundProcessComplete` hook
 
-**Adaptation needed:**
-- CropCode already has `BackgroundProcessCompletion` type in `tools/executor.ts` — use it
-- The hook callback should be wired in `session.ts` where tool execution hooks are created
-
-**Files:** `src/session.ts`
+**File:** `src/session.ts`
 
 ---
 
@@ -78,18 +72,14 @@ Port all missing DeepCode features into CropCode, organized as independent commi
 **Source:** `deepcode-cli/src/prompt.ts` (lines 179-259)
 
 **What to port:**
-- `renderSkillResources()` — lists files adjacent to skill file, formats as XML `<skill_resources>` block
-- `listSkillResourceFiles()` — recursive directory walk with excluded dirs, file limit, alphabetical sort
+- `renderSkillResources()` — lists files adjacent to skill, formats as XML `<skill_resources>`
+- `listSkillResourceFiles()` — recursive walk with excluded dirs, limit 50, alphabetical sort
 - `DEFAULT_SKILL_RESOURCE_FILE_LIMIT = 50`
-- `SKILL_RESOURCE_EXCLUDED_DIRS` Set (`.cache`, `.git`, `.next`, `.turbo`, `build`, `coverage`, `dist`, `node_modules`, `out`)
-- `escapeXml()` helper
-- Integrate into `buildSkillDocumentsPrompt()` — append resources to each skill block
+- `SKILL_RESOURCE_EXCLUDED_DIRS` Set
+- `escapeXml()`, `toPosixPath()` helpers
+- Integrate into `buildSkillDocumentsPrompt()`
 
-**Adaptation needed:**
-- CropCode already has `buildSkillDocumentsPrompt` — extend it, don't replace
-- The excluded dirs list should include CropCode-specific dirs if any
-
-**Files:** `src/prompt.ts`
+**File:** `src/prompt.ts`
 
 ---
 
@@ -98,17 +88,13 @@ Port all missing DeepCode features into CropCode, organized as independent commi
 **Source:** `deepcode-cli/src/session.ts` (lines 84-115)
 
 **What to port:**
-- `getProjectCode()` — generates filesystem-safe project identifier
-- `getLegacyProjectCode()` — backward-compatible path-to-code conversion
-- `sanitizeProjectCodePart()` — strips unsafe chars
+- `getProjectCode()` — filesystem-safe project identifier via SHA-256 hash
+- `getLegacyProjectCode()`, `sanitizeProjectCodePart()`
 - Constants: `MAX_PROJECT_CODE_LENGTH = 64`, `PROJECT_CODE_HASH_LENGTH = 16`
-- Use SHA-256 hash of normalized path for long paths
 
-**Adaptation needed:**
-- Replace `~/.deepcode/projects/` with `~/.cropcode/projects/`
-- Ensure backward compatibility with existing CropCode session storage paths
+**Adaptation:** Use `~/.cropcode/projects/` instead of `~/.deepcode/projects/`
 
-**Files:** `src/session.ts`
+**File:** `src/session.ts`
 
 ---
 
@@ -117,17 +103,14 @@ Port all missing DeepCode features into CropCode, organized as independent commi
 **Source:** `deepcode-cli/src/ui/utils/index.ts` and `deepcode-cli/src/ui/views/App.tsx`
 
 **What to port:**
-- Extract from App.tsx into `ui/utils/index.ts`:
-  - `buildSyntheticUserMessage()` — constructs user message for tool results
-  - `buildStatusLine()` — builds status bar text
-  - `formatModelConfig()` — formats model + thinking config for display
-  - `isCurrentSessionEmpty()` — checks if session has messages
-  - `renderRawModeMessages()` — renders messages in raw mode
+- Extract to `ui/utils/index.ts`:
+  - `buildSyntheticUserMessage()`
+  - `buildStatusLine()`
+  - `formatModelConfig()`
+  - `isCurrentSessionEmpty()`
+  - `renderRawModeMessages()`
 
-**Adaptation needed:**
-- CropCode's `ui/utils/index.ts` already exists — add these functions alongside existing ones
-- Delete the inline versions from App.tsx and replace with imports from utils
-- Preserve CropCode-specific additions (provider label, token counting)
+**Adaptation:** Delete inline versions from App.tsx, replace with imports. Preserve CropCode-specific (provider label, token counting).
 
 **Files:** `src/ui/utils/index.ts`, `src/ui/views/App.tsx`
 
@@ -138,24 +121,93 @@ Port all missing DeepCode features into CropCode, organized as independent commi
 **Source:** `deepcode-cli/src/ui/views/WelcomeScreen.tsx` (lines 22-29)
 
 **What to port:**
-- Keyboard shortcut tips section: Enter, Shift+Enter, Ctrl+V, Esc, /, Ctrl+D
+- Keyboard shortcut tips: Enter, Shift+Enter, Ctrl+V, Esc, /, Ctrl+D
 - `BUILTIN_SLASH_COMMANDS` filtering to remove duplicate tips
 
-**Adaptation needed:**
-- CropCode already shows agricultural tips — ADD keyboard shortcuts alongside, don't replace
-- Show both: keyboard shortcuts AND agricultural tips
+**Adaptation:** ADD keyboard shortcuts alongside existing agricultural tips, don't replace
 
-**Files:** `src/ui/views/WelcomeScreen.tsx`
+**File:** `src/ui/views/WelcomeScreen.tsx`
 
 ---
 
 ### Feature 8: Exit After Update + Delete Session UX
 
 **What to port:**
-- `cli.tsx`: After `promptForPendingUpdate` returns `{ installed: true }`, exit immediately
+- `cli.tsx`: Exit immediately after `promptForPendingUpdate` returns `{ installed: true }`
 - `App.tsx`: `handleDeleteSession` resets to welcome screen when deleting active session
 
 **Files:** `src/cli.tsx`, `src/ui/views/App.tsx`
+
+---
+
+### Feature 9: Bash Tool — Add `sideEffects` and `run_in_background`
+
+**Source:** `deepcode-cli/src/prompt.ts` (bash tool definition) and `deepcode-cli/templates/tools/bash.md`
+
+**What to port:**
+- Add `sideEffects` parameter to bash tool definition in `getTools()` — enum of permission scopes
+- Add `run_in_background` parameter — boolean for background execution
+- Add `stopCommand` parameter for background tasks
+- Update `templates/tools/bash.md` with full documentation of these parameters
+- Update JSON schema to require `["command", "sideEffects"]`
+
+**Adaptation:** Keep CropCode's existing bash handler logic, just add the parameter definitions
+
+**Files:** `src/prompt.ts`, `templates/tools/bash.md`
+
+---
+
+### Feature 10: Edit Tool — Align `snippet_id` as Required
+
+**Source:** `deepcode-cli/src/prompt.ts` (edit tool definition) and `deepcode-cli/templates/tools/edit.md`
+
+**What to port:**
+- Make `snippet_id` a required parameter (currently optional in CropCode)
+- Make `file_path` optional (guard only)
+- Update description: "snippet_id defines the search scope. Provide file_path only as an optional guard."
+- Update `templates/tools/edit.md` accordingly
+
+**Files:** `src/prompt.ts`, `templates/tools/edit.md`
+
+---
+
+### Feature 11: Tool Docs Templates Alignment
+
+**Source:** `deepcode-cli/templates/tools/` and `deepcode-cli/templates/skills/`
+
+**What to port:**
+
+1. `templates/tools/bash.md` — add `sideEffects` and `run_in_background` documentation (matches Feature 9)
+2. `templates/tools/edit.md` — align parameter requirements (matches Feature 10)
+3. `templates/tools/read.md.ejs` — simplify snippet_id description to: "Text reads return a snippet id in metadata. You can pass that snippet id to the Edit tool to constrain replacements to just that read range."
+4. `templates/skills/karpathy-guidelines.md` — add missing line: "**Internal use:** Apply these guidelines silently. Do not cite this document, its title, or guideline names in user-facing responses."
+
+**Files:** `templates/tools/bash.md`, `templates/tools/edit.md`, `templates/tools/read.md.ejs`, `templates/skills/karpathy-guidelines.md`
+
+---
+
+### Feature 12: Date Format to Chinese
+
+**Source:** `deepcode-cli/src/prompt.ts` (getCurrentDateAndModelPrompt)
+
+**What to change:**
+- Change from English: `"Today's date is 2026/06/08. As the conversation progresses, time passes."`
+- To Chinese: `"今天是2026年6月8日。随着对话的进行，时间在流逝。"`
+- Change model line: `"Current LLM model is..."` → `"当前LLM模型为...，对话中可通过/model命令切换模型。"`
+
+**File:** `src/prompt.ts`
+
+---
+
+### Feature 13: Skill Documents Prompt Type Export
+
+**Source:** `deepcode-cli/src/prompt.ts`
+
+**What to port:**
+- Export `SkillPromptDocument` type (with `name`, `content`, `path?`, `skillFilePath?` fields)
+- This type is needed by the skill resource discovery system (Feature 4) and by the session layer for skill loading
+
+**File:** `src/prompt.ts`
 
 ---
 
@@ -170,7 +222,8 @@ These are CropCode innovations that DeepCode does not have. Preserve and protect
 | Marketplace/plugin system | `marketplace/`, `cli.tsx` |
 | Hooks engine | `hooks/` |
 | Agricultural domain models | `models/` |
-| Glob/grep tool handlers | `tools/glob-handler.ts`, `tools/grep-handler.ts` |
+| Glob/grep tool definitions and handlers | `prompt.ts`, `tools/glob-handler.ts`, `tools/grep-handler.ts` |
+| Glob/grep tool docs | `templates/tools/glob.md`, `templates/tools/grep.md` |
 | Retry logic | `common/retry.ts` |
 | Stream progress throttling | `ui/views/App.tsx` |
 | Microcompact/reactive compaction | `session.ts` |
@@ -180,7 +233,10 @@ These are CropCode innovations that DeepCode does not have. Preserve and protect
 | Dynamic model capabilities | `common/model-capabilities.ts` |
 | Zod settings validation | `settings.ts` |
 | Disabled skills setting | `settings.ts` |
-| Chinese system prompt | `prompt.ts` |
+| Tool alphabet sorting (cache optimization) | `prompt.ts` |
+| Extra slash commands (/login, /marketplace, /plugin) | `ui/core/slash-commands.ts` |
+| Disabled skill label (✕) in slash commands | `ui/core/slash-commands.ts` |
+| Extra default skill templates (agent-drift-guard, plan-and-execute) | `templates/skills/` |
 
 ## Verification
 
