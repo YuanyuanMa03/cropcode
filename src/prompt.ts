@@ -197,6 +197,91 @@ function readDefaultSkillDocs(extensionRoot: string): Array<{ name: string; cont
   }).filter((skill): skill is { name: string; content: string } => Boolean(skill?.content));
 }
 
+const DEFAULT_SKILL_RESOURCE_FILE_LIMIT = 50;
+
+const SKILL_RESOURCE_EXCLUDED_DIRS = new Set([
+  "node_modules",
+  ".git",
+  ".svn",
+  ".hg",
+  "__pycache__",
+  ".pytest_cache",
+  ".mypy_cache",
+  "dist",
+  "build",
+  ".next",
+  ".nuxt",
+  "target",
+]);
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function toPosixPath(filePath: string): string {
+  return filePath.replace(/\\/g, "/");
+}
+
+function listSkillResourceFiles(skillFilePath: string, limit = DEFAULT_SKILL_RESOURCE_FILE_LIMIT): string[] {
+  const skillDir = path.dirname(skillFilePath);
+  const files: string[] = [];
+
+  function walk(dir: string): void {
+    if (files.length >= limit) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      if (files.length >= limit) break;
+      if (entry.name.startsWith(".")) continue;
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!SKILL_RESOURCE_EXCLUDED_DIRS.has(entry.name)) {
+          walk(fullPath);
+        }
+      } else if (entry.isFile()) {
+        files.push(fullPath);
+      }
+    }
+  }
+
+  walk(skillDir);
+  return files.slice(0, limit);
+}
+
+function renderSkillResources(skillFilePath: string): string {
+  const files = listSkillResourceFiles(skillFilePath);
+  if (files.length === 0) return "";
+
+  const skillDir = path.dirname(skillFilePath);
+  const fileList = files.map((f) => `  <file>${escapeXml(toPosixPath(path.relative(skillDir, f)))}</file>`).join("\n");
+
+  return `<skill_resources path="${escapeXml(toPosixPath(skillFilePath))}">\n${fileList}\n</skill_resources>`;
+}
+
+function renderSkillDocumentBlock(doc: SkillPromptDocument): string {
+  const skillResources = doc.skillFilePath ? renderSkillResources(doc.skillFilePath) : "";
+  const pathAttr = doc.path ? ` path="${escapeXml(doc.path)}"` : "";
+  const resourceSection = skillResources ? `\n${skillResources}` : "";
+
+  return `<skill-document name="${escapeXml(doc.name)}"${pathAttr}>\n${doc.content}${resourceSection}\n</skill-document>`;
+}
+
+export function buildSkillDocumentsPrompt(docs: SkillPromptDocument[]): string {
+  if (docs.length === 0) return "";
+  const blocks = docs.map(renderSkillDocumentBlock);
+  return `Use the skill documents below to assist the user:\n${blocks.join("\n\n")}`;
+}
+
 export function getDefaultSkillPrompt(): string {
   const skillDocs = readDefaultSkillDocs(getExtensionRoot());
   if (skillDocs.length === 0) {
@@ -366,6 +451,13 @@ export type ToolDefinition = {
       additionalProperties?: boolean;
     };
   };
+};
+
+export type SkillPromptDocument = {
+  name: string;
+  content: string;
+  path?: string;
+  skillFilePath?: string;
 };
 
 export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDefinition[] = []): ToolDefinition[] {
