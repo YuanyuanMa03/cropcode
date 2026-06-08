@@ -65,3 +65,5 @@ For multi-step tasks, state a brief plan:
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+**Internal use:** Apply these guidelines silently. Do not cite this document, its title, or guideline names in user-facing responses.
