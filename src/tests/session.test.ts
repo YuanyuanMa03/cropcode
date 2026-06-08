@@ -1,6 +1,7 @@
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import * as crypto from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -977,14 +978,8 @@ test("createSession initializes file-history repo and session branch", async (t)
 
   const sessionId = await manager.createSession({ text: "first prompt" });
   const userMessage = manager.listSessionMessages(sessionId).find((message) => message.role === "user");
-  const gitDir = path.join(
-    home,
-    ".cropcode",
-    "projects",
-    workspace.replace(/[\\/]/g, "-").replace(/:/g, ""),
-    "file-history",
-    ".git"
-  );
+  const projectCode = crypto.createHash("sha256").update(workspace).digest("hex").slice(0, 16);
+  const gitDir = path.join(home, ".cropcode", "projects", projectCode, "file-history", ".git");
 
   assert.ok(fs.existsSync(gitDir));
   assert.ok(userMessage?.checkpointHash);
@@ -2190,7 +2185,7 @@ function createFileHistoryCommit(
   sessionId: string,
   files: Record<string, string>
 ): string {
-  const projectCode = workspace.replace(/[\\/]/g, "-").replace(/:/g, "");
+  const projectCode = crypto.createHash("sha256").update(workspace).digest("hex").slice(0, 16);
   const gitDir = path.join(home, ".cropcode", "projects", projectCode, "file-history", ".git");
   const fileHistory = new GitFileHistory(workspace, gitDir);
   fileHistory.ensureSession(sessionId);

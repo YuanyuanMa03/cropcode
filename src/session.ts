@@ -1943,7 +1943,20 @@ ${skillMd}
   }
 
   private getProjectCode(projectRoot: string): string {
+    const legacyCode = this.getLegacyProjectCode(projectRoot);
+    const legacyDir = path.join(os.homedir(), ".cropcode", "projects", legacyCode);
+    if (fs.existsSync(legacyDir)) {
+      return legacyCode;
+    }
+    return this.sanitizeProjectCodePart(crypto.createHash("sha256").update(projectRoot).digest("hex").slice(0, 16));
+  }
+
+  private getLegacyProjectCode(projectRoot: string): string {
     return projectRoot.replace(/[/\\]/g, "-").replace(/:/g, "");
+  }
+
+  private sanitizeProjectCodePart(value: string): string {
+    return value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
   }
 
   private getProjectStorage(): {
