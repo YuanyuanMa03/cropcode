@@ -47,15 +47,31 @@ export function maybePersistToolResult(content: string, threshold: number, proje
 }
 
 /**
+ * Extract the last N complete lines from content.
+ * Returns lines joined by newlines, preserving line boundaries.
+ */
+export function readLastLines(content: string, maxChars: number): string {
+  if (content.length <= maxChars) return content;
+
+  const tail = content.slice(-maxChars);
+  const firstNewline = tail.indexOf("\n");
+  if (firstNewline === -1) return tail;
+
+  // Skip the first (potentially partial) line
+  return tail.slice(firstNewline + 1);
+}
+
+/**
  * Truncate content with head + tail preservation, inserting a marker for the removed middle.
+ * The tail portion preserves line boundaries for better readability.
  */
 export function truncateWithTail(content: string, maxChars: number): string {
   if (content.length <= maxChars) return content;
 
   const half = Math.floor(maxChars / 2);
   const head = content.slice(0, half);
-  const tail = content.slice(-half);
-  const removed = content.length - maxChars;
+  const tail = readLastLines(content, half);
+  const removed = content.length - head.length - tail.length;
 
   return `${head}\n\n... [truncated ${formatBytes(removed)} chars] ...\n\n${tail}`;
 }
