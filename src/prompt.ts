@@ -655,7 +655,7 @@ export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDe
             snippet_id: {
               type: "string",
               description:
-                "Snippet id returned by the Read or Edit tool to scope the search range after a partial read.",
+                "Snippet id returned by the Read or Edit tool to scope the search range. Defines the search scope. Provide file_path only as an optional guard.",
             },
             old_string: {
               type: "string",
@@ -675,7 +675,7 @@ export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDe
               description: "Expected number of matches, especially useful as a safety check with replace_all",
             },
           },
-          required: ["old_string", "new_string"],
+          required: ["old_string", "new_string", "snippet_id"],
           additionalProperties: false,
         },
       },
