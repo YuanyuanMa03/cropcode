@@ -59,6 +59,7 @@ const MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_SESSION_RETENTION_DAYS = 30;
 const DEFAULT_NEW_PROMPT_API_URL = "https://cropcode.local/api/plugin/new";
 const NEW_PROMPT_REPORT_TIMEOUT_MS = 3000;
+const BACKGROUND_FAILURE_LOG_TAIL_CHARS = 4000;
 
 type ChatCompletionDebugOptions = {
   enabled?: boolean;
@@ -2928,6 +2929,66 @@ ${skillMd}
         // ignore
       }
     }
+  }
+
+  private readTextFileTail(filePath: string, maxBytes: number): { text: string; truncated: boolean } {
+    try {
+      const stat = fs.statSync(filePath);
+      if (!stat.isFile() || stat.size === 0) {
+        return { text: "", truncated: false };
+      }
+      const fd = fs.openSync(filePath, "r");
+      try {
+        const readSize = Math.min(stat.size, maxBytes);
+        const buffer = Buffer.alloc(readSize);
+        fs.readSync(fd, buffer, 0, readSize, stat.size - readSize);
+        const text = buffer.toString("utf8");
+        return {
+          text: stat.size > maxBytes ? text : text.trim(),
+          truncated: stat.size > maxBytes,
+        };
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch {
+      return { text: "", truncated: false };
+    }
+  }
+
+  private formatBackgroundDuration(durationMs: number): string {
+    if (durationMs < 1000) return `${durationMs}ms`;
+    if (durationMs < 60_000) return `${(durationMs / 1000).toFixed(1)}s`;
+    return `${(durationMs / 60_000).toFixed(1)}m`;
+  }
+
+  private buildBackgroundFailureLogTailSlice(outputFilePath: string): string {
+    const { text, truncated } = this.readTextFileTail(outputFilePath, BACKGROUND_FAILURE_LOG_TAIL_CHARS);
+    if (!text) return "";
+    const prefix = truncated ? "(truncated) " : "";
+    return `<background_task_failure_log>\n${prefix}${text}\n</background_task_failure_log>`;
+  }
+
+  private addBackgroundProcessCompletionMessage(
+    sessionId: string,
+    command: string,
+    exitCode: number | null,
+    durationMs: number,
+    outputFilePath?: string
+  ): void {
+    const status = exitCode === 0 ? "completed" : "failed";
+    const exitInfo = exitCode !== null ? `exit code ${exitCode}` : "unknown exit code";
+    const duration = this.formatBackgroundDuration(durationMs);
+
+    let content = `Background process ${status}: \`${command}\`\nStatus: ${exitInfo}\nDuration: ${duration}`;
+
+    if (exitCode !== 0 && outputFilePath) {
+      const tailSlice = this.buildBackgroundFailureLogTailSlice(outputFilePath);
+      if (tailSlice) {
+        content += `\n\n${tailSlice}`;
+      }
+    }
+
+    this.addSessionSystemMessage(sessionId, content, true);
   }
 
   private getProcessIds(processes: Map<string, SessionProcessEntry> | null): number[] {
