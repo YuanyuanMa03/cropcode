@@ -55,7 +55,7 @@ export type ResolvedDeepcodingSettings = {
   webSearchTool?: string;
   mcpServers?: Record<string, McpServerConfig>;
   disabledSkills?: string[];
-  permissions?: PermissionSettings;
+  permissions: Required<PermissionSettings>;
   hooks?: HooksSettings;
 };
 
@@ -268,6 +268,62 @@ function mergeDisabledSkills(
   return merged.length > 0 ? merged : undefined;
 }
 
+export function normalizePermissionList(scopes: PermissionScope[] | undefined): PermissionScope[] {
+  if (!Array.isArray(scopes) || scopes.length === 0) {
+    return [];
+  }
+  const seen = new Set<PermissionScope>();
+  const result: PermissionScope[] = [];
+  for (const scope of scopes) {
+    if (!seen.has(scope)) {
+      seen.add(scope);
+      result.push(scope);
+    }
+  }
+  return result;
+}
+
+export function normalizePermissionDefaultMode(value: unknown): PermissionDefaultMode {
+  if (
+    value === "allowAll" ||
+    value === "askAll" ||
+    value === "plan" ||
+    value === "acceptEdits" ||
+    value === "bypassPermissions"
+  ) {
+    return value;
+  }
+  return "allowAll";
+}
+
+export function normalizePermissions(permissions: PermissionSettings | undefined): Required<PermissionSettings> {
+  return {
+    allow: normalizePermissionList(permissions?.allow),
+    deny: normalizePermissionList(permissions?.deny),
+    ask: normalizePermissionList(permissions?.ask),
+    defaultMode: normalizePermissionDefaultMode(permissions?.defaultMode),
+  };
+}
+
+export function mergePermissionLists(user: PermissionScope[], project: PermissionScope[]): PermissionScope[] {
+  return normalizePermissionList([...user, ...project]);
+}
+
+export function mergePermissions(
+  userSettings: DeepcodingSettings | null | undefined,
+  projectSettings: DeepcodingSettings | null | undefined
+): Required<PermissionSettings> {
+  const user = normalizePermissions(userSettings?.permissions);
+  const project = normalizePermissions(projectSettings?.permissions);
+
+  return {
+    allow: mergePermissionLists(user.allow, project.allow),
+    deny: mergePermissionLists(user.deny, project.deny),
+    ask: mergePermissionLists(user.ask, project.ask),
+    defaultMode: project.defaultMode !== "allowAll" ? project.defaultMode : user.defaultMode,
+  };
+}
+
 export function resolveSettingsSources(
   userSettings: DeepcodingSettings | null | undefined,
   projectSettings: DeepcodingSettings | null | undefined,
@@ -331,7 +387,7 @@ export function resolveSettingsSources(
     trimString(userSettings?.webSearchTool) ||
     "";
 
-  const permissions = projectSettings?.permissions ?? userSettings?.permissions;
+  const permissions = mergePermissions(userSettings, projectSettings);
 
   return {
     env,
