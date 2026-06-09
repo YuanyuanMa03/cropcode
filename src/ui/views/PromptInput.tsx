@@ -61,8 +61,8 @@ import {
   useTerminalFocusReporting,
 } from "../hooks/cursor";
 import SlashCommandMenu, { isSkillSelected } from "./SlashCommandMenu";
-import type { ModelConfigSelection } from "../../settings";
-import { FileMentionMenu, ModelsDropdown, RawModelDropdown, SkillsDropdown } from "../components";
+import type { ModelConfigSelection, PermissionDefaultMode } from "../../settings";
+import { FileMentionMenu, ModelsDropdown, PermissionsDropdown, RawModelDropdown, SkillsDropdown } from "../components";
 
 export type PromptSubmission = {
   text: string;
@@ -93,6 +93,9 @@ type Props = {
   promptDraft?: PromptDraft | null;
   onSubmit: (submission: PromptSubmission) => void;
   onModelConfigChange: (selection: ModelConfigSelection) => string | Promise<string>;
+  onPermissionsChange: (mode: PermissionDefaultMode, saveTarget: "user" | "project") => string | Promise<string>;
+  currentPermissionMode: PermissionDefaultMode;
+  hasProjectSettings: boolean;
   onRawModeChange?: (mode: string) => void;
   onInterrupt: () => void;
   onToggleProcessStdout?: () => void;
@@ -132,6 +135,9 @@ export const PromptInput = React.memo(function PromptInput({
   promptDraft,
   onSubmit,
   onModelConfigChange,
+  onPermissionsChange,
+  currentPermissionMode,
+  hasProjectSettings,
   onInterrupt,
   onToggleProcessStdout,
   onRawModeChange,
@@ -156,6 +162,7 @@ export const PromptInput = React.memo(function PromptInput({
   const [showSkillsDropdown, setShowSkillsDropdown] = useState(false);
   const [openRawModelDropdown, setOpenRawModelDropdown] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [showPermissionsDropdown, setShowPermissionsDropdown] = useState(false);
   const [fileMentionItems, setFileMentionItems] = useState<FileMentionItem[]>(() => scanFileMentionItems(projectRoot));
   const [dismissedFileMentionKey, setDismissedFileMentionKey] = useState<string | null>(null);
 
@@ -176,18 +183,19 @@ export const PromptInput = React.memo(function PromptInput({
   const showFileMentionMenu =
     !showSkillsDropdown &&
     !showModelDropdown &&
+    !showPermissionsDropdown &&
     fileMentionToken !== null &&
     fileMentionKey !== dismissedFileMentionKey;
   const slashItems = React.useMemo(() => buildSlashCommands(skills), [skills]);
   const slashToken = getCurrentSlashToken(buffer);
   const slashMenu = React.useMemo(
     () =>
-      showSkillsDropdown || showModelDropdown || showFileMentionMenu
+      showSkillsDropdown || showModelDropdown || showPermissionsDropdown || showFileMentionMenu
         ? []
         : slashToken
           ? filterSlashCommands(slashItems, slashToken)
           : [],
-    [showSkillsDropdown, showModelDropdown, showFileMentionMenu, slashToken, slashItems]
+    [showSkillsDropdown, showModelDropdown, showPermissionsDropdown, showFileMentionMenu, slashToken, slashItems]
   );
   const showMenu = slashMenu.length > 0;
   const promptHistoryKey = React.useMemo(() => promptHistory.join("\0"), [promptHistory]);
@@ -347,7 +355,7 @@ export const PromptInput = React.memo(function PromptInput({
         setPendingExit(false);
       }
 
-      if (openRawModelDropdown || showSkillsDropdown || showModelDropdown) {
+      if (openRawModelDropdown || showSkillsDropdown || showModelDropdown || showPermissionsDropdown) {
         return;
       }
 
@@ -646,6 +654,12 @@ export const PromptInput = React.memo(function PromptInput({
       setShowModelDropdown(true);
       return;
     }
+    if (item.kind === "permissions") {
+      clearSlashToken();
+      setShowSkillsDropdown(false);
+      setShowPermissionsDropdown(true);
+      return;
+    }
     if (item.kind === "raw") {
       clearSlashToken();
       setOpenRawModelDropdown(true);
@@ -746,8 +760,21 @@ export const PromptInput = React.memo(function PromptInput({
   }
 
   const showFooterText = useMemo(
-    () => showMenu || showSkillsDropdown || openRawModelDropdown || showModelDropdown || showFileMentionMenu,
-    [showMenu, showSkillsDropdown, showModelDropdown, openRawModelDropdown, showFileMentionMenu]
+    () =>
+      showMenu ||
+      showSkillsDropdown ||
+      openRawModelDropdown ||
+      showModelDropdown ||
+      showPermissionsDropdown ||
+      showFileMentionMenu,
+    [
+      showMenu,
+      showSkillsDropdown,
+      showModelDropdown,
+      openRawModelDropdown,
+      showPermissionsDropdown,
+      showFileMentionMenu,
+    ]
   );
 
   const matchedCommand = slashToken ? findExactSlashCommand(slashItems, slashToken) : null;
@@ -803,6 +830,15 @@ export const PromptInput = React.memo(function PromptInput({
         onClose={() => setShowModelDropdown(false)}
         onModelConfigChange={onModelConfigChange}
         onStatusMessage={setStatusMessage}
+      />
+      <PermissionsDropdown
+        open={showPermissionsDropdown}
+        currentMode={currentPermissionMode}
+        width={screenWidth}
+        onClose={() => setShowPermissionsDropdown(false)}
+        onPermissionsChange={onPermissionsChange}
+        onStatusMessage={setStatusMessage}
+        hasProjectSettings={hasProjectSettings}
       />
       <FileMentionMenu
         open={showFileMentionMenu}
