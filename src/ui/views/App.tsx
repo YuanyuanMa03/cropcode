@@ -19,6 +19,7 @@ import {
   applyModelConfigSelection,
   type DeepcodingSettings,
   type ModelConfigSelection,
+  type PermissionDefaultMode,
   type PermissionScope,
   type ResolvedDeepcodingSettings,
   resolveSettingsSources,
@@ -626,6 +627,61 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     [projectRoot, sessionManager]
   );
 
+  const hasProjectSettings = useMemo(() => fs.existsSync(getProjectSettingsPath(projectRoot)), [projectRoot]);
+
+  const handlePermissionsChange = useCallback(
+    (mode: PermissionDefaultMode, saveTarget: "user" | "project"): string => {
+      const target = saveTarget === "project" ? readProjectSettings(projectRoot) : readSettings();
+      const currentMode = target?.permissions?.defaultMode ?? "allowAll";
+      if (currentMode === mode) {
+        return "Permission mode unchanged";
+      }
+      const updated: DeepcodingSettings = {
+        ...target,
+        permissions: {
+          ...target?.permissions,
+          defaultMode: mode,
+        },
+      };
+      if (saveTarget === "project") {
+        writeProjectSettings(updated, projectRoot);
+      } else {
+        writeSettings(updated);
+      }
+      const next = resolveCurrentSettings(projectRoot);
+      setResolvedSettings(next);
+
+      const activeSessionId = sessionManager.getActiveSessionId();
+      const content = `/permissions\n└ Set permission mode to ${mode} (${saveTarget}-level)`;
+      if (activeSessionId) {
+        sessionManager.addSessionSystemMessage(activeSessionId, content, true);
+      } else {
+        const now = new Date().toISOString();
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            sessionId: "local",
+            role: "system" as const,
+            content,
+            contentParams: null,
+            messageParams: null,
+            compacted: false,
+            visible: true,
+            createTime: now,
+            updateTime: now,
+          },
+        ]);
+      }
+      const effectiveMode = next.permissions.defaultMode;
+      if (effectiveMode !== mode) {
+        return `Saved ${mode} to ${saveTarget}-level, but effective mode is ${effectiveMode} (project-level overrides)`;
+      }
+      return `Permission mode: ${currentMode} → ${mode} (${saveTarget}-level)`;
+    },
+    [projectRoot, sessionManager]
+  );
+
   const handleSubmit = useCallback(
     (submission: PromptSubmission) => {
       void handlePrompt(submission);
@@ -1000,6 +1056,9 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           promptDraft={promptDraft}
           onSubmit={handleSubmit}
           onModelConfigChange={handleModelConfigChange}
+          onPermissionsChange={handlePermissionsChange}
+          currentPermissionMode={resolvedSettings.permissions.defaultMode}
+          hasProjectSettings={hasProjectSettings}
           onRawModeChange={handleRawModeChange}
           onInterrupt={handleInterrupt}
           onToggleProcessStdout={handleToggleProcessStdout}

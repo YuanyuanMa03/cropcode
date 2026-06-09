@@ -128,7 +128,7 @@ const deepcodingSettingsSchema = z
     env: z.record(z.string(), z.string().optional()).optional(),
     model: z.string().optional(),
     thinkingEnabled: z.boolean().optional(),
-    reasoningEffort: z.enum(["high", "max"]).optional(),
+    reasoningEffort: z.enum(["low", "medium", "high", "max"]).optional(),
     debugLogEnabled: z.boolean().optional(),
     notify: z.string().optional(),
     webSearchTool: z.string().optional(),
@@ -141,7 +141,7 @@ const deepcodingSettingsSchema = z
 export type SettingsProcessEnv = Record<string, string | undefined>;
 
 function resolveReasoningEffort(value: unknown): ReasoningEffort | undefined {
-  return value === "high" || value === "max" ? value : undefined;
+  return value === "low" || value === "medium" || value === "high" || value === "max" ? value : undefined;
 }
 
 function parseBoolean(value: unknown): boolean | undefined {
