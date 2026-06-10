@@ -10,7 +10,7 @@ const FIRST_PROVIDER = BUILTIN_PROVIDERS[0];
 const DEFAULT_MODEL = FIRST_PROVIDER?.models[0]?.id ?? "deepseek-v4-pro";
 const DEFAULT_BASE_URL = FIRST_PROVIDER?.baseURL ?? "https://api.deepseek.com";
 
-export type DeepcodingEnv = Record<string, string | undefined> & {
+export type CropcodeEnv = Record<string, string | undefined> & {
   MODEL?: string;
   BASE_URL?: string;
   API_KEY?: string;
@@ -30,8 +30,8 @@ export type McpServerConfig = {
 
 export type EnabledSkillsSettings = Record<string, boolean>;
 
-export type DeepcodingSettings = {
-  env?: DeepcodingEnv;
+export type CropcodeSettings = {
+  env?: CropcodeEnv;
   model?: string;
   temperature?: number;
   thinkingEnabled?: boolean;
@@ -45,7 +45,7 @@ export type DeepcodingSettings = {
   permissions?: PermissionSettings;
 };
 
-export type ResolvedDeepcodingSettings = {
+export type ResolvedCropcodeSettings = {
   env: Record<string, string>;
   apiKey?: string;
   baseURL: string;
@@ -127,7 +127,7 @@ const permissionSettingsSchema = z.object({
   defaultMode: z.enum(["allowAll", "askAll", "plan", "acceptEdits", "bypassPermissions"]).optional(),
 });
 
-const deepcodingSettingsSchema = z
+const cropcodeSettingsSchema = z
   .object({
     env: z.record(z.string(), z.string().optional()).optional(),
     model: z.string().optional(),
@@ -180,7 +180,7 @@ function trimString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function normalizeEnv(env: DeepcodingSettings["env"]): Record<string, string> {
+function normalizeEnv(env: CropcodeSettings["env"]): Record<string, string> {
   const result: Record<string, string> = {};
   if (!env) {
     return result;
@@ -223,8 +223,8 @@ function extractMcpEnv(env: Record<string, string>): Record<string, string> {
 }
 
 function mergeMcpServers(
-  userSettings: DeepcodingSettings | null | undefined,
-  projectSettings: DeepcodingSettings | null | undefined,
+  userSettings: CropcodeSettings | null | undefined,
+  projectSettings: CropcodeSettings | null | undefined,
   userEnv: Record<string, string>,
   projectEnv: Record<string, string>,
   systemEnv: Record<string, string>
@@ -273,8 +273,8 @@ function mergeMcpServers(
 }
 
 function mergeDisabledSkills(
-  userSettings: DeepcodingSettings | null | undefined,
-  projectSettings: DeepcodingSettings | null | undefined
+  userSettings: CropcodeSettings | null | undefined,
+  projectSettings: CropcodeSettings | null | undefined
 ): string[] | undefined {
   const userSkills = userSettings?.disabledSkills ?? [];
   const projectSkills = projectSettings?.disabledSkills ?? [];
@@ -297,8 +297,8 @@ function normalizeEnabledSkills(value: unknown): EnabledSkillsSettings {
 }
 
 function mergeEnabledSkills(
-  userSettings: DeepcodingSettings | null | undefined,
-  projectSettings: DeepcodingSettings | null | undefined
+  userSettings: CropcodeSettings | null | undefined,
+  projectSettings: CropcodeSettings | null | undefined
 ): EnabledSkillsSettings {
   return {
     ...normalizeEnabledSkills(userSettings?.enabledSkills),
@@ -348,8 +348,8 @@ export function mergePermissionLists(user: PermissionScope[], project: Permissio
 }
 
 export function mergePermissions(
-  userSettings: DeepcodingSettings | null | undefined,
-  projectSettings: DeepcodingSettings | null | undefined
+  userSettings: CropcodeSettings | null | undefined,
+  projectSettings: CropcodeSettings | null | undefined
 ): Required<PermissionSettings> {
   const user = normalizePermissions(userSettings?.permissions);
   const project = normalizePermissions(projectSettings?.permissions);
@@ -363,11 +363,11 @@ export function mergePermissions(
 }
 
 export function resolveSettingsSources(
-  userSettings: DeepcodingSettings | null | undefined,
-  projectSettings: DeepcodingSettings | null | undefined,
+  userSettings: CropcodeSettings | null | undefined,
+  projectSettings: CropcodeSettings | null | undefined,
   defaults: { model: string; baseURL: string },
   processEnv: SettingsProcessEnv = process.env
-): ResolvedDeepcodingSettings {
+): ResolvedCropcodeSettings {
   const userEnv = normalizeEnv(userSettings?.env);
   const projectEnv = normalizeEnv(projectSettings?.env);
   const systemEnv = collectCropcodeEnv(processEnv);
@@ -445,10 +445,10 @@ export function resolveSettingsSources(
 }
 
 export function resolveSettings(
-  settings: DeepcodingSettings | null | undefined,
+  settings: CropcodeSettings | null | undefined,
   defaults: { model: string; baseURL: string },
   processEnv: SettingsProcessEnv = process.env
-): ResolvedDeepcodingSettings {
+): ResolvedCropcodeSettings {
   return resolveSettingsSources(settings, null, defaults, processEnv);
 }
 
@@ -457,12 +457,12 @@ export function modelConfigKey(config: Pick<ModelConfigSelection, "thinkingEnabl
 }
 
 export function applyModelConfigSelection(
-  settings: DeepcodingSettings | null | undefined,
+  settings: CropcodeSettings | null | undefined,
   current: ModelConfigSelection,
   selected: ModelConfigSelection
-): { settings: DeepcodingSettings; changed: boolean } {
+): { settings: CropcodeSettings; changed: boolean } {
   const changed = selected.model !== current.model || modelConfigKey(selected) !== modelConfigKey(current);
-  const next: DeepcodingSettings = { ...(settings ?? {}) };
+  const next: CropcodeSettings = { ...(settings ?? {}) };
 
   if (!changed) {
     return { settings: next, changed: false };
@@ -494,42 +494,42 @@ export function getProjectSettingsPath(projectRoot: string): string {
   return path.join(projectRoot, ".cropcode", "settings.json");
 }
 
-export function readSettingsFile(settingsPath: string): DeepcodingSettings | null {
+export function readSettingsFile(settingsPath: string): CropcodeSettings | null {
   try {
     if (!fs.existsSync(settingsPath)) {
       return null;
     }
     const raw = fs.readFileSync(settingsPath, "utf8");
     const parsed = JSON.parse(raw);
-    const result = deepcodingSettingsSchema.safeParse(parsed);
+    const result = cropcodeSettingsSchema.safeParse(parsed);
     if (!result.success) {
       return null;
     }
-    return result.data as DeepcodingSettings;
+    return result.data as CropcodeSettings;
   } catch {
     return null;
   }
 }
 
-export function readSettings(): DeepcodingSettings | null {
+export function readSettings(): CropcodeSettings | null {
   return readSettingsFile(getUserSettingsPath());
 }
 
-export function readProjectSettings(projectRoot: string = process.cwd()): DeepcodingSettings | null {
+export function readProjectSettings(projectRoot: string = process.cwd()): CropcodeSettings | null {
   return readSettingsFile(getProjectSettingsPath(projectRoot));
 }
 
-function writeSettingsFile(settingsPath: string, settings: DeepcodingSettings): void {
+function writeSettingsFile(settingsPath: string, settings: CropcodeSettings): void {
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
 }
 
-export function writeSettings(settings: DeepcodingSettings): void {
+export function writeSettings(settings: CropcodeSettings): void {
   const settingsPath = getUserSettingsPath();
   writeSettingsFile(settingsPath, settings);
 }
 
-export function writeProjectSettings(settings: DeepcodingSettings, projectRoot: string = process.cwd()): void {
+export function writeProjectSettings(settings: CropcodeSettings, projectRoot: string = process.cwd()): void {
   const settingsPath = getProjectSettingsPath(projectRoot);
   writeSettingsFile(settingsPath, settings);
 }
@@ -538,7 +538,7 @@ export function writeModelConfigSelection(
   selection: ModelConfigSelection,
   current: ModelConfigSelection = resolveCurrentSettings(),
   projectRoot: string = process.cwd()
-): { changed: boolean; settings: DeepcodingSettings } {
+): { changed: boolean; settings: CropcodeSettings } {
   const projectSettingsPath = getProjectSettingsPath(projectRoot);
   const shouldWriteProjectSettings = fs.existsSync(projectSettingsPath);
   const rawSettings = shouldWriteProjectSettings ? readProjectSettings(projectRoot) : readSettings();
@@ -553,7 +553,7 @@ export function writeModelConfigSelection(
   return result;
 }
 
-export function resolveCurrentSettings(projectRoot: string = process.cwd()): ResolvedDeepcodingSettings {
+export function resolveCurrentSettings(projectRoot: string = process.cwd()): ResolvedCropcodeSettings {
   return resolveSettingsSources(
     readSettings(),
     readProjectSettings(projectRoot),

@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import type { DeepcodingSettings, PermissionScope, PermissionSettings } from "../settings";
+import type { CropcodeSettings, PermissionScope, PermissionSettings } from "../settings";
 import { isAbsoluteFilePath, normalizeFilePath } from "./state";
 
 export type BashPermissionScope = Exclude<PermissionScope, "mcp"> | "unknown";
@@ -472,12 +472,12 @@ export function appendProjectPermissionAllows(
     return;
   }
   const settingsPath = path.join(projectRoot, ".cropcode", "settings.json");
-  let settings: DeepcodingSettings = {};
+  let settings: CropcodeSettings = {};
   try {
     if (fs.existsSync(settingsPath)) {
       const parsed = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        settings = parsed as DeepcodingSettings;
+        settings = parsed as CropcodeSettings;
       }
     }
   } catch {

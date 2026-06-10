@@ -3,7 +3,7 @@ import { Box, Text } from "ink";
 import * as os from "node:os";
 import path from "node:path";
 import type { SkillInfo } from "../../session";
-import type { ResolvedDeepcodingSettings } from "../../settings";
+import type { ResolvedCropcodeSettings } from "../../settings";
 import { buildSlashCommands, formatSlashCommandDescription } from "../core/slash-commands";
 import { getActiveProviderLabel, getActiveModelLabel } from "../../common/providers";
 import { ThemedGradient, THEME_COLORS } from "./ThemedGradient";
@@ -12,7 +12,7 @@ import { useAppContext } from "../contexts";
 
 type WelcomeScreenProps = {
   projectRoot: string;
-  settings: ResolvedDeepcodingSettings;
+  settings: ResolvedCropcodeSettings;
   skills: SkillInfo[];
   width: number;
   totalTokens: number;

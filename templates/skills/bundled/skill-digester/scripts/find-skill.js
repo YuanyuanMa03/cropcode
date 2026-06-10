@@ -119,16 +119,16 @@ function main() {
     process.exit(2);
   }
 
-  const projectNativeRoot = path.join(projectRoot, ".deepcode", "skills");
-  const userNativeRoot = path.join(os.homedir(), ".deepcode", "skills");
+  const projectNativeRoot = path.join(projectRoot, ".cropcode", "skills");
+  const userNativeRoot = path.join(os.homedir(), ".cropcode", "skills");
   const roots = [
     {
       root: projectNativeRoot,
-      displayRoot: "./.deepcode/skills",
+      displayRoot: "./.cropcode/skills",
       scope: "project",
       kind: "native",
       digestRoot: projectNativeRoot,
-      digestDisplayRoot: "./.deepcode/skills",
+      digestDisplayRoot: "./.cropcode/skills",
     },
     {
       root: path.join(projectRoot, ".agents", "skills"),
@@ -136,15 +136,15 @@ function main() {
       scope: "project",
       kind: "interoperable",
       digestRoot: projectNativeRoot,
-      digestDisplayRoot: "./.deepcode/skills",
+      digestDisplayRoot: "./.cropcode/skills",
     },
     {
       root: userNativeRoot,
-      displayRoot: "~/.deepcode/skills",
+      displayRoot: "~/.cropcode/skills",
       scope: "user",
       kind: "native",
       digestRoot: userNativeRoot,
-      digestDisplayRoot: "~/.deepcode/skills",
+      digestDisplayRoot: "~/.cropcode/skills",
     },
     {
       root: path.join(os.homedir(), ".agents", "skills"),
@@ -152,7 +152,7 @@ function main() {
       scope: "user",
       kind: "interoperable",
       digestRoot: userNativeRoot,
-      digestDisplayRoot: "~/.deepcode/skills",
+      digestDisplayRoot: "~/.cropcode/skills",
     },
   ];
 
