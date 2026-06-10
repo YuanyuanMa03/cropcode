@@ -17,11 +17,11 @@ import {
 } from "../../session";
 import {
   applyModelConfigSelection,
-  type DeepcodingSettings,
+  type CropcodeSettings,
   type ModelConfigSelection,
   type PermissionDefaultMode,
   type PermissionScope,
-  type ResolvedDeepcodingSettings,
+  type ResolvedCropcodeSettings,
   resolveSettingsSources,
   readSettings,
   readProjectSettings,
@@ -702,7 +702,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       if (currentMode === mode) {
         return "Permission mode unchanged";
       }
-      const updated: DeepcodingSettings = {
+      const updated: CropcodeSettings = {
         ...target,
         permissions: {
           ...target?.permissions,
@@ -1153,7 +1153,7 @@ export function writeModelConfigSelection(
   selection: ModelConfigSelection,
   current: ModelConfigSelection = resolveCurrentSettings(),
   projectRoot: string = process.cwd()
-): { changed: boolean; settings: DeepcodingSettings } {
+): { changed: boolean; settings: CropcodeSettings } {
   const projectSettingsPath = getProjectSettingsPath(projectRoot);
   const shouldWriteProjectSettings = fs.existsSync(projectSettingsPath);
   const rawSettings = shouldWriteProjectSettings ? readProjectSettings(projectRoot) : readSettings();
@@ -1172,7 +1172,7 @@ export function writeModelConfigSelection(
   return result;
 }
 
-export function resolveCurrentSettings(projectRoot: string = process.cwd()): ResolvedDeepcodingSettings {
+export function resolveCurrentSettings(projectRoot: string = process.cwd()): ResolvedCropcodeSettings {
   const credApiKey = getActiveApiKey();
   const credBaseURL = getActiveBaseURL();
   const credModel = getActiveModel();
