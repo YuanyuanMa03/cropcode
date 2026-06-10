@@ -105,7 +105,6 @@ src/
 │   ├── provider-presets.ts    # 内置 Provider 预设
 │   ├── file-history.ts        # 文件历史快照 (checkpoint/restore)
 │   ├── state.ts               # 全局状态管理
-│   ├── telemetry.ts           # 遥测数据收集
 │   ├── shell-utils.ts         # Shell 工具函数
 │   ├── process-tree.ts        # 进程树管理
 │   ├── bash-timeout.ts        # Bash 命令超时控制
@@ -855,7 +854,6 @@ type DeepcodingSettings = {
   thinkingEnabled?: boolean
   reasoningEffort?: "high" | "max"
   debugLogEnabled?: boolean
-  telemetryEnabled?: boolean
   notify?: string
   webSearchTool?: string
   mcpServers?: Record<string, McpServerConfig>
