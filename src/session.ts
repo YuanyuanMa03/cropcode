@@ -8,6 +8,7 @@ import ejs from "ejs";
 import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
 import { launchNotifyScript } from "./common/notify";
 import { withRetry } from "./common/retry";
+import { OpenAIMessageConverter } from "./common/openai-message-converter";
 import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import {
   getCompactPromptTokenThreshold,
@@ -57,8 +58,6 @@ import { GitFileHistory, type FileHistoryCheckpointResult } from "./common/file-
 const MAX_SESSION_ENTRIES = 50;
 const MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_SESSION_RETENTION_DAYS = 30;
-const DEFAULT_NEW_PROMPT_API_URL = "https://cropcode.local/api/plugin/new";
-const NEW_PROMPT_REPORT_TIMEOUT_MS = 3000;
 const BACKGROUND_FAILURE_LOG_TAIL_CHARS = 4000;
 
 type ChatCompletionDebugOptions = {
@@ -315,6 +314,7 @@ export class SessionManager {
   private mcpToolDefinitions: ToolDefinition[] = [];
   private consecutiveCompactFailures = 0;
   private readonly liveProcessKeys = new Set<string>();
+  private readonly messageConverter: OpenAIMessageConverter;
 
   constructor(options: SessionManagerOptions) {
     this.projectRoot = options.projectRoot;
@@ -325,6 +325,9 @@ export class SessionManager {
     this.onLlmStreamProgress = options.onLlmStreamProgress;
     this.onMcpStatusChanged = options.onMcpStatusChanged;
     this.onProcessStdout = options.onProcessStdout;
+    this.messageConverter = new OpenAIMessageConverter({
+      renderInitPrompt: () => this.renderInitCommandPrompt(),
+    });
     this.toolExecutor = new ToolExecutor(
       this.projectRoot,
       this.createOpenAIClient,
@@ -968,7 +971,6 @@ export class SessionManager {
   }
 
   async createSession(userPrompt: UserPromptContent, controller?: AbortController): Promise<string> {
-    this.reportNewPrompt();
     const signal = controller?.signal;
     this.throwIfAborted(signal);
 
@@ -1128,8 +1130,6 @@ ${skillMd}
       await this.activateSession(sessionId, controller, userPrompt);
       return;
     }
-
-    this.reportNewPrompt();
 
     this.ensureFileHistorySession(sessionId);
     const checkpoint = this.recordUserPromptCheckpoint(sessionId);
@@ -1648,28 +1648,6 @@ ${skillMd}
       model: this.getResolvedSettings().model,
       webSearchEnabled: true,
     };
-  }
-
-  private reportNewPrompt(): void {
-    const { machineId } = this.createOpenAIClient();
-    if (!machineId) {
-      return;
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), NEW_PROMPT_REPORT_TIMEOUT_MS);
-
-    void fetch(DEFAULT_NEW_PROMPT_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Token: machineId,
-      },
-      body: JSON.stringify({}),
-      signal: controller.signal,
-    })
-      .catch(() => {})
-      .finally(() => clearTimeout(timeout));
   }
 
   interruptActiveSession(): void {
@@ -2360,6 +2338,27 @@ ${skillMd}
       onProcessStdout: (pid: string | number, chunk: string) => this.onProcessStdout?.(Number(pid), chunk),
       onProcessTimeoutControl: (pid: string | number, control: ProcessTimeoutControl | null) =>
         this.setSessionProcessTimeoutControl(sessionId, pid, control),
+      onBackgroundProcessComplete: (completion: {
+        taskId: string;
+        processId: number;
+        command: string;
+        outputPath: string;
+        ok: boolean;
+        exitCode: number | null;
+        signal: string | null;
+        error?: string;
+        cwd: string | null;
+        shellPath: string;
+        startedAtMs: number;
+        completedAtMs: number;
+      }) =>
+        this.addBackgroundProcessCompletionMessage(
+          sessionId,
+          completion.command,
+          completion.exitCode,
+          completion.completedAtMs - completion.startedAtMs,
+          completion.outputPath
+        ),
       onBeforeFileMutation: (filePath: string) => this.prepareFileMutationCheckpoint(sessionId, filePath),
       onAfterFileMutation: (filePath: string) => this.recordFileMutationCheckpoint(sessionId, filePath),
       shouldStop: () => this.isInterrupted(sessionId),
@@ -2418,42 +2417,7 @@ ${skillMd}
     thinkingEnabled: boolean,
     model: string
   ): ChatCompletionMessageParam[] {
-    const activeMessages = messages.filter((message) => !message.compacted);
-    const toolPairings = this.pairToolMessages(activeMessages);
-    const openAIMessages: ChatCompletionMessageParam[] = [];
-
-    for (let index = 0; index < activeMessages.length; index += 1) {
-      const message = activeMessages[index];
-      if (message.role === "tool") {
-        continue;
-      }
-
-      openAIMessages.push(this.sessionMessageToOpenAIMessage(message, thinkingEnabled, model));
-
-      const toolCalls = this.getAssistantToolCalls(message);
-      if (toolCalls.length === 0) {
-        continue;
-      }
-
-      for (let toolCallIndex = 0; toolCallIndex < toolCalls.length; toolCallIndex += 1) {
-        const toolCallId = this.getToolCallId(toolCalls[toolCallIndex]);
-        if (!toolCallId) {
-          continue;
-        }
-
-        const pairedToolIndex = toolPairings.get(this.buildToolPairingKey(index, toolCallIndex));
-        if (pairedToolIndex != null) {
-          openAIMessages.push(
-            this.sessionMessageToOpenAIMessage(activeMessages[pairedToolIndex], thinkingEnabled, model)
-          );
-          continue;
-        }
-
-        openAIMessages.push(this.buildInterruptedOpenAIToolMessage(toolCalls, toolCallId));
-      }
-    }
-
-    return openAIMessages;
+    return this.messageConverter.buildMessages(messages, thinkingEnabled, model);
   }
 
   private sessionMessageToOpenAIMessage(
@@ -3151,7 +3115,6 @@ ${skillMd}
     if (!hasUserContent) {
       return undefined;
     }
-    this.reportNewPrompt();
     const signal = controller.signal;
     const userMessage = this.buildUserMessage(sessionId, userPrompt);
     this.appendSessionMessage(sessionId, userMessage);

@@ -5,10 +5,10 @@ export type ValidationResult = { ok: true; input: Record<string, unknown> } | { 
 
 export function semanticBoolean(defaultValue = false) {
   return z.preprocess((value) => {
-    if (value === "true") {
+    if (value === "true" || value === "1" || value === "yes") {
       return true;
     }
-    if (value === "false") {
+    if (value === "false" || value === "0" || value === "no") {
       return false;
     }
     return value;
