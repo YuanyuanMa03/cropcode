@@ -355,7 +355,6 @@ PRs run CI across 3 OS × 3 Node versions (18 jobs) — all must pass.
 CropCode is built on and inspired by excellent open-source projects:
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — the gold standard for terminal AI agents
-- [DeepCode CLI](https://github.com/nicepkg/deepcode-cli) — excellent open-source terminal AI agent architecture that CropCode draws significant inspiration and implementation patterns from
 - [DeepSeek](https://platform.deepseek.com) · [Zhipu GLM](https://open.bigmodel.cn) · [Qwen](https://bailian.console.aliyun.com) · [MiMo](https://platform.xiaomimimo.com) — LLM providers
 - [Ink](https://github.com/vadimdemedes/ink) — React for terminal UIs
 - [OpenAI Node.js SDK](https://github.com/openai/openai-node) — LLM API client
@@ -702,7 +701,6 @@ PR 将在 3 操作系统 × 3 Node 版本（18 jobs）上运行 CI。
 CropCode 基于以下优秀开源项目构建：
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — 终端 AI 助手的标杆
-- [DeepCode CLI](https://github.com/nicepkg/deepcode-cli) — 优秀的开源终端 AI Agent 架构，CropCode 在架构设计和核心实现上深受其启发与借鉴
 - [DeepSeek](https://platform.deepseek.com) · [智谱 GLM](https://open.bigmodel.cn) · [通义千问](https://bailian.console.aliyun.com) · [小米 MiMo](https://platform.xiaomimimo.com) — 大模型服务
 - [Ink](https://github.com/vadimdemedes/ink) — React 终端渲染引擎
 - [OpenAI Node.js SDK](https://github.com/openai/openai-node) — LLM API 客户端

@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { renderMarkdown } from "./markdown";
+import { renderMarkdown, renderMarkdownSegments } from "./markdown";
 import {
   buildThinkingSummary,
   buildToolSummary,
@@ -12,6 +12,8 @@ import {
 import type { DiffPreviewLine, MessageViewProps } from "./types";
 import { RawMode, useRawModeContext } from "../../contexts";
 
+const PROMPT_ECHO_PREFIX_WIDTH = 2;
+
 export function MessageView({ message, collapsed, width = 80 }: MessageViewProps): React.ReactElement | null {
   const { mode } = useRawModeContext();
   if (!message.visible) {
@@ -21,17 +23,11 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
   if (message.role === "user") {
     const text = message.content || "(no content)";
     return (
-      <Box marginLeft={1} marginBottom={1} flexDirection="row" marginY={0} flexGrow={1} gap={1}>
-        <Box>
-          <Text color="#2d8a4e">{`>`}</Text>
-        </Box>
-        <Box flexGrow={1}>
-          <Text color="#2d8a4e">{text}</Text>
-          {Array.isArray(message.contentParams) && message.contentParams.length > 0 ? (
-            <Text color="#2d8a4e">{`  📎 ${message.contentParams.length} image attachment(s)`}</Text>
-          ) : null}
-        </Box>
-      </Box>
+      <PromptEchoLine
+        text={text}
+        width={width}
+        attachmentCount={Array.isArray(message.contentParams) ? message.contentParams.length : 0}
+      />
     );
   }
 
@@ -44,13 +40,13 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
       if (collapsed !== false) {
         return (
           <Box marginLeft={1} marginBottom={1} marginY={0}>
-            <StatusLine width={width} bulletColor="gray" name="Thinking" params={summary} />
+            <StatusLine width={width} bulletColor="gray" name="思考中" params={summary} />
           </Box>
         );
       }
       return (
         <Box marginLeft={1} flexDirection="column" marginBottom={1} marginY={0}>
-          <StatusLine width={width} bulletColor="gray" name="Thinking" params={content ? "" : summary} />
+          <StatusLine width={width} bulletColor="gray" name="思考中" params={content ? "" : summary} />
           <Box flexDirection="column" marginLeft={2}>
             {content ? <Text dimColor>{renderMarkdown(content)}</Text> : null}
           </Box>
@@ -66,8 +62,23 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
         <Box alignSelf="stretch">
           <Text color="#2d8a4e">✦</Text>
         </Box>
-        <Box flexGrow={1} width={contentWidth}>
-          {content ? <Text wrap="wrap">{renderMarkdown(content)}</Text> : null}
+        <Box flexGrow={1} width={contentWidth} flexDirection="column">
+          {content
+            ? renderMarkdownSegments(content, Math.max(20, contentWidth - 4)).map((seg, i) => {
+                if (seg.kind === "table") {
+                  return (
+                    <Box key={i} flexDirection="column">
+                      {seg.body.split("\n").map((line, lineIndex) => (
+                        <Text key={lineIndex} wrap="truncate-end">
+                          {line}
+                        </Text>
+                      ))}
+                    </Box>
+                  );
+                }
+                return <Text key={i}>{seg.body}</Text>;
+              })
+            : null}
         </Box>
       </Box>
     );
@@ -94,16 +105,7 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
   if (message.role === "system") {
     // Render model change messages in the same style as user commands.
     if (message.meta?.isModelChange) {
-      return (
-        <Box marginY={0} marginLeft={1} marginBottom={1} flexGrow={1} flexDirection="row" gap={1}>
-          <Box>
-            <Text color="#2d8a4e">{`>`}</Text>
-          </Box>
-          <Box flexGrow={1} flexDirection="column">
-            <Text color="#2d8a4e">{message.content}</Text>
-          </Box>
-        </Box>
-      );
+      return <PromptEchoLine text={message.content || ""} width={width} />;
     }
 
     if (message.meta?.skill) {
@@ -143,6 +145,35 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
   }
 
   return null;
+}
+
+export function getPromptEchoContentWidth(width: number): number {
+  return Math.max(1, width - PROMPT_ECHO_PREFIX_WIDTH);
+}
+
+function PromptEchoLine({
+  text,
+  width,
+  attachmentCount = 0,
+}: {
+  text: string;
+  width: number;
+  attachmentCount?: number;
+}): React.ReactElement {
+  const contentWidth = getPromptEchoContentWidth(width);
+  return (
+    <Box marginBottom={1} marginY={0} width={Math.max(1, width)} flexDirection="row">
+      <Box width={PROMPT_ECHO_PREFIX_WIDTH}>
+        <Text color="#2d8a4e">{"> "}</Text>
+      </Box>
+      <Box flexGrow={1} flexShrink={1} width={contentWidth}>
+        <Text color="#2d8a4e" wrap="hard">
+          {text}
+        </Text>
+        {attachmentCount > 0 ? <Text color="#2d8a4e">{`  📎 ${attachmentCount} image attachment(s)`}</Text> : null}
+      </Box>
+    </Box>
+  );
 }
 
 function StatusLine({

@@ -185,7 +185,7 @@ export class GitFileHistory {
 
     for (const [key, entry] of Object.entries(currentManifest.files)) {
       if (!targetManifest.files[key]) {
-        removeTrackedFile(entry.path);
+        this.restoreFirstKnownEntry(checkpointHash, key, entry.path);
       }
     }
 
@@ -199,6 +199,33 @@ export class GitFileHistory {
     }
 
     this.runGit(["update-ref", branchRef, checkpointHash]);
+  }
+
+  private restoreFirstKnownEntry(checkpointHash: string, key: string, fallbackPath: string): void {
+    const firstEntry = this.findFirstKnownEntry(checkpointHash, key);
+    const entry = firstEntry ?? { path: fallbackPath, blob: null, mode: "100644" as const };
+    if (!entry.blob) {
+      removeTrackedFile(entry.path);
+      return;
+    }
+
+    fs.mkdirSync(path.dirname(entry.path), { recursive: true });
+    fs.writeFileSync(entry.path, this.readBlob(entry.blob));
+  }
+
+  private findFirstKnownEntry(currentHash: string, key: string): FileHistoryEntry | undefined {
+    const commitHashes = this.runGit(["rev-list", "--reverse", currentHash])
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(isCommitHash);
+
+    for (const commitHash of commitHashes) {
+      const entry = this.readManifest(commitHash).files[key];
+      if (entry) {
+        return entry;
+      }
+    }
+    return undefined;
   }
 
   private getSessionBranchRef(sessionId: string): string | null {

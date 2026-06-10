@@ -19,6 +19,7 @@ import {
   MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES,
 } from "./common/model-capabilities";
 import {
+  buildSkillDocumentsPrompt,
   getCompactPrompt,
   getDefaultSkillPrompt,
   getRuntimeContext,
@@ -31,6 +32,7 @@ import {
   type CreateOpenAIClient,
   type ProcessTimeoutControl,
   type ProcessTimeoutInfo,
+  type ToolCallExecution,
 } from "./tools/executor";
 import { McpManager } from "./mcp/mcp-manager";
 import type { McpServerConfig, PermissionSettings, HooksSettings } from "./settings";
@@ -51,7 +53,16 @@ import {
   type MessageToolPermission,
 } from "./common/permissions";
 import type { PermissionScope } from "./settings";
-import { clearSessionState } from "./common/state";
+export type { PermissionScope } from "./settings";
+export type {
+  AskPermissionRequest,
+  AskPermissionScope,
+  BashPermissionScope,
+  MessageToolPermission,
+  PermissionDecision,
+  UserToolPermission,
+} from "./common/permissions";
+import { clearSessionState, getSnippet, rebuildSessionStateFromHistory } from "./common/state";
 import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { GitFileHistory, type FileHistoryCheckpointResult } from "./common/file-history";
 
@@ -59,6 +70,40 @@ const MAX_SESSION_ENTRIES = 50;
 const MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_SESSION_RETENTION_DAYS = 30;
 const BACKGROUND_FAILURE_LOG_TAIL_CHARS = 4000;
+const MAX_PROJECT_CODE_LENGTH = 64;
+const PROJECT_CODE_HASH_LENGTH = 16;
+
+export function getProjectCode(projectRoot: string): string {
+  const legacyCode = getLegacyProjectCode(projectRoot);
+  if (legacyCode.length <= MAX_PROJECT_CODE_LENGTH) {
+    return legacyCode;
+  }
+  const legacyDir = path.join(os.homedir(), ".cropcode", "projects", legacyCode);
+  if (fs.existsSync(legacyDir)) {
+    return legacyCode;
+  }
+  const normalizedRoot = path.resolve(projectRoot);
+  const hashInput = process.platform === "win32" ? normalizedRoot.toLowerCase() : normalizedRoot;
+  const hash = crypto.createHash("sha256").update(hashInput).digest("hex").slice(0, PROJECT_CODE_HASH_LENGTH);
+  const prefixLimit = MAX_PROJECT_CODE_LENGTH - PROJECT_CODE_HASH_LENGTH - 1;
+  const basename = path.basename(normalizedRoot);
+  const prefix =
+    sanitizeProjectCodePart(basename)
+      .slice(0, prefixLimit)
+      .replace(/[-.]+$/g, "") || "project";
+  return `${prefix}-${hash}`;
+}
+
+function getLegacyProjectCode(projectRoot: string): string {
+  return projectRoot.replace(/[\\/]/g, "-").replace(/:/g, "");
+}
+
+function sanitizeProjectCodePart(value: string): string {
+  return value
+    .replace(/[^A-Za-z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "");
+}
 
 type ChatCompletionDebugOptions = {
   enabled?: boolean;
@@ -267,7 +312,8 @@ type SessionManagerOptions = {
     webSearchTool?: string;
     mcpServers?: Record<string, McpServerConfig>;
     disabledSkills?: string[];
-    permissions?: PermissionSettings;
+    enabledSkills?: Record<string, boolean>;
+    permissions?: Required<PermissionSettings>;
     hooks?: HooksSettings;
   };
   renderMarkdown: (text: string) => string;
@@ -287,8 +333,6 @@ export type LlmStreamProgress = {
   phase: "start" | "update" | "end";
 };
 
-const PROTECTED_SKILL_NAMES = new Set(["agent-drift-guard", "plan-and-execute"]);
-
 export class SessionManager {
   private readonly projectRoot: string;
   private readonly createOpenAIClient: CreateOpenAIClient;
@@ -297,7 +341,8 @@ export class SessionManager {
     webSearchTool?: string;
     mcpServers?: Record<string, McpServerConfig>;
     disabledSkills?: string[];
-    permissions?: PermissionSettings;
+    enabledSkills?: Record<string, boolean>;
+    permissions?: Required<PermissionSettings>;
     hooks?: HooksSettings;
   };
   private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
@@ -375,7 +420,6 @@ export class SessionManager {
   }
 
   dispose(): void {
-    this.killLiveProcesses();
     const controller = this.activePromptController;
     if (controller && !controller.signal.aborted) {
       controller.abort();
@@ -386,6 +430,7 @@ export class SessionManager {
         sessionController.abort();
       }
     }
+    this.killLiveProcesses();
     this.sessionControllers.clear();
     this.processTimeoutControls.clear();
     this.mcpManager.disconnect();
@@ -706,40 +751,118 @@ export class SessionManager {
     logOpenAIChatCompletionDebug(entry);
   }
 
-  identifyMatchingSkillNames(skills: SkillInfo[], userPrompt: string): string[] {
-    const available = skills.filter((x) => !x.isLoaded && !x.disabled);
+  async identifyMatchingSkillNames(
+    skills: SkillInfo[],
+    userPrompt: string,
+    options?: { signal?: AbortSignal; sessionId?: string }
+  ): Promise<string[]> {
+    this.throwIfAborted(options?.signal);
+    const available = skills.filter((x) => !x.isLoaded);
     if (available.length === 0) {
       return [];
     }
 
-    const promptLower = userPrompt.toLowerCase();
-    const words = new Set(promptLower.split(/[\s,;.!?()[\]{}\-_/\\]+/).filter((w) => w.length > 2));
-    const matched: string[] = [];
+    let systemPrompt = `When users ask you to perform tasks, check if any of the available skills match the goal and situation. Skills provide specialized capabilities and domain knowledge.\n
+Response in JSON format:
+\`\`\`
+{
+  "skillNames": ["", ...]
+}
+\`\`\`\n
+If none of the available skills match, respond with an empty array, i.e. \`{"skillNames": []}\`.\n
+`;
 
-    for (const skill of available) {
-      const nameLower = skill.name.toLowerCase();
-      const descLower = skill.description.toLowerCase();
-      const nameWords = nameLower.split(/[\s\-_/]+/);
-      if (words.has(nameLower) || nameWords.some((nw) => words.has(nw))) {
-        matched.push(skill.name);
-        continue;
-      }
-      const descWords = descLower.split(/[\s,;.!?()[\]{}\-_/\\]+/).filter((w) => w.length > 3);
-      const overlap = descWords.filter((dw) => words.has(dw));
-      if (overlap.length >= 2) {
-        matched.push(skill.name);
-      }
+    const simpleSkills = available.map((x) => {
+      return { name: x.name, description: x.description };
+    });
+
+    const { client, model, baseURL, debugLogEnabled } = this.createOpenAIClient();
+    if (!client) {
+      return [];
     }
 
-    return matched;
+    const agentInstructions = this.loadAgentInstructions();
+    if (agentInstructions) {
+      systemPrompt += `Use the current agent instructions as additional context when deciding which skills match:\n
+<agent-instructions>
+${agentInstructions}
+</agent-instructions>\n
+`;
+    }
+    systemPrompt += "The candidate skills are as follows:\n\n";
+    systemPrompt += "```\n" + JSON.stringify(simpleSkills, null, 2) + "\n```";
+
+    try {
+      const response = await this.createChatCompletionStream(
+        client,
+        {
+          model,
+          temperature: 0.1,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          response_format: { type: "json_object" },
+        },
+        options?.signal ? { signal: options.signal } : undefined,
+        options?.sessionId,
+        {
+          enabled: debugLogEnabled,
+          location: "SessionManager.identifyMatchingSkillNames",
+          baseURL,
+          params: { purpose: "skill-matching", temperature: 0.1 },
+        }
+      );
+      this.throwIfAborted(options?.signal);
+
+      const rawContent = response.choices?.[0]?.message?.content;
+      const content = typeof rawContent === "string" ? rawContent : "";
+      if (!content) {
+        return [];
+      }
+
+      const parsed = JSON.parse(content);
+      if (parsed && Array.isArray(parsed.skillNames)) {
+        return parsed.skillNames;
+      }
+
+      return [];
+    } catch (error) {
+      if (this.isAbortLikeError(error) || options?.signal?.aborted) {
+        throw error;
+      }
+      return [];
+    }
+  }
+
+  private getSkillScanRoots(): Array<{ root: string; displayRoot: string }> {
+    const homeDir = os.homedir();
+    return [
+      { root: path.join(this.projectRoot, ".cropcode", "skills"), displayRoot: "./.cropcode/skills" },
+      { root: path.join(this.projectRoot, ".agents", "skills"), displayRoot: "./.agents/skills" },
+      { root: path.join(homeDir, ".cropcode", "skills"), displayRoot: "~/.cropcode/skills" },
+      { root: path.join(homeDir, ".agents", "skills"), displayRoot: "~/.agents/skills" },
+      { root: this.getBundledSkillsRoot(), displayRoot: "bundled:" },
+    ];
+  }
+
+  private getBundledSkillsRoot(): string {
+    const extensionRoot = getExtensionRoot();
+    const sourceRoot = path.join(extensionRoot, "templates", "skills", "bundled");
+    const distRoot = path.join(extensionRoot, "dist", "bundled");
+
+    // Source check keeps local development/tests on the checked-in templates.
+    if (fs.existsSync(path.join(extensionRoot, "src", "session.ts")) && fs.existsSync(sourceRoot)) {
+      return sourceRoot;
+    }
+    return fs.existsSync(distRoot) ? distRoot : sourceRoot;
   }
 
   async listSkills(sessionId?: string): Promise<SkillInfo[]> {
-    const homeDir = os.homedir();
-    const agentsRoot = path.join(homeDir, ".agents", "skills");
-    const legacyHomeSkillsRoot = path.join(homeDir, ".cropcode", "skills");
-    const legacyProjectSkillsRoot = path.join(this.projectRoot, ".cropcode", "skills");
-    const projectAgentsSkillsRoot = path.join(this.projectRoot, ".agents", "skills");
+    const skillRoots = this.getSkillScanRoots();
+    const settings = this.getResolvedSettings();
+    const enabledSkills = settings.enabledSkills ?? {};
+    const disabledNames = new Set(settings.disabledSkills ?? []);
     const skillsByName = new Map<string, SkillInfo>();
 
     const collectSkills = (root: string, displayRoot: string): SkillInfo[] => {
@@ -771,23 +894,26 @@ export class SessionManager {
         } catch {
           continue;
         }
-        results.push(this.readSkillInfo(skillPath, `${displayRoot}/${skillName}/SKILL.md`, skillName));
+        const displayPath =
+          displayRoot === "bundled:" ? `bundled:${skillName}/SKILL.md` : `${displayRoot}/${skillName}/SKILL.md`;
+        const skill = this.readSkillInfo(skillPath, displayPath, skillName);
+        if (enabledSkills[skill.name] === false) {
+          continue;
+        }
+        if (disabledNames.has(skill.name)) {
+          continue;
+        }
+        results.push(skill);
       }
       return results;
     };
 
-    // Priority: legacy < new path; user < project (later overrides earlier)
-    for (const skill of collectSkills(legacyHomeSkillsRoot, "~/.cropcode/skills")) {
-      skillsByName.set(skill.name, skill);
-    }
-    for (const skill of collectSkills(agentsRoot, "~/.agents/skills")) {
-      skillsByName.set(skill.name, skill);
-    }
-    for (const skill of collectSkills(legacyProjectSkillsRoot, "./.cropcode/skills")) {
-      skillsByName.set(skill.name, skill);
-    }
-    for (const skill of collectSkills(projectAgentsSkillsRoot, "./.agents/skills")) {
-      skillsByName.set(skill.name, skill);
+    for (const { root, displayRoot } of skillRoots) {
+      for (const skill of collectSkills(root, displayRoot)) {
+        if (!skillsByName.has(skill.name)) {
+          skillsByName.set(skill.name, skill);
+        }
+      }
     }
 
     if (sessionId) {
@@ -798,21 +924,20 @@ export class SessionManager {
         }
       }
     }
-
-    const settings = this.getResolvedSettings();
-    const disabledNames = new Set(settings.disabledSkills ?? []);
-    if (disabledNames.size > 0) {
-      for (const skill of skillsByName.values()) {
-        if (disabledNames.has(skill.name) && !PROTECTED_SKILL_NAMES.has(skill.name)) {
-          skill.disabled = true;
-        }
-      }
-    }
-
     return Array.from(skillsByName.values()).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   private resolveSkillPath(skillPath: string): string {
+    if (skillPath.startsWith("bundled:")) {
+      const relativePath = skillPath.slice("bundled:".length);
+      const root = this.getBundledSkillsRoot();
+      const resolvedPath = path.resolve(root, relativePath);
+      const resolvedRoot = path.resolve(root);
+      if (resolvedPath === resolvedRoot || !resolvedPath.startsWith(`${resolvedRoot}${path.sep}`)) {
+        return path.join(root, "__invalid_bundled_skill__");
+      }
+      return resolvedPath;
+    }
     if (skillPath.startsWith("~/")) {
       return path.join(os.homedir(), skillPath.slice(2));
     }
@@ -854,12 +979,23 @@ export class SessionManager {
     }
   }
 
+  private buildSkillPrompt(skill: SkillInfo): string {
+    const skillPath = this.resolveSkillPath(skill.path);
+    return buildSkillDocumentsPrompt([
+      {
+        name: skill.name,
+        content: fs.readFileSync(skillPath, "utf8"),
+        path: skillPath,
+        skillFilePath: skillPath,
+      },
+    ]);
+  }
+
   private formatSkillListing(skills: SkillInfo[]): string {
-    const enabled = skills.filter((s) => !s.disabled);
-    if (enabled.length === 0) {
+    if (skills.length === 0) {
       return "";
     }
-    const lines = enabled.map((skill) => `- /${skill.name}: ${skill.description || "(no description)"}`);
+    const lines = skills.map((skill) => `- /${skill.name}: ${skill.description || "(no description)"}`);
     return `# Available Skills\n\nThe following skills are available. When a user references "/<name>", they mean a skill. To invoke a skill, respond with the skill name prefixed by "/".\n\n${lines.join("\n")}`;
   }
 
@@ -1016,91 +1152,81 @@ export class SessionManager {
       });
     }
 
-    try {
-      const promptToolOptions = this.getPromptToolOptions();
-      const systemParts: string[] = [getSystemPrompt(this.projectRoot, promptToolOptions)];
+    const promptToolOptions = this.getPromptToolOptions();
+    const systemPrompt = getSystemPrompt(this.projectRoot, promptToolOptions);
+    const systemMessage = this.buildSystemMessage(sessionId, systemPrompt);
+    this.appendSessionMessage(sessionId, systemMessage);
 
-      const defaultSkillPrompt = getDefaultSkillPrompt();
-      if (defaultSkillPrompt) {
-        systemParts.push(defaultSkillPrompt);
-      }
-
-      systemParts.push(getRuntimeContext(this.projectRoot, promptToolOptions.model));
-
-      const agentInstructions = this.loadAgentInstructions();
-      if (agentInstructions) {
-        systemParts.push(agentInstructions);
-      }
-
-      const availableSkills = await this.listSkills();
-      const skillListing = this.formatSkillListing(availableSkills);
-      if (skillListing) {
-        systemParts.push(skillListing);
-      }
-
-      const mergedSystemMessage = this.buildSystemMessage(sessionId, systemParts.join("\n\n"));
-      this.appendSessionMessage(sessionId, mergedSystemMessage);
-
-      const userMessage = this.buildUserMessage(sessionId, userPrompt);
-      this.appendSessionMessage(sessionId, userMessage);
-
-      if (userPrompt.text) {
-        const skillNames = this.identifyMatchingSkillNames(availableSkills, userPrompt.text);
-        const skillSet = new Set(skillNames);
-        const matchedSkill = availableSkills.filter((skill) => skillSet.has(skill.name));
-        if (Array.isArray(userPrompt.skills)) {
-          userPrompt.skills.push(...matchedSkill);
-        } else if (matchedSkill.length > 0) {
-          userPrompt.skills = matchedSkill;
-        }
-      }
-      userPrompt.skills = await this.normalizeSkills(userPrompt.skills);
-      this.throwIfAborted(signal);
-
-      if (userPrompt.skills && userPrompt.skills.length > 0) {
-        for (const skill of userPrompt.skills) {
-          if (skill.isLoaded) {
-            continue;
-          }
-          if (skill.disabled) {
-            continue;
-          }
-          let skillMd: string;
-          try {
-            skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
-          } catch {
-            continue;
-          }
-          const skillPrompt = `Use the skill document below to assist the user:\n
-<${skill.name}-skill path="${this.resolveSkillPath(skill.path)}">
-${skillMd}
-</${skill.name}-skill>`;
-          const skillMessage = this.buildSkillMessage(sessionId, skillPrompt, skill);
-          this.appendSessionMessage(sessionId, skillMessage);
-          this.onAssistantMessage(skillMessage, true);
-        }
-      }
-
-      this.activeSessionId = sessionId;
-      await this.activateSession(sessionId, controller);
-      return sessionId;
-    } catch (error) {
-      const failNow = new Date().toISOString();
-      this.updateSessionEntry(sessionId, (entry) => ({
-        ...entry,
-        status: "failed",
-        failReason: error instanceof Error ? error.message : String(error),
-        updateTime: failNow,
-      }));
-      throw error;
+    const defaultSkillPrompt = getDefaultSkillPrompt();
+    if (defaultSkillPrompt) {
+      const defaultSkillMessage = this.buildSystemMessage(sessionId, defaultSkillPrompt);
+      this.appendSessionMessage(sessionId, defaultSkillMessage);
     }
+
+    const runtimeContextMessage = this.buildSystemMessage(
+      sessionId,
+      getRuntimeContext(this.projectRoot, promptToolOptions.model)
+    );
+    this.appendSessionMessage(sessionId, runtimeContextMessage);
+
+    const agentInstructions = this.loadAgentInstructions();
+    if (agentInstructions) {
+      const instructionsMessage = this.buildSystemMessage(sessionId, agentInstructions);
+      this.appendSessionMessage(sessionId, instructionsMessage);
+    }
+
+    const availableSkills = await this.listSkills();
+    const skillListing = this.formatSkillListing(availableSkills);
+    if (skillListing) {
+      const skillListingMessage = this.buildSystemMessage(sessionId, skillListing);
+      this.appendSessionMessage(sessionId, skillListingMessage);
+    }
+
+    this.recordUserPromptCheckpoint(sessionId);
+    const userMessage = this.buildUserMessage(sessionId, userPrompt);
+    this.appendSessionMessage(sessionId, userMessage);
+
+    if (userPrompt.text) {
+      const skillNames = await this.identifyMatchingSkillNames(availableSkills, userPrompt.text, { signal });
+      this.throwIfAborted(signal);
+      const skillSet = new Set(skillNames);
+      const matchedSkill = availableSkills.filter((skill) => skillSet.has(skill.name));
+      if (Array.isArray(userPrompt.skills)) {
+        userPrompt.skills.push(...matchedSkill);
+      } else if (matchedSkill.length > 0) {
+        userPrompt.skills = matchedSkill;
+      }
+    }
+    userPrompt.skills = await this.normalizeSkills(userPrompt.skills);
+    this.throwIfAborted(signal);
+
+    if (userPrompt.skills && userPrompt.skills.length > 0) {
+      for (const skill of userPrompt.skills) {
+        if (skill.isLoaded) {
+          continue;
+        }
+        let skillPrompt: string;
+        try {
+          skillPrompt = this.buildSkillPrompt(skill);
+        } catch {
+          continue;
+        }
+        const skillMessage = this.buildSkillMessage(sessionId, skillPrompt, skill);
+        this.appendSessionMessage(sessionId, skillMessage);
+        this.onAssistantMessage(skillMessage, true);
+      }
+    }
+
+    this.activeSessionId = sessionId;
+    await this.activateSession(sessionId, controller);
+    return sessionId;
   }
 
   async replySession(sessionId: string, userPrompt: UserPromptContent, controller?: AbortController): Promise<void> {
     const signal = controller?.signal;
     this.throwIfAborted(signal);
     appendProjectPermissionAllows(this.projectRoot, userPrompt.alwaysAllows, {
-      inheritedPermissions: this.getResolvedSettings().permissions as Required<PermissionSettings> | undefined,
+      inheritedPermissions: this.getResolvedSettings().permissions,
     });
     const now = new Date().toISOString();
     const updated = this.updateSessionEntry(sessionId, (entry) => ({
@@ -1142,7 +1268,7 @@ ${skillMd}
 
     if (userPrompt.text) {
       const skills = await this.listSkills(sessionId);
-      const skillNames = this.identifyMatchingSkillNames(skills, userPrompt.text);
+      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal, sessionId });
       this.throwIfAborted(signal);
       const skillSet = new Set(skillNames);
       const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
@@ -1160,37 +1286,19 @@ ${skillMd}
         if (skill.isLoaded) {
           continue;
         }
-        if (skill.disabled) {
-          continue;
-        }
-        let skillMd: string;
+        let skillPrompt: string;
         try {
-          skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
+          skillPrompt = this.buildSkillPrompt(skill);
         } catch {
           continue;
         }
-        const skillPrompt = `Use the skill document below to assist the user:\n
-<${skill.name}-skill path="${this.resolveSkillPath(skill.path)}">
-${skillMd}
-</${skill.name}-skill>`;
         const skillMessage = this.buildSkillMessage(sessionId, skillPrompt, skill);
         this.appendSessionMessage(sessionId, skillMessage);
         this.onAssistantMessage(skillMessage, true);
       }
     }
     this.activeSessionId = sessionId;
-    try {
-      await this.activateSession(sessionId, controller);
-    } catch (error) {
-      const failNow = new Date().toISOString();
-      this.updateSessionEntry(sessionId, (entry) => ({
-        ...entry,
-        status: "failed",
-        failReason: error instanceof Error ? error.message : String(error),
-        updateTime: failNow,
-      }));
-      throw error;
-    }
+    await this.activateSession(sessionId, controller);
   }
 
   private isContinuePrompt(userPrompt: UserPromptContent): boolean {
@@ -1208,9 +1316,10 @@ ${skillMd}
     permissionPrompt?: UserPromptContent
   ): Promise<void> {
     const startedAt = Date.now();
-    const { client, model, baseURL, thinkingEnabled, reasoningEffort, debugLogEnabled, notify, env } =
+    const { client, model, baseURL, temperature, thinkingEnabled, reasoningEffort, debugLogEnabled, notify, env } =
       this.createOpenAIClient();
     const now = new Date().toISOString();
+    rebuildSessionStateFromHistory(sessionId, this.listSessionMessages(sessionId));
 
     if (!client) {
       this.updateSessionEntry(sessionId, (entry) => ({
@@ -1265,13 +1374,16 @@ ${skillMd}
           return;
         }
 
-        const pendingToolCallMessage = this.getTrailingPendingToolCallMessage(this.listSessionMessages(sessionId));
+        const pendingToolCallMessage = this.messageConverter.getTrailingPendingToolCallMessage(
+          this.listSessionMessages(sessionId)
+        );
         if (pendingToolCallMessage.toolCalls.length > 0) {
           const toolAppendResult = await this.appendToolMessages(sessionId, pendingToolCallMessage.toolCalls, {
             permissionOverrides: permissionPrompt?.permissions,
             messagePermissions: pendingToolCallMessage.message?.meta?.permissions,
           });
-          permissionPrompt = await this.appendDeferredPermissionPrompt(sessionId, permissionPrompt, sessionController);
+          await this.appendDeferredPermissionPrompt(sessionId, permissionPrompt, sessionController);
+          permissionPrompt = undefined;
           if (this.isInterrupted(sessionId)) {
             return;
           }
@@ -1319,6 +1431,7 @@ ${skillMd}
               model,
               messages,
               tools: getTools(this.getPromptToolOptions(), this.mcpToolDefinitions),
+              ...(temperature !== undefined ? { temperature } : {}),
               max_tokens: getMaxOutputTokens(model),
               ...thinkingOptions,
             },
@@ -1328,7 +1441,7 @@ ${skillMd}
               enabled: debugLogEnabled,
               location: "SessionManager.activateSession",
               baseURL,
-              params: { iteration, thinkingEnabled, reasoningEffort },
+              params: { iteration, temperature, thinkingEnabled, reasoningEffort },
             }
           );
         } catch (apiError) {
@@ -1367,7 +1480,9 @@ ${skillMd}
               sessionId,
               projectRoot: this.projectRoot,
               toolCalls,
-              settings: this.getResolvedSettings().permissions as Required<PermissionSettings> | undefined,
+              settings: this.getResolvedSettings().permissions,
+              readPermissionExemptPaths: this.getSkillScanRoots().map((entry) => entry.root),
+              resolveSnippetPath: (id, snippetId) => getSnippet(id, snippetId)?.filePath,
             })
           : null;
         if (permissionPlan) {
@@ -1473,7 +1588,8 @@ ${skillMd}
 
   async compactSession(sessionId: string, signal?: AbortSignal): Promise<void> {
     this.throwIfAborted(signal);
-    const { client, model, baseURL, thinkingEnabled, reasoningEffort, debugLogEnabled } = this.createOpenAIClient();
+    const { client, model, baseURL, temperature, thinkingEnabled, reasoningEffort, debugLogEnabled } =
+      this.createOpenAIClient();
     if (!client) {
       return;
     }
@@ -1506,6 +1622,7 @@ ${skillMd}
       {
         model,
         messages: [{ role: "user", content: compactPrompt }],
+        ...(temperature !== undefined ? { temperature } : {}),
         max_tokens: 20_000,
         ...thinkingOptions,
       },
@@ -1515,7 +1632,7 @@ ${skillMd}
         enabled: debugLogEnabled,
         location: "SessionManager.compactSession",
         baseURL,
-        params: { thinkingEnabled, reasoningEffort },
+        params: { temperature, thinkingEnabled, reasoningEffort },
       }
     );
     this.throwIfAborted(signal);
@@ -1663,7 +1780,20 @@ ${skillMd}
   }
 
   interruptSession(sessionId: string): void {
-    this.killLiveProcesses();
+    const session = this.getSession(sessionId);
+    const processIds = this.getProcessIds(session?.processes ?? null);
+    const killedPids: number[] = [];
+    const failedPids: number[] = [];
+    for (const pid of processIds) {
+      const processControlKey = this.getProcessControlKey(sessionId, pid);
+      this.processTimeoutControls.delete(processControlKey);
+      this.liveProcessKeys.delete(processControlKey);
+      if (killProcessTree(pid, "SIGKILL")) {
+        killedPids.push(pid);
+        continue;
+      }
+      failedPids.push(pid);
+    }
 
     const controller = this.sessionControllers.get(sessionId);
     if (controller) {
@@ -1682,7 +1812,15 @@ ${skillMd}
     clearSessionState(sessionId);
     clearSessionWorkingDir(sessionId);
 
-    this.onAssistantMessage(this.buildUserMessage(sessionId, { text: "Interrupted." }), false);
+    const contentParts = ["Interrupted."];
+    if (killedPids.length > 0) {
+      contentParts.push(`Killed processes: ${killedPids.join(", ")}.`);
+    }
+    if (failedPids.length > 0) {
+      contentParts.push(`Failed to kill processes: ${failedPids.join(", ")}.`);
+    }
+
+    this.onAssistantMessage(this.buildUserMessage(sessionId, { text: contentParts.join(" ") }), false);
   }
 
   private isInterrupted(sessionId: string): boolean {
@@ -1921,29 +2059,12 @@ ${skillMd}
     };
   }
 
-  private getProjectCode(projectRoot: string): string {
-    const legacyCode = this.getLegacyProjectCode(projectRoot);
-    const legacyDir = path.join(os.homedir(), ".cropcode", "projects", legacyCode);
-    if (fs.existsSync(legacyDir)) {
-      return legacyCode;
-    }
-    return this.sanitizeProjectCodePart(crypto.createHash("sha256").update(projectRoot).digest("hex").slice(0, 16));
-  }
-
-  private getLegacyProjectCode(projectRoot: string): string {
-    return projectRoot.replace(/[/\\]/g, "-").replace(/:/g, "");
-  }
-
-  private sanitizeProjectCodePart(value: string): string {
-    return value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
-  }
-
   private getProjectStorage(): {
     projectCode: string;
     projectDir: string;
     sessionsIndexPath: string;
   } {
-    const projectCode = this.getProjectCode(this.projectRoot);
+    const projectCode = getProjectCode(this.projectRoot);
     const projectDir = path.join(os.homedir(), ".cropcode", "projects", projectCode);
     const sessionsIndexPath = path.join(projectDir, "sessions-index.json");
     return { projectCode, projectDir, sessionsIndexPath };
@@ -2366,20 +2487,17 @@ ${skillMd}
     const parsedToolCalls = toolCalls
       .map((toolCall) => parseToolCallForPermissions(toolCall))
       .filter((toolCall): toolCall is PermissionToolCall => Boolean(toolCall));
-    const toolExecutions = [];
-    const blockedResults = [];
-    const allowedToolCalls = [];
+    const toolExecutions: ToolCallExecution[] = [];
     for (const toolCall of parsedToolCalls) {
+      if (hooks.shouldStop?.()) {
+        break;
+      }
       const blockedResult = buildPermissionToolExecution(toolCall, options);
       if (blockedResult) {
-        blockedResults.push(blockedResult);
-      } else {
-        allowedToolCalls.push(toolCall);
+        toolExecutions.push(blockedResult);
+        continue;
       }
-    }
-    toolExecutions.push(...blockedResults);
-    if (allowedToolCalls.length > 0 && !hooks.shouldStop?.()) {
-      const executions = await this.toolExecutor.executeToolCalls(sessionId, allowedToolCalls, hooks);
+      const executions = await this.toolExecutor.executeToolCalls(sessionId, [toolCall], hooks);
       toolExecutions.push(...executions);
     }
     if (this.isInterrupted(sessionId)) {
@@ -2527,39 +2645,6 @@ ${skillMd}
     return pairings;
   }
 
-  private getTrailingPendingToolCallMessage(
-    messages: SessionMessage[]
-  ): { message: SessionMessage; toolCalls: unknown[] } | { message: null; toolCalls: [] } {
-    const activeMessages = messages.filter((message) => !message.compacted);
-    const latestMessage = activeMessages[activeMessages.length - 1];
-    if (!latestMessage || latestMessage.role !== "assistant") {
-      return { message: null, toolCalls: [] };
-    }
-
-    const toolCalls = this.getAssistantToolCalls(latestMessage);
-    if (toolCalls.length === 0) {
-      return { message: null, toolCalls: [] };
-    }
-    return {
-      message: latestMessage,
-      toolCalls: toolCalls.filter((toolCall) => Boolean(this.getToolCallId(toolCall))),
-    };
-  }
-
-  private getTrailingPendingToolCalls(messages: SessionMessage[]): unknown[] {
-    const activeMessages = messages.filter((message) => !message.compacted);
-    const latestMessage = activeMessages[activeMessages.length - 1];
-    if (!latestMessage || latestMessage.role !== "assistant") {
-      return [];
-    }
-
-    const toolCalls = this.getAssistantToolCalls(latestMessage);
-    if (toolCalls.length === 0) {
-      return [];
-    }
-    return toolCalls.filter((toolCall) => Boolean(this.getToolCallId(toolCall)));
-  }
-
   private findPairableToolMessageIndex(
     messages: SessionMessage[],
     assistantIndex: number,
@@ -2692,6 +2777,12 @@ ${skillMd}
       return typeof args.explanation === "string" ? args.explanation.trim() : "";
     } else if (toolName === "write") {
       return typeof args.file_path === "string" ? args.file_path.trim() : "";
+    } else if (toolName === "edit") {
+      const filePath = typeof args.file_path === "string" ? args.file_path.trim() : "";
+      if (filePath) {
+        return filePath;
+      }
+      return typeof args.snippet_id === "string" ? args.snippet_id.trim() : "";
     }
 
     const firstKey = Object.keys(args)[0];
@@ -3096,14 +3187,16 @@ ${skillMd}
   }
 
   private hasTrailingPendingToolCalls(sessionId: string): boolean {
-    return this.getTrailingPendingToolCallMessage(this.listSessionMessages(sessionId)).toolCalls.length > 0;
+    return (
+      this.messageConverter.getTrailingPendingToolCallMessage(this.listSessionMessages(sessionId)).toolCalls.length > 0
+    );
   }
 
   private async appendDeferredPermissionPrompt(
     sessionId: string,
     userPrompt: UserPromptContent | undefined,
     controller: AbortController
-  ): Promise<UserPromptContent | undefined> {
+  ): Promise<void> {
     if (!userPrompt || this.isContinuePrompt(userPrompt)) {
       return undefined;
     }
@@ -3120,7 +3213,7 @@ ${skillMd}
     this.appendSessionMessage(sessionId, userMessage);
     if (userPrompt.text) {
       const skills = await this.listSkills(sessionId);
-      const skillNames = this.identifyMatchingSkillNames(skills, userPrompt.text);
+      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal, sessionId });
       this.throwIfAborted(signal);
       const skillSet = new Set(skillNames);
       const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
@@ -3137,19 +3230,17 @@ ${skillMd}
         if (skill.isLoaded) {
           continue;
         }
-        let skillMd: string;
+        let skillPrompt: string;
         try {
-          skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
+          skillPrompt = this.buildSkillPrompt(skill);
         } catch {
           continue;
         }
-        const skillPrompt = `Use the skill document below to assist the user:\n\n<${skill.name}-skill path="${this.resolveSkillPath(skill.path)}">\n${skillMd}\n</${skill.name}-skill>`;
         const skillMessage = this.buildSkillMessage(sessionId, skillPrompt, skill);
         this.appendSessionMessage(sessionId, skillMessage);
         this.onAssistantMessage(skillMessage, true);
       }
     }
-    return undefined;
   }
 
   private cloneUserPromptForMeta(prompt: UserPromptContent): UserPromptContent {

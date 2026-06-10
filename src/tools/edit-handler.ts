@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import { z } from "zod";
+import { buildThinkingRequestOptions } from "../common/openai-thinking";
 import type { ToolExecutionContext, ToolExecutionResult } from "./executor";
 import {
   buildDiffPreview,
@@ -44,6 +45,16 @@ type MatchOccurrence = {
   endOffset: number;
   startLine: number;
   endLine: number;
+};
+
+type LooseEscapeMatch = MatchOccurrence & {
+  text: string;
+  score: number;
+};
+
+type CorrectedEditStrings = {
+  oldString: string;
+  newString: string;
 };
 
 const editSchema = z.strictObject({
@@ -192,7 +203,7 @@ export async function handleEditTool(
         const lineIndex = buildLineIndex(raw);
         const scope = buildSearchScope(filePath, raw, lineIndex, snippet ?? null);
         let matches = findOccurrences(raw, oldString, scope);
-        let matchedVia: "exact" | "line_leading_tab_correction" = "exact";
+        let matchedVia: "exact" | "line_leading_tab_correction" | "loose_escape" | "llm_escape_correction" = "exact";
         let replacementOldString = oldString;
         let replacementNewString = newString;
 
@@ -210,6 +221,34 @@ export async function handleEditTool(
         }
 
         if (matches.length === 0) {
+          const looseEscapeMatches = findLooseEscapeMatches(raw, oldString, scope);
+          if (looseEscapeMatches.length === 1 && looseEscapeMatches[0]?.score === 1) {
+            const correctedStrings = await correctEscapedStringsWithLLM(
+              raw.slice(scope.startOffset, scope.endOffset),
+              oldString,
+              newString,
+              looseEscapeMatches[0].text,
+              context
+            );
+
+            if (correctedStrings) {
+              const correctedMatches = findOccurrences(raw, correctedStrings.oldString, scope);
+              if (correctedMatches.length > 0) {
+                matches = correctedMatches;
+                matchedVia = "llm_escape_correction";
+                replacementOldString = correctedStrings.oldString;
+                replacementNewString = correctedStrings.newString;
+              }
+            }
+
+            if (matches.length === 0) {
+              matches = [looseEscapeMatches[0]];
+              matchedVia = "loose_escape";
+            }
+          }
+        }
+
+        if (matches.length === 0) {
           if (snippet && hasSnippetOutdatedFileVersion(context.sessionId, snippet)) {
             return {
               ok: false,
@@ -221,10 +260,18 @@ export async function handleEditTool(
             };
           }
 
+          const notFoundReason = await inferOldStringNotFoundReasonWithLLM(
+            raw,
+            lineIndex,
+            scope,
+            oldString,
+            newString,
+            context
+          );
           return {
             ok: false,
             name: "edit",
-            error: "old_string not found in file.",
+            error: notFoundReason ? `old_string not found in file. ${notFoundReason}` : "old_string not found in file.",
             metadata: {
               scope: formatScopeMetadata(scope),
             },
@@ -264,7 +311,7 @@ export async function handleEditTool(
           };
         }
 
-        const updated = applyReplacement(raw, replacementNewString, matches, replaceAll);
+        const updated = applyReplacement(raw, replacementOldString, replacementNewString, matches, replaceAll);
         const diffPreview = buildDiffPreview(filePath, raw, updated);
         context.onBeforeFileMutation?.(filePath);
         writeTextFile(filePath, updated, metadata.encoding, metadata.lineEndings);
@@ -449,7 +496,13 @@ function validateReplaceAllGuard(input: {
   return null;
 }
 
-function applyReplacement(raw: string, newString: string, matches: MatchOccurrence[], replaceAll: boolean): string {
+function applyReplacement(
+  raw: string,
+  oldString: string,
+  newString: string,
+  matches: MatchOccurrence[],
+  replaceAll: boolean
+): string {
   if (!replaceAll) {
     return raw.slice(0, matches[0].startOffset) + newString + raw.slice(matches[0].endOffset);
   }
@@ -504,4 +557,307 @@ function buildPreview(raw: string, startLine: number, endLine: number): string {
 
 function formatWithLineNumbers(lines: string[], startLine: number): string {
   return lines.map((line, index) => `${String(startLine + index).padStart(6, " ")}\t${line}`).join("\n");
+}
+
+function findLooseEscapeMatches(raw: string, needle: string, scope: SearchScope): LooseEscapeMatch[] {
+  if (!raw || !needle) {
+    return [];
+  }
+
+  const scopeText = raw.slice(scope.startOffset, scope.endOffset);
+  const looseEscapeRegex = buildLooseEscapeRegex(needle);
+  if (!looseEscapeRegex) {
+    return [];
+  }
+
+  const normalizedNeedle = normalizeLooseText(needle);
+  const matches: LooseEscapeMatch[] = [];
+  for (const match of scopeText.matchAll(looseEscapeRegex)) {
+    if (typeof match.index !== "number") {
+      continue;
+    }
+
+    const text = match[0];
+    const startOffset = scope.startOffset + match.index;
+    const endOffset = startOffset + text.length;
+    matches.push({
+      text,
+      score: similarityScore(normalizedNeedle, normalizeLooseText(text)),
+      startOffset,
+      endOffset,
+      startLine: offsetToLine(raw, startOffset),
+      endLine: offsetToLine(raw, Math.max(startOffset, endOffset - 1)),
+    });
+  }
+
+  return matches;
+}
+
+function buildLooseEscapeRegex(source: string): RegExp | null {
+  if (!source) {
+    return null;
+  }
+
+  let pattern = "";
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === "\\") {
+      let slashEnd = index;
+      while (slashEnd < source.length && source[slashEnd] === "\\") {
+        slashEnd += 1;
+      }
+
+      if (slashEnd < source.length) {
+        pattern += "\\\\*";
+        pattern += escapeRegExp(source[slashEnd]);
+        index = slashEnd;
+        continue;
+      }
+
+      pattern += escapeRegExp(source.slice(index, slashEnd));
+      index = slashEnd - 1;
+      continue;
+    }
+
+    pattern += escapeRegExp(source[index]);
+  }
+
+  return new RegExp(pattern, "g");
+}
+
+async function inferOldStringNotFoundReasonWithLLM(
+  raw: string,
+  lineIndex: LineIndex,
+  scope: SearchScope,
+  oldString: string,
+  newString: string,
+  context: ToolExecutionContext
+): Promise<string | null> {
+  const clientFactory = context.createOpenAIClient;
+  if (!clientFactory) {
+    return null;
+  }
+
+  const { client, model, baseURL, thinkingEnabled, reasoningEffort } = clientFactory();
+  if (!client) {
+    return null;
+  }
+
+  const contextLineLimit = Math.max(1, oldString.split(/\r?\n/).length);
+  const snippetText = raw.slice(scope.startOffset, scope.endOffset);
+  const contentBeforeSnippet = getLinesBeforeScope(lineIndex, scope, contextLineLimit);
+  const contentAfterSnippet = getLinesAfterScope(lineIndex, scope, contextLineLimit);
+
+  try {
+    const response = await client.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You diagnose failed file edits when old_string was not found. " +
+            "Return XML only using <response><reason>...</reason></response>. " +
+            "Be concise and specific. Explain the likely mismatch between old_string and the <snippet_text/> content. " +
+            "Do not suggest unrelated changes.",
+        },
+        {
+          role: "user",
+          content:
+            "<request>\n" +
+            `  <content_before_snippet><![CDATA[${contentBeforeSnippet}]]></content_before_snippet>\n` +
+            `  <snippet_text><![CDATA[${snippetText}]]></snippet_text>\n` +
+            `  <content_after_snippet><![CDATA[${contentAfterSnippet}]]></content_after_snippet>\n` +
+            `  <old_string><![CDATA[${oldString}]]></old_string>\n` +
+            `  <new_string><![CDATA[${newString}]]></new_string>\n` +
+            "</request>\n" +
+            "<output_format>\n" +
+            "  <response>\n" +
+            "    <reason><![CDATA[...]]></reason>\n" +
+            "  </response>\n" +
+            "</output_format>",
+        },
+      ],
+      ...buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort),
+    });
+
+    return parseOldStringNotFoundReason(response.choices?.[0]?.message?.content ?? "");
+  } catch {
+    return null;
+  }
+}
+
+function getLinesBeforeScope(lineIndex: LineIndex, scope: SearchScope, lineLimit: number): string {
+  const startIndex = Math.max(0, scope.startLine - 1 - lineLimit);
+  const endIndex = Math.max(0, scope.startLine - 1);
+  return lineIndex.lines.slice(startIndex, endIndex).join("\n");
+}
+
+function getLinesAfterScope(lineIndex: LineIndex, scope: SearchScope, lineLimit: number): string {
+  const startIndex = Math.min(lineIndex.lines.length, scope.endLine);
+  const endIndex = Math.min(lineIndex.lines.length, startIndex + lineLimit);
+  return lineIndex.lines.slice(startIndex, endIndex).join("\n");
+}
+
+function parseOldStringNotFoundReason(content: string): string | null {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = trimmed.replace(/```(?:xml)?\s*([\s\S]*?)```/i, "$1").trim();
+  const reasonMatch = normalized.match(/<reason>(?:<!\[CDATA\[([\s\S]*?)\]\]>|([\s\S]*?))<\/reason>/i);
+  const reason = (reasonMatch?.[1] ?? reasonMatch?.[2])?.trim();
+  return reason || null;
+}
+
+async function correctEscapedStringsWithLLM(
+  snippetText: string,
+  oldString: string,
+  newString: string,
+  matchedText: string,
+  context: ToolExecutionContext
+): Promise<CorrectedEditStrings | null> {
+  const clientFactory = context.createOpenAIClient;
+  if (!clientFactory) {
+    return null;
+  }
+
+  const { client, model, baseURL, thinkingEnabled, reasoningEffort } = clientFactory();
+  if (!client) {
+    return null;
+  }
+
+  try {
+    const response = await client.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You correct file-edit strings when the only problem is escaping. " +
+            "Return XML only using <response><corrected_old_string>...</corrected_old_string><corrected_new_string>...</corrected_new_string></response>. " +
+            "Do not change semantics; only fix quoting or escaping so corrected_old_string matches the snippet exactly.",
+        },
+        {
+          role: "user",
+          content:
+            "<request>\n" +
+            `  <snippet_text><![CDATA[${snippetText}]]></snippet_text>\n` +
+            `  <old_string><![CDATA[${oldString}]]></old_string>\n` +
+            `  <new_string><![CDATA[${newString}]]></new_string>\n` +
+            `  <matched_text><![CDATA[${matchedText}]]></matched_text>\n` +
+            "</request>\n" +
+            "<output_format>\n" +
+            "  <response>\n" +
+            "    <corrected_old_string><![CDATA[...]]></corrected_old_string>\n" +
+            "    <corrected_new_string><![CDATA[...]]></corrected_new_string>\n" +
+            "  </response>\n" +
+            "</output_format>",
+        },
+      ],
+      ...buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort),
+    });
+
+    const content = response.choices?.[0]?.message?.content ?? "";
+    const parsed = parseCorrectedEditStrings(content);
+    if (!parsed) {
+      return null;
+    }
+
+    const normalizedOld = normalizeLooseText(oldString);
+    const normalizedNew = normalizeLooseText(newString);
+    if (normalizeLooseText(parsed.oldString) !== normalizedOld) {
+      return null;
+    }
+    if (normalizeLooseText(parsed.newString) !== normalizedNew) {
+      return null;
+    }
+    if (parsed.oldString === parsed.newString) {
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function parseCorrectedEditStrings(content: string): CorrectedEditStrings | null {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = trimmed.replace(/```(?:xml)?\s*([\s\S]*?)```/i, "$1").trim();
+  const oldMatch = normalized.match(
+    /<corrected_old_string>(?:<!\[CDATA\[([\s\S]*?)\]\]>|([\s\S]*?))<\/corrected_old_string>/i
+  );
+  const newMatch = normalized.match(
+    /<corrected_new_string>(?:<!\[CDATA\[([\s\S]*?)\]\]>|([\s\S]*?))<\/corrected_new_string>/i
+  );
+
+  const correctedOldString = oldMatch?.[1] ?? oldMatch?.[2];
+  const correctedNewString = newMatch?.[1] ?? newMatch?.[2];
+  if (typeof correctedOldString === "string" && typeof correctedNewString === "string") {
+    return {
+      oldString: correctedOldString,
+      newString: correctedNewString,
+    };
+  }
+
+  return null;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeLooseText(value: string): string {
+  return value
+    .replace(/\r\n?/g, "\n")
+    .replace(/\\+(?=["'`\\])/g, "")
+    .replace(/[ \t]+/g, " ")
+    .trim();
+}
+
+function similarityScore(left: string, right: string): number {
+  if (left === right) {
+    return 1;
+  }
+  if (!left || !right) {
+    return 0;
+  }
+
+  const leftBigrams = toBigrams(left);
+  const rightBigrams = toBigrams(right);
+  if (leftBigrams.length === 0 || rightBigrams.length === 0) {
+    return left === right ? 1 : 0;
+  }
+
+  const rightCounts = new Map<string, number>();
+  for (const bigram of rightBigrams) {
+    rightCounts.set(bigram, (rightCounts.get(bigram) ?? 0) + 1);
+  }
+
+  let overlap = 0;
+  for (const bigram of leftBigrams) {
+    const count = rightCounts.get(bigram) ?? 0;
+    if (count > 0) {
+      overlap += 1;
+      rightCounts.set(bigram, count - 1);
+    }
+  }
+
+  return (2 * overlap) / (leftBigrams.length + rightBigrams.length);
+}
+
+function toBigrams(value: string): string[] {
+  if (value.length < 2) {
+    return [value];
+  }
+
+  const result: string[] = [];
+  for (let index = 0; index < value.length - 1; index += 1) {
+    result.push(value.slice(index, index + 2));
+  }
+  return result;
 }

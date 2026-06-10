@@ -22,23 +22,26 @@ const TITLE_PANEL_WIDTH = 70;
 const PANEL_CONTENT_HEIGHT = 10;
 
 const AGRICULTURAL_TIPS = [
-  { label: "📊 Data Analysis", description: "Paste CSV data and ask CropCode to clean, analyze and visualize" },
-  { label: "🔬 Code Review", description: "Ask CropCode to review your code for bugs and improvements" },
-  { label: "🧪 Testing", description: "Generate unit tests for your functions with edge cases" },
-  { label: "📄 Documentation", description: "Generate README, API docs, and inline comments" },
-  { label: "🔧 Debugging", description: "Paste an error message and get step-by-step fix guidance" },
-  { label: "📈 Visualization", description: "Create plots and charts from your data with matplotlib/ggplot" },
-  { label: "🐍 Scripting", description: "Automate repetitive tasks with Python or Shell scripts" },
-  { label: "📐 Refactoring", description: "Improve code structure while preserving behavior" },
+  {
+    label: "📊 田间数据分析",
+    description: "粘贴 CSV/Excel 数据，让 CropCode 清洗、统计分析并可视化产量、土壤、气象数据",
+  },
+  { label: "🔬 作物模型开发", description: "辅助编写 DSSAT、APSIM、WOFOST 等作物生长模型代码与参数调优" },
+  { label: "🛰️ 遥感影像处理", description: "编写 NDVI、LAI 等植被指数计算脚本，处理 Sentinel/Landsat 数据" },
+  { label: "🧪 试验设计", description: "生成随机区组、裂区、拉丁方等田间试验设计代码与统计分析脚本" },
+  { label: "📈 数据可视化", description: "用 matplotlib/ggplot2 绘制生长曲线、热力图、箱线图等科研图表" },
+  { label: "🐍 自动化脚本", description: "自动化数据采集、批处理、定时任务等重复性科研工作" },
+  { label: "📄 论文图表", description: "生成符合期刊要求的高清图表、表格和统计报告" },
+  { label: "🧬 基因组分析", description: "辅助编写 GWAS、QTL 定位、群体遗传学分析流程代码" },
 ];
 
 const KEYBOARD_SHORTCUT_TIPS = [
-  { label: "Enter", description: "Send the prompt" },
-  { label: "Shift+Enter", description: "Insert a newline" },
-  { label: "Ctrl+V", description: "Paste an image from clipboard" },
-  { label: "Esc", description: "Interrupt the current model turn" },
-  { label: "/", description: "Open the skills/commands menu" },
-  { label: "Ctrl+D", description: "Exit CropCode" },
+  { label: "Enter", description: "发送消息" },
+  { label: "Shift+Enter", description: "换行" },
+  { label: "Ctrl+V", description: "粘贴剪贴板图片" },
+  { label: "Esc", description: "中断当前生成" },
+  { label: "/", description: "打开技能/命令菜单" },
+  { label: "Ctrl+D", description: "退出 CropCode" },
 ];
 
 export function WelcomeScreen({
@@ -83,14 +86,17 @@ export function WelcomeScreen({
               <Text color="gray"> (v{version || "unknown"})</Text>
               <Text color={THEME_COLORS.gold}> 🌾 AI Coding Agent</Text>
             </Box>
-            {!compact ? <Text color="gray"> 为农业研究者打造，但能力远不止于此 ⚡</Text> : null}
+            {!compact ? <Text color="gray"> 面向农业科研，助力田间试验、作物模型与数据分析 ⚡</Text> : null}
             {!compact ? <Text> </Text> : null}
-            <SettingRow label="Provider" value={getActiveProviderLabel()} />
-            <SettingRow label="Model" value={getActiveModelLabel() || settings.model} />
-            <SettingRow label="Thinking" value={settings.thinkingEnabled ? `${settings.reasoningEffort}` : "off"} />
-            <SettingRow label="Skills" value={`${skills.filter((s) => s.isLoaded).length} loaded`} />
-            {totalTokens > 0 ? <SettingRow label="Total Tokens" value={formatTokenCount(totalTokens)} /> : null}
-            <SettingRow label="CWD" value={cwd} />
+            <SettingRow label="服务商" value={getActiveProviderLabel()} />
+            <SettingRow label="模型" value={getActiveModelLabel() || settings.model} />
+            <SettingRow
+              label="思考"
+              value={settings.thinkingEnabled ? `深度思考 · ${settings.reasoningEffort}` : "关闭"}
+            />
+            <SettingRow label="技能" value={`${skills.filter((s) => s.isLoaded).length} 已加载`} />
+            {totalTokens > 0 ? <SettingRow label="Tokens" value={formatTokenCount(totalTokens)} /> : null}
+            <SettingRow label="目录" value={cwd} />
           </Box>
         </Box>
       </Box>

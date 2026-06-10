@@ -6,7 +6,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { GitFileHistory } from "../common/file-history";
-import { SessionManager, type SessionMessage } from "../session";
+import { SessionManager, getProjectCode, type SessionMessage } from "../session";
 
 const originalFetch = globalThis.fetch;
 const originalConsoleWarn = console.warn;
@@ -660,10 +660,10 @@ test("createSession stores /init and sends the active .cropcode project AGENTS p
     .map((message) => message.content ?? "");
 
   assert.equal(userMessage?.content, "/init");
-  assert.match(openAIUserMessage?.content ?? "", /CropCode Project Instructions/);
-  const mergedSystem = systemContents.join("\n");
-  assert.match(mergedSystem, /cropcode project instructions/);
-  assert.doesNotMatch(mergedSystem, /root project instructions/);
+  assert.match(openAIUserMessage?.content ?? "", /Update \.\/\.cropcode\/AGENTS\.md/);
+  assert.doesNotMatch(openAIUserMessage?.content ?? "", /Update \.\/AGENTS\.md/);
+  assert.ok(systemContents.includes("cropcode project instructions"));
+  assert.ok(!systemContents.includes("root project instructions"));
 });
 
 test("createSession appends default system prompts in prefix-cache-friendly order", async () => {
@@ -683,18 +683,20 @@ test("createSession appends default system prompts in prefix-cache-friendly orde
     .filter((message) => message.role === "system")
     .map((message) => message.content ?? "");
 
-  assert.ok(systemContents.length >= 1, "should have at least 1 system message");
-  const mergedSystem = systemContents[0] ?? "";
-  assert.match(mergedSystem, /# Available Tools/);
-  assert.match(mergedSystem, /# 本地工作区环境/);
-  assert.match(mergedSystem, /当前LLM模型为qwen3-max/);
-  assert.match(mergedSystem, /你是一个在终端环境中工作的AI编码助手/);
-  assert.doesNotMatch(mergedSystem, /path="templates\/skills\//);
-  assert.match(mergedSystem, /root project instructions/);
-  const environmentSection = mergedSystem.match(/# 本地工作区环境\s*\n\s*```json\n([\s\S]+?)\n```/);
-  assert.ok(environmentSection, "should contain Workspace Environment JSON block");
-  const environmentInfo = JSON.parse(environmentSection[1] ?? "{}") as { "root path"?: string };
+  assert.ok(systemContents.length >= 4, "should have at least 4 system messages");
+  assert.match(systemContents[0] ?? "", /# Available Tools/);
+  assert.doesNotMatch(systemContents[0] ?? "", /# 本地工作区环境/);
+  assert.doesNotMatch(systemContents[0] ?? "", /当前LLM模型为qwen3-max/);
+  assert.match(systemContents[1] ?? "", /karpathy-guidelines/);
+  assert.doesNotMatch(systemContents[1] ?? "", /path="templates\/skills\//);
+  assert.doesNotMatch(systemContents[1] ?? "", /当前LLM模型为qwen3-max/);
+  assert.match(systemContents[2] ?? "", /# 本地工作区环境/);
+  assert.match(systemContents[2] ?? "", /当前LLM模型为qwen3-max/);
+  const environmentJsonMatch = (systemContents[2] ?? "").match(/```json\n([\s\S]+?)\n```/);
+  assert.ok(environmentJsonMatch);
+  const environmentInfo = JSON.parse(environmentJsonMatch[1] ?? "{}") as { "root path"?: string };
   assert.equal(environmentInfo["root path"], workspace);
+  assert.equal(systemContents[3], "root project instructions");
 });
 
 test("replySession stores /init and sends the active root project AGENTS path to the LLM", async () => {
@@ -721,7 +723,7 @@ test("replySession stores /init and sends the active root project AGENTS path to
   const openAIReplyMessage = openAIUserMessages[openAIUserMessages.length - 1];
 
   assert.equal(replyMessage?.content, "/init");
-  assert.match(openAIReplyMessage?.content ?? "", /CropCode Project Instructions/);
+  assert.match(openAIReplyMessage?.content ?? "", /Update \.\/AGENTS\.md/);
 });
 
 test("createSession stores /init and sends generate prompt when no project AGENTS file is effective", async () => {
@@ -746,7 +748,8 @@ test("createSession stores /init and sends generate prompt when no project AGENT
   const openAIUserMessage = openAIMessages.find((message) => message.role === "user");
 
   assert.equal(userMessage?.content, "/init");
-  assert.match(openAIUserMessage?.content ?? "", /CropCode Project Instructions/);
+  assert.match(openAIUserMessage?.content ?? "", /Generate a file named \.\/\.cropcode\/AGENTS\.md/);
+  assert.doesNotMatch(openAIUserMessage?.content ?? "", /Update \.\/AGENTS\.md/);
 });
 
 test(
@@ -890,7 +893,7 @@ test("createSession initializes file-history repo and session branch", async (t)
 
   const sessionId = await manager.createSession({ text: "first prompt" });
   const userMessage = manager.listSessionMessages(sessionId).find((message) => message.role === "user");
-  const projectCode = crypto.createHash("sha256").update(workspace).digest("hex").slice(0, 16);
+  const projectCode = getProjectCode(workspace);
   const gitDir = path.join(home, ".cropcode", "projects", projectCode, "file-history", ".git");
 
   assert.ok(fs.existsSync(gitDir));
@@ -1757,9 +1760,14 @@ test("SessionManager stores usage per model across model changes", async () => {
   const client = {
     chat: {
       completions: {
-        create: async () => {
+        create: async (request: any) => {
+          if (isSkillMatchingRequest(request)) {
+            return createSkillMatchingResponse();
+          }
           const response = responses.shift();
-          assert.ok(response, "expected a queued chat response");
+          if (!response) {
+            return { choices: [{ message: { content: "" } }], usage: { total_tokens: 0 } };
+          }
           return response;
         },
       },
@@ -1852,6 +1860,9 @@ test("SessionManager streams chat completions and counts reasoning progress", as
     chat: {
       completions: {
         create: async (request: Record<string, unknown>) => {
+          if (isSkillMatchingRequest(request)) {
+            return createSkillMatchingResponse();
+          }
           assert.equal(request.stream, true);
           assert.deepEqual(request.stream_options, { include_usage: true });
           return createChatStreamResponse([
@@ -1905,7 +1916,7 @@ test("SessionManager streams chat completions and counts reasoning progress", as
   assert.equal(progressEvents[2]?.formattedTokens, "3");
 });
 
-test("SessionManager persists session and user message before completion is interrupted", async () => {
+test("SessionManager persists session and user message before skill matching is cancelled", async () => {
   const workspace = createTempDir("cropcode-skill-abort-workspace-");
   const home = createTempDir("cropcode-skill-abort-home-");
   setHomeDir(home);
@@ -1919,7 +1930,8 @@ test("SessionManager persists session and user message before completion is inte
   const client = {
     chat: {
       completions: {
-        create: async (_request: Record<string, unknown>, options?: { signal?: AbortSignal }) => {
+        create: async (request: Record<string, unknown>, options?: { signal?: AbortSignal }) => {
+          assert.equal(request.temperature, 0.1);
           return new Promise((_resolve, reject) => {
             const signal = options?.signal;
             signal?.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
@@ -1934,10 +1946,10 @@ test("SessionManager persists session and user message before completion is inte
 
   await manager.handleUserPrompt({ text: "please use demo" });
 
-  // Session and user message are persisted before completion is interrupted.
+  // Session and user message are persisted before skill matching triggers an abort.
   assert.equal(manager.listSessions().length, 1);
   const [session] = manager.listSessions();
-  assert.equal(session?.status, "interrupted");
+  assert.equal(session?.status, "pending");
   const messages = manager.listSessionMessages(session!.id);
   const userMessage = messages.find((m) => m.role === "user");
   assert.equal(userMessage?.content, "please use demo");
@@ -2097,7 +2109,7 @@ function createFileHistoryCommit(
   sessionId: string,
   files: Record<string, string>
 ): string {
-  const projectCode = crypto.createHash("sha256").update(workspace).digest("hex").slice(0, 16);
+  const projectCode = getProjectCode(workspace);
   const gitDir = path.join(home, ".cropcode", "projects", projectCode, "file-history", ".git");
   const fileHistory = new GitFileHistory(workspace, gitDir);
   fileHistory.ensureSession(sessionId);
@@ -2158,9 +2170,14 @@ function createNotifyingSessionManager(
   const client = {
     chat: {
       completions: {
-        create: async () => {
+        create: async (request: any) => {
+          if (isSkillMatchingRequest(request)) {
+            return createSkillMatchingResponse();
+          }
           const response = responses.shift();
-          assert.ok(response, "expected a queued chat response");
+          if (!response) {
+            return { choices: [{ message: { content: "" } }], usage: { total_tokens: 0 } };
+          }
           if (response instanceof Error) {
             throw response;
           }
@@ -2196,9 +2213,14 @@ function createMockedClientSessionManager(projectRoot: string, responses: unknow
   const client = {
     chat: {
       completions: {
-        create: async () => {
+        create: async (request: any) => {
+          if (isSkillMatchingRequest(request)) {
+            return createSkillMatchingResponse();
+          }
           const response = responses.shift();
-          assert.ok(response, "expected a queued chat response");
+          if (!response) {
+            return { choices: [{ message: { content: "" } }], usage: { total_tokens: 0 } };
+          }
           return response;
         },
       },
@@ -2235,6 +2257,14 @@ function createMockedClientSessionManagerWithClient(projectRoot: string, client:
 }
 
 class APIUserAbortError extends Error {}
+
+function isSkillMatchingRequest(request: any): boolean {
+  return request?.response_format?.type === "json_object";
+}
+
+function createSkillMatchingResponse(): unknown {
+  return { choices: [{ message: { content: '{"skillNames":[]}' } }] };
+}
 
 function createChatResponse(content: string, usage: Record<string, unknown>): unknown {
   return {

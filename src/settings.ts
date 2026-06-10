@@ -16,6 +16,7 @@ export type DeepcodingEnv = Record<string, string | undefined> & {
   API_KEY?: string;
   THINKING_ENABLED?: string;
   REASONING_EFFORT?: string;
+  TEMPERATURE?: string;
   DEBUG_LOG_ENABLED?: string;
 };
 
@@ -27,9 +28,12 @@ export type McpServerConfig = {
   env?: Record<string, string>;
 };
 
+export type EnabledSkillsSettings = Record<string, boolean>;
+
 export type DeepcodingSettings = {
   env?: DeepcodingEnv;
   model?: string;
+  temperature?: number;
   thinkingEnabled?: boolean;
   reasoningEffort?: ReasoningEffort;
   debugLogEnabled?: boolean;
@@ -37,6 +41,7 @@ export type DeepcodingSettings = {
   webSearchTool?: string;
   mcpServers?: Record<string, McpServerConfig>;
   disabledSkills?: string[];
+  enabledSkills?: EnabledSkillsSettings;
   permissions?: PermissionSettings;
 };
 
@@ -45,6 +50,7 @@ export type ResolvedDeepcodingSettings = {
   apiKey?: string;
   baseURL: string;
   model: string;
+  temperature?: number;
   thinkingEnabled: boolean;
   reasoningEffort: ReasoningEffort;
   debugLogEnabled: boolean;
@@ -52,6 +58,7 @@ export type ResolvedDeepcodingSettings = {
   webSearchTool?: string;
   mcpServers?: Record<string, McpServerConfig>;
   disabledSkills?: string[];
+  enabledSkills: EnabledSkillsSettings;
   permissions: Required<PermissionSettings>;
   hooks?: HooksSettings;
 };
@@ -124,6 +131,7 @@ const deepcodingSettingsSchema = z
   .object({
     env: z.record(z.string(), z.string().optional()).optional(),
     model: z.string().optional(),
+    temperature: z.number().min(0).max(2).optional(),
     thinkingEnabled: z.boolean().optional(),
     reasoningEffort: z.enum(["low", "medium", "high", "max"]).optional(),
     debugLogEnabled: z.boolean().optional(),
@@ -131,6 +139,7 @@ const deepcodingSettingsSchema = z
     webSearchTool: z.string().optional(),
     mcpServers: z.record(z.string(), mcpServerConfigSchema).optional(),
     disabledSkills: z.array(z.string()).optional(),
+    enabledSkills: z.record(z.string(), z.boolean()).optional(),
     permissions: permissionSettingsSchema.optional(),
   })
   .strict();
@@ -157,6 +166,14 @@ function parseBoolean(value: unknown): boolean | undefined {
     return false;
   }
   return undefined;
+}
+
+function parseTemperature(value: unknown): number | undefined {
+  const raw = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  if (!Number.isFinite(raw) || raw < 0 || raw > 2) {
+    return undefined;
+  }
+  return raw;
 }
 
 function trimString(value: unknown): string {
@@ -265,6 +282,30 @@ function mergeDisabledSkills(
   return merged.length > 0 ? merged : undefined;
 }
 
+function normalizeEnabledSkills(value: unknown): EnabledSkillsSettings {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  const result: EnabledSkillsSettings = {};
+  for (const [name, enabled] of Object.entries(value)) {
+    if (!name || typeof enabled !== "boolean") {
+      continue;
+    }
+    result[name] = enabled;
+  }
+  return result;
+}
+
+function mergeEnabledSkills(
+  userSettings: DeepcodingSettings | null | undefined,
+  projectSettings: DeepcodingSettings | null | undefined
+): EnabledSkillsSettings {
+  return {
+    ...normalizeEnabledSkills(userSettings?.enabledSkills),
+    ...normalizeEnabledSkills(projectSettings?.enabledSkills),
+  };
+}
+
 export function normalizePermissionList(scopes: PermissionScope[] | undefined): PermissionScope[] {
   if (!Array.isArray(scopes) || scopes.length === 0) {
     return [];
@@ -368,6 +409,13 @@ export function resolveSettingsSources(
     parseBoolean(userEnv.DEBUG_LOG_ENABLED) ??
     false;
 
+  const temperature =
+    parseTemperature(systemEnv.TEMPERATURE) ??
+    parseTemperature(projectSettings?.temperature) ??
+    parseTemperature(projectEnv.TEMPERATURE) ??
+    parseTemperature(userSettings?.temperature) ??
+    parseTemperature(userEnv.TEMPERATURE);
+
   const notify =
     trimString(systemEnv.NOTIFY) || trimString(projectSettings?.notify) || trimString(userSettings?.notify) || "";
   const webSearchTool =
@@ -383,6 +431,7 @@ export function resolveSettingsSources(
     apiKey: trimString(env.API_KEY) || undefined,
     baseURL: trimString(env.BASE_URL) || defaults.baseURL,
     model,
+    temperature,
     thinkingEnabled,
     reasoningEffort,
     debugLogEnabled,
@@ -390,6 +439,7 @@ export function resolveSettingsSources(
     webSearchTool: webSearchTool || undefined,
     mcpServers: mergeMcpServers(userSettings, projectSettings, userEnv, projectEnv, systemEnv),
     disabledSkills: mergeDisabledSkills(userSettings, projectSettings),
+    enabledSkills: mergeEnabledSkills(userSettings, projectSettings),
     permissions,
   };
 }
