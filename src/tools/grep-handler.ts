@@ -100,7 +100,7 @@ export async function handleGrepTool(
 
 function execRg(args: string[], timeoutMs: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile("rg", args, { maxBuffer: 20 * 1024 * 1024, timeout: timeoutMs }, (error, stdout, stderr) => {
+    execFile("rg", args, { maxBuffer: 20 * 1024 * 1024, timeout: timeoutMs }, (error, stdout) => {
       if (error) {
         const errCode = (error as NodeJS.ErrnoException).code;
         if (errCode === "1") {

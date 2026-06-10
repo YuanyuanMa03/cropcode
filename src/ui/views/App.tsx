@@ -78,11 +78,77 @@ const DEFAULT_BASE_URL = FIRST_PROVIDER?.baseURL ?? "https://api.deepseek.com";
 
 type View = "chat" | "session-list" | "undo" | "mcp-status" | "login";
 
+const STATUS_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+const BUSY_PHRASES = [
+  "翻阅农业文献",
+  "分析田间数据",
+  "构建作物模型",
+  "处理遥感影像",
+  "设计试验方案",
+  "统计产量数据",
+  "优化模型参数",
+  "解析土壤数据",
+  "计算植被指数",
+  "拟合生长曲线",
+  "检验假设条件",
+  "评估模型精度",
+  "整理实验记录",
+  "推导数学公式",
+  "调试分析脚本",
+];
+
 type AppProps = {
   projectRoot: string;
   initialPrompt?: string;
   onRestart?: () => void;
 };
+
+const StatusLine = React.memo(function StatusLine({
+  busy,
+  text,
+}: {
+  busy: boolean;
+  text?: string;
+}): React.ReactElement {
+  const [spinnerIndex, setSpinnerIndex] = useState(0);
+  const [phraseIndex, setPhraseIndex] = useState(0);
+
+  useEffect(() => {
+    if (!busy) {
+      setSpinnerIndex(0);
+      setPhraseIndex(0);
+      return;
+    }
+
+    const spinnerTimer = setInterval(() => {
+      setSpinnerIndex((index) => (index + 1) % STATUS_SPINNER_FRAMES.length);
+    }, 80);
+    const phraseTimer = setInterval(() => {
+      setPhraseIndex((index) => (index + 1) % BUSY_PHRASES.length);
+    }, 2500);
+    return () => {
+      clearInterval(spinnerTimer);
+      clearInterval(phraseTimer);
+    };
+  }, [busy]);
+
+  return (
+    <Box>
+      {busy ? (
+        <Box marginRight={1}>
+          <Text color="yellow">{STATUS_SPINNER_FRAMES[spinnerIndex]}</Text>
+        </Box>
+      ) : null}
+      {busy ? (
+        <Box marginRight={1}>
+          <Text color="green">{BUSY_PHRASES[phraseIndex]}</Text>
+        </Box>
+      ) : null}
+      {text ? <Text dimColor>{text}</Text> : null}
+    </Box>
+  );
+});
 
 export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.ReactElement {
   const { exit } = useApp();
@@ -977,11 +1043,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           );
         }}
       </Static>
-      {statusLine ? (
-        <Box>
-          <Text dimColor>{statusLine}</Text>
-        </Box>
-      ) : null}
+      {busy || statusLine ? <StatusLine busy={busy} text={statusLine} /> : null}
       {errorLine ? (
         <Box>
           <Text color="red">Error: {errorLine}</Text>

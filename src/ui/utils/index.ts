@@ -66,23 +66,45 @@ export function isCurrentSessionEmpty(sessionManager: SessionManager): boolean {
 
 export function buildStatusLine(entry: SessionEntry): string {
   const parts: string[] = [];
-  parts.push(`status: ${entry.status}`);
+  const statusMap: Record<string, string> = {
+    pending: "就绪",
+    processing: "运行中",
+    waiting_for_user: "等待输入",
+    completed: "已完成",
+    interrupted: "已中断",
+    failed: "失败",
+    ask_permission: "请求权限",
+    permission_denied: "权限拒绝",
+  };
+  parts.push(statusMap[entry.status] ?? entry.status);
   if (typeof entry.activeTokens === "number" && entry.activeTokens > 0) {
-    parts.push(`tokens: ${entry.activeTokens}`);
+    parts.push(`${formatTokenCount(entry.activeTokens)} tokens`);
   }
   if (entry.failReason) {
-    parts.push(`fail: ${entry.failReason}`);
+    parts.push(`原因: ${entry.failReason}`);
   }
   return parts.join(" · ");
+}
+
+function formatTokenCount(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}k`;
+  return String(tokens);
 }
 
 export function formatThinkingMode(
   settings: Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">
 ): string {
   if (!settings.thinkingEnabled) {
-    return "no thinking";
+    return "关闭";
   }
-  return `thinking ${settings.reasoningEffort}`;
+  const effortMap: Record<string, string> = {
+    low: "低",
+    medium: "中",
+    high: "高",
+    max: "最强",
+  };
+  return `深度思考 · ${effortMap[settings.reasoningEffort] ?? settings.reasoningEffort}`;
 }
 
 export function formatModelConfig(settings: ModelConfigSelection): string {

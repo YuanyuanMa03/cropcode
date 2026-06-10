@@ -15,6 +15,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
   client: OpenAI | null;
   model: string;
   baseURL: string;
+  temperature?: number;
   thinkingEnabled: boolean;
   reasoningEffort: string;
   debugLogEnabled: boolean;
@@ -39,6 +40,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       client: null,
       model,
       baseURL,
+      temperature: settings.temperature,
       thinkingEnabled: settings.thinkingEnabled,
       reasoningEffort: settings.reasoningEffort,
       debugLogEnabled: settings.debugLogEnabled,
@@ -55,6 +57,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       client: cachedOpenAI,
       model,
       baseURL,
+      temperature: settings.temperature,
       thinkingEnabled: settings.thinkingEnabled,
       reasoningEffort: settings.reasoningEffort,
       debugLogEnabled: settings.debugLogEnabled,
@@ -88,6 +91,7 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
     client: cachedOpenAI,
     model,
     baseURL,
+    temperature: settings.temperature,
     thinkingEnabled: settings.thinkingEnabled,
     reasoningEffort: settings.reasoningEffort,
     debugLogEnabled: settings.debugLogEnabled,

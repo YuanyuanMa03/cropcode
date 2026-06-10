@@ -405,7 +405,7 @@ test("replace_all requires expected_occurrences for broad short-fragment replace
   );
 });
 
-test("Edit rejects over-escaped strings without LLM fallback", async () => {
+test("Edit uses loose escape matching for over-escaped strings", async () => {
   const workspace = createTempWorkspace();
   const filePath = path.join(workspace, "query.py");
   fs.writeFileSync(filePath, "params['city_json'] = f'\"{city}\"'\n", "utf8");
@@ -422,11 +422,11 @@ test("Edit rejects over-escaped strings without LLM fallback", async () => {
     createContext(sessionId, workspace)
   );
 
-  assert.equal(editResult.ok, false);
-  assert.equal(editResult.error, "old_string not found in file.");
+  assert.equal(editResult.ok, true);
+  assert.equal(editResult.metadata?.matched_via, "loose_escape");
 });
 
-test("Edit rejects over-escaped unicode sequences without LLM fallback", async () => {
+test("Edit uses loose escape matching for over-escaped unicode sequences", async () => {
   const workspace = createTempWorkspace();
   const filePath = path.join(workspace, "keys.ts");
   fs.writeFileSync(filePath, 'const sequence = "\\u001B[13;2~";\n', "utf8");
@@ -443,8 +443,8 @@ test("Edit rejects over-escaped unicode sequences without LLM fallback", async (
     createContext(sessionId, workspace)
   );
 
-  assert.equal(editResult.ok, false);
-  assert.equal(editResult.error, "old_string not found in file.");
+  assert.equal(editResult.ok, true);
+  assert.equal(editResult.metadata?.matched_via, "loose_escape");
 });
 
 test("Edit strips accidental read-result tabs after newlines when that creates a unique match", async () => {
