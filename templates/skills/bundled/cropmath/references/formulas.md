@@ -5,6 +5,68 @@ Source: CropMath benchmark (Yuanyuan Ma, Nanjing Agriculture University).
 
 ---
 
+## Quick Search: Natural Language → Formula ID
+
+Use this index when the user describes a process in plain language.
+
+| Keyword (CN) | Keyword (EN) | Formula ID | Family |
+|---|---|---|---|
+| 光能截获、光截获率 | light interception | RG_FPAR | RiceGrow |
+| 截获PAR | intercepted PAR | RG_RINT | RiceGrow |
+| CO2因子、CO2效应 | CO2 factor | RG_FCO2 | RiceGrow |
+| 生理年龄 | physiological age | RG_FPA | RiceGrow |
+| 消光系数 | extinction coefficient | RG_K_PDT | RiceGrow |
+| 最大同化速率、最大光合 | max assimilation rate | RG_AMAX | RiceGrow |
+| 温度响应 | temperature response | RG_FTMP | RiceGrow |
+| 高温胁迫、高温结实 | high-temp fertility | RG_HTF | RiceGrow |
+| 低温胁迫、低温结实 | low-temp fertility | RG_LTF | RiceGrow |
+| 热效应、发育速率 | thermal effectiveness | RG_RTE_BETA | RiceGrow |
+| 临界日长 | critical daylength | RG_PC | RiceGrow |
+| 光周期 | photoperiod | RG_RPE | RiceGrow |
+| 生理效应 | daily physiological effect | RG_DPE | RiceGrow |
+| 出苗积温 | emergence GDD | RG_EMGDD | RiceGrow |
+| 维持呼吸（水稻） | maintenance respiration | RG_RM | RiceGrow |
+| 生长呼吸 | growth respiration | RG_RG | RiceGrow |
+| 干物质增量 | daily dry matter | RG_GCR | RiceGrow |
+| 比叶面积 | specific leaf area | RG_SLA | RiceGrow |
+| 叶面积指数 | LAI / potential LAI | RG_LAIP_EXP | RiceGrow |
+| 收获指数 | harvest index | RG_HI | RiceGrow |
+| 穗分配 | panicle partitioning | RG_PIP | RiceGrow |
+| 稻谷产量 | grain yield | RG_YIELD_DRY | RiceGrow |
+| 土壤温度、气温推算 | soil temp from air | CH4_TSOIL_AIR | CH4MOD |
+| 甲烷温度指数 | methane temp index | CH4_TI | CH4MOD |
+| 氧化还原 | redox potential | CH4_FEH | CH4MOD |
+| 根系碳 | root carbon | CH4_CR | CH4MOD |
+| 水分分解 | water decomposition | CH4_WI | CH4MOD |
+| 有机质分解 | organic matter decomp | CH4_OMNC / CH4_OMSC | CH4MOD |
+| 甲烷产生 | methane production | CH4_PROD | CH4MOD |
+| 冒泡排放 | ebullition | CH4_EBL | CH4MOD |
+| 植株传输 | plant transport | CH4_FP | CH4MOD |
+| 甲烷总排放 | total methane emission | CH4_E_TOTAL | CH4MOD |
+| CO2施肥 | CO2 fertilization | AG_CO2_FERT | AgroC |
+| 冠层PAR | canopy PAR | AG_PAR | AgroC |
+| 光合速率 | photosynthetic rate | AG_PHOTO_OPT | AgroC |
+| 总初级生产力 | GPP | AG_GPP | AgroC |
+| 作物温度因子 | crop temp factor | AG_TEMP_CROP | AgroC |
+| 作物水分因子 | crop water factor | AG_WATER_CROP | AgroC |
+| 植株呼吸 | plant respiration | AG_PLANT_RM | AgroC |
+| 需氮量 | nitrogen demand | AG_N_DEMAND | AgroC |
+| 氮利用效率 | NUE | AG_NUE | AgroC |
+| 土壤温度因子 | soil temp factor | AG_SOIL_TEMP | AgroC |
+| 土壤水分因子 | soil water factor | AG_SOIL_WATER | AgroC |
+| 土壤pH | soil pH | AG_SOIL_PH | AgroC |
+| 碳库分解 | carbon pool decomp | AG_POOL_DECOMP | AgroC |
+| 积温 | daily thermal time | SIMPLE_DTT | SIMPLE |
+| 温度响应 | temp response | SIMPLE_FTEMP | SIMPLE |
+| CO2响应 | CO2 response | SIMPLE_FCO2 | SIMPLE |
+| 水分响应 | water response | SIMPLE_FWATER | SIMPLE |
+| 高温响应 | heat response | SIMPLE_FHEAT | SIMPLE |
+| 光截获 | solar interception | SIMPLE_FSOLAR | SIMPLE |
+| 生物量 | biomass increment | SIMPLE_BIOMASS | SIMPLE |
+| 产量 | yield | SIMPLE_YIELD | SIMPLE |
+
+---
+
 ## RiceGrow (29 formulas)
 
 Rice growth and physiology model. Source: Tang et al. 2009.
