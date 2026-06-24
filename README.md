@@ -7,7 +7,7 @@
 **AI Coding Agent — 为农业研究者打造，但能力远不止于此**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js >=18](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org/)
+[![Node.js >=22](https://img.shields.io/badge/Node.js-%3E%3D22-green.svg)](https://nodejs.org/)
 [![CI](https://github.com/YuanyuanMa03/cropcode/actions/workflows/ci.yml/badge.svg)](https://github.com/YuanyuanMa03/cropcode/actions/workflows/ci.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/YuanyuanMa03/cropcode/pulls)
 
@@ -67,10 +67,34 @@ CropCode is an **AI-powered coding agent** that runs in your terminal. Think Cla
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **Node.js >= 18**
+- The release packages include Node.js. Building from source requires **Node.js >= 22**.
 - Python 3 (optional, for data analysis) or R (optional, for statistics)
 
 ### Install
+
+#### Windows / macOS / Linux release packages
+
+One-line installation:
+
+```powershell
+# Windows PowerShell
+irm https://raw.githubusercontent.com/YuanyuanMa03/cropcode/main/install.ps1 | iex
+```
+
+```bash
+# macOS or Linux
+curl -fsSL https://raw.githubusercontent.com/YuanyuanMa03/cropcode/main/install.sh | sh
+```
+
+Or download the package for your system from [GitHub Releases](https://github.com/YuanyuanMa03/cropcode/releases):
+
+- Windows x64: extract the ZIP, then double-click `install.cmd`.
+- macOS (Apple Silicon and Intel): extract the TAR.GZ, then run `./install.sh`.
+- Linux x64: extract the TAR.GZ, then run `./install.sh`.
+
+These packages include a Node.js runtime, so users do not need to install Node.js separately. You can also run `cropcode.cmd` (Windows) or `./cropcode` (macOS/Linux) directly without installing.
+
+#### Install from source
 
 ```bash
 git clone https://github.com/YuanyuanMa03/cropcode.git
@@ -414,10 +438,34 @@ CropCode 是一个运行在终端中的 **AI 编程助手**。对标 Claude Code
 ## 🚀 快速开始
 
 ### 环境要求
-- **Node.js >= 18**
+- 发布版已内置 Node.js；从源码安装需要 **Node.js >= 22**
 - Python 3（可选，数据分析）或 R（可选，统计计算）
 
 ### 安装
+
+#### Windows / macOS / Linux 发布版
+
+一键安装：
+
+```powershell
+# Windows PowerShell
+irm https://raw.githubusercontent.com/YuanyuanMa03/cropcode/main/install.ps1 | iex
+```
+
+```bash
+# macOS 或 Linux
+curl -fsSL https://raw.githubusercontent.com/YuanyuanMa03/cropcode/main/install.sh | sh
+```
+
+也可以从 [GitHub Releases](https://github.com/YuanyuanMa03/cropcode/releases) 下载对应安装包：
+
+- Windows x64：解压 ZIP 后双击 `install.cmd`。
+- macOS（Apple Silicon 和 Intel）：解压 TAR.GZ 后运行 `./install.sh`。
+- Linux x64：解压 TAR.GZ 后运行 `./install.sh`。
+
+发布版已内置 Node.js，无需另外安装。也可以不安装，直接运行 Windows 下的 `cropcode.cmd` 或 macOS/Linux 下的 `./cropcode`。
+
+#### 从源码安装
 
 ```bash
 git clone https://github.com/YuanyuanMa03/cropcode.git

@@ -1,6 +1,6 @@
 {
   "name": "@YuanyuanMa03/cropcode",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "CropCode - AI coding agent CLI powered by LLM",
   "license": "MIT",
   "type": "module",
@@ -31,6 +31,8 @@
   "scripts": {
     "typecheck": "tsc -p ./ --noEmit",
     "bundle": "esbuild ./src/cli.tsx --bundle --platform=node --format=esm --target=node22 --outfile=dist/cli.js --banner:js=\"#!/usr/bin/env node\" --jsx=automatic --jsx-import-source=react --packages=external --log-override:empty-import-meta=silent && node scripts/copy_bundle_assets.js",
+    "bundle:portable": "node scripts/build-portable.mjs",
+    "package:all": "npm run bundle:portable && node scripts/package-distributions.mjs",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write 'src/**/*.{ts,tsx}'",

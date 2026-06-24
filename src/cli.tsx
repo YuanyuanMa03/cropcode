@@ -208,9 +208,12 @@ async function handleMarketplaceCommand(argv: string[]): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const updatePromptResult = await promptForPendingUpdate(packageInfo);
-  if (updatePromptResult.installed) {
-    process.exit(0);
+  const isPortableDistribution = process.env.CROPCODE_DISTRIBUTION === "portable";
+  if (!isPortableDistribution) {
+    const updatePromptResult = await promptForPendingUpdate(packageInfo);
+    if (updatePromptResult.installed) {
+      process.exit(0);
+    }
   }
 
   const restartRef: { current: (() => void) | null } = { current: null };
@@ -244,7 +247,9 @@ async function main(): Promise<void> {
     });
   }
 
-  void checkForNpmUpdate(packageInfo);
+  if (!isPortableDistribution) {
+    void checkForNpmUpdate(packageInfo);
+  }
 
   startApp();
 }
