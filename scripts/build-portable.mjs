@@ -1,0 +1,34 @@
+import { build } from "esbuild";
+import { mkdir, rm } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+/* global console */
+
+const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(scriptsDir, "..");
+const outputDir = path.join(root, "dist-portable");
+
+await rm(outputDir, { recursive: true, force: true });
+await mkdir(outputDir, { recursive: true });
+
+await build({
+  entryPoints: [path.join(root, "src", "cli.tsx")],
+  outfile: path.join(outputDir, "cli.js"),
+  bundle: true,
+  packages: "bundle",
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  jsx: "automatic",
+  jsxImportSource: "react",
+  alias: {
+    "react-devtools-core": path.join(scriptsDir, "react-devtools-core-shim.js"),
+  },
+  banner: {
+    js: '#!/usr/bin/env node\nimport { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);',
+  },
+  logOverride: { "empty-import-meta": "silent" },
+});
+
+console.log("Built self-contained application bundle in dist-portable/cli.js");
