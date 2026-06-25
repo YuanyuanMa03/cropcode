@@ -71,6 +71,21 @@ test("getSystemPrompt includes minimal Chinese system prompt", () => {
   assert.equal(prompt.includes("你是一个在终端环境中工作的AI编码助手"), true);
 });
 
+test("getSystemPrompt enforces tool usage discipline", () => {
+  const prompt = getSystemPrompt("/tmp/project");
+  // These guardrails are what make the agent feel "顺手" — pin them so a future
+  // "minimal prompt" refactor cannot silently strip them again.
+  assert.equal(prompt.includes("永远不要用 cat/head/tail 读文件"), true);
+  assert.equal(prompt.includes("永远不要用 sed/awk 改文件"), true);
+  assert.equal(prompt.includes("编辑前必须先读文件"), true);
+});
+
+test("getSystemPrompt enforces honest reporting and language anchoring", () => {
+  const prompt = getSystemPrompt("/tmp/project");
+  assert.equal(prompt.includes("如实汇报：测试失败就说明失败"), true);
+  assert.equal(prompt.includes("无论上下文中出现何种语言"), true);
+});
+
 test("runtime prompt assets live under templates", () => {
   assert.equal(fs.existsSync(path.join(repoRoot, "templates", "tools", "web-search.md")), true);
   assert.equal(fs.existsSync(path.join(repoRoot, "templates", "tools", "read.md.ejs")), true);
