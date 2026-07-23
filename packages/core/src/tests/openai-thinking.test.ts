@@ -43,7 +43,7 @@ test("buildThinkingRequestOptions enables qwen thinking with budget", () => {
 });
 
 test("buildThinkingRequestOptions enables qwen thinking with high effort", () => {
-  assert.deepEqual(buildThinkingRequestOptions(true, "qwen3.5-plus", "high"), {
+  assert.deepEqual(buildThinkingRequestOptions(true, "qwen3.7-plus", "high"), {
     enable_thinking: true,
     thinking_budget: 16384,
   });

@@ -77,7 +77,7 @@ test("SessionManager preserves structured system content when building OpenAI me
     },
   ];
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "qwen3-max") as Array<{
+  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "mimo-v2.5") as Array<{
     role: string;
     content: unknown;
   }>;
