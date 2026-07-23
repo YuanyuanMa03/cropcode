@@ -2,12 +2,21 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import prettierConfig from "eslint-config-prettier";
+import globals from "globals";
 
 export default tseslint.config(
   // Base recommended rules from ESLint
   js.configs.recommended,
   // TypeScript recommended rules
   ...tseslint.configs.recommended,
+  // Node environment for build/start scripts (console, process, __dirname, ...)
+  {
+    files: ["scripts/**/*.js"],
+    languageOptions: {
+      globals: globals.node,
+      sourceType: "module",
+    },
+  },
   // Custom project rules
   {
     rules: {
@@ -43,7 +52,7 @@ export default tseslint.config(
   },
   // Test files: relaxed rules
   {
-    files: ["src/tests/**/*.ts"],
+    files: ["packages/*/src/tests/**/*.ts"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
