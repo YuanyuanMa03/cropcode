@@ -1,7 +1,6 @@
 import React from "react";
 import { render } from "ink";
-import { setShellIfWindows } from "./common/shell-utils";
-import { checkForNpmUpdate, promptForPendingUpdate, type PackageInfo } from "./common/update-check";
+import { setShellIfWindows, checkForNpmUpdate, promptForPendingUpdate, type PackageInfo } from "@YuanyuanMa03/cropcode-core";
 import { AppContainer } from "./ui";
 
 const args = process.argv.slice(2);

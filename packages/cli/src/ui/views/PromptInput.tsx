@@ -44,9 +44,9 @@ import {
 import type { FileMentionItem } from "../core/file-mentions";
 import { readClipboardImageAsync } from "../core/clipboard";
 import { useHistoryNavigation, usePasteHandling } from "../hooks";
-import type { SessionEntry, SkillInfo } from "../../session";
-import type { UserToolPermission } from "../../common/permissions";
-import type { PermissionScope } from "../../settings";
+import type { SessionEntry, SkillInfo } from "@YuanyuanMa03/cropcode-core";
+import type { UserToolPermission } from "@YuanyuanMa03/cropcode-core";
+import type { PermissionScope } from "@YuanyuanMa03/cropcode-core";
 
 // Re-exported from prompt modules for backward compatibility
 export { useTerminalInput, parseTerminalInput, dispatchTerminalInput } from "../hooks/useTerminalInput";
@@ -61,7 +61,7 @@ import {
   useTerminalFocusReporting,
 } from "../hooks/cursor";
 import SlashCommandMenu, { isSkillSelected } from "./SlashCommandMenu";
-import type { ModelConfigSelection, PermissionDefaultMode } from "../../settings";
+import type { ModelConfigSelection, PermissionDefaultMode } from "@YuanyuanMa03/cropcode-core";
 import { FileMentionMenu, ModelsDropdown, PermissionsDropdown, RawModelDropdown, SkillsDropdown } from "../components";
 
 export type PromptSubmission = {

@@ -7,7 +7,7 @@ import {
   formatSlashCommandDescription,
   formatSlashCommandLabel,
 } from "../ui";
-import type { SkillInfo } from "../session";
+import type { SkillInfo } from "@YuanyuanMa03/cropcode-core";
 
 const skills: SkillInfo[] = [
   { name: "skill-writer", path: "~/.agents/skills/skill-writer/SKILL.md", description: "Write a SKILL.md" },

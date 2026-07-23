@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Box, Text, useInput, useWindowSize } from "ink";
-import type { UndoTarget } from "../../session";
+import type { UndoTarget } from "@YuanyuanMa03/cropcode-core";
 
 export type UndoRestoreMode = "code-and-conversation" | "conversation";
 

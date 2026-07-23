@@ -1,4 +1,4 @@
-import type { LlmStreamProgress, SessionEntry } from "../../session";
+import type { LlmStreamProgress, SessionEntry } from "@YuanyuanMa03/cropcode-core";
 
 type RunningProcesses = SessionEntry["processes"];
 

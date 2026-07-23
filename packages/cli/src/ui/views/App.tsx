@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { Box, Static, Text, useApp, useStdout, useWindowSize } from "ink";
 import chalk from "chalk";
 import * as fs from "fs";
-import { createOpenAIClient } from "../../common/openai-client";
-import { listMarketplaces, listInstalledPlugins } from "../../marketplace";
+import { createOpenAIClient } from "@YuanyuanMa03/cropcode-core";
+import { listMarketplaces, listInstalledPlugins } from "@YuanyuanMa03/cropcode-core";
 import {
   type LlmStreamProgress,
   type MessageMeta,
@@ -14,7 +14,7 @@ import {
   type SkillInfo,
   type UndoTarget,
   type UserPromptContent,
-} from "../../session";
+} from "@YuanyuanMa03/cropcode-core";
 import {
   applyModelConfigSelection,
   type CropcodeSettings,
@@ -29,7 +29,7 @@ import {
   writeProjectSettings,
   getProjectSettingsPath,
   type ReasoningEffort,
-} from "../../settings";
+} from "@YuanyuanMa03/cropcode-core";
 import { PromptInput, type PromptDraft, type PromptSubmission } from "./PromptInput";
 import { MessageView, RawModeExitPrompt } from "../components";
 import { SessionList } from "./SessionList";
@@ -47,12 +47,12 @@ import {
   setActiveCredential,
   getActiveThinkingEnabled,
   getActiveReasoningEffort,
-} from "../../common/providers";
-import { BUILTIN_PROVIDERS } from "../../common/provider-presets";
+} from "@YuanyuanMa03/cropcode-core";
+import { BUILTIN_PROVIDERS } from "@YuanyuanMa03/cropcode-core";
 import { AskUserQuestionPrompt } from "./AskUserQuestionPrompt";
 import { McpStatusList } from "./McpStatusList";
 import { PermissionPrompt, type PermissionPromptResult } from "./PermissionPrompt";
-import type { AskPermissionRequest, UserToolPermission } from "../../common/permissions";
+import type { AskPermissionRequest, UserToolPermission } from "@YuanyuanMa03/cropcode-core";
 import { ProcessStdoutView } from "./ProcessStdoutView";
 import {
   type AskUserQuestionAnswers,
@@ -1206,4 +1206,4 @@ export function resolveCurrentSettings(projectRoot: string = process.cwd()): Res
       : base.reasoningEffort) as ReasoningEffort,
   };
 }
-export { createOpenAIClient } from "../../common/openai-client";
+export { createOpenAIClient } from "@YuanyuanMa03/cropcode-core";

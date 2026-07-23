@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Box, Text, useInput, useWindowSize } from "ink";
-import type { McpServerStatus } from "../../mcp/mcp-manager";
+import type { McpServerStatus } from "@YuanyuanMa03/cropcode-core";
 
 type Props = {
   statuses: McpServerStatus[];

@@ -1,9 +1,9 @@
 import chalk from "chalk";
 import { renderMessageToStdout } from "../components/MessageView/utils";
 import type { RawMode } from "../contexts";
-import type { ModelConfigSelection } from "../../settings";
-import type { SessionEntry, SessionMessage } from "../../session";
-import type { SessionManager } from "../../session";
+import type { ModelConfigSelection } from "@YuanyuanMa03/cropcode-core";
+import type { SessionEntry, SessionMessage } from "@YuanyuanMa03/cropcode-core";
+import type { SessionManager } from "@YuanyuanMa03/cropcode-core";
 
 export function renderRawModeMessages(allMessages: SessionMessage[], mode: RawMode): void {
   for (const msg of allMessages) {

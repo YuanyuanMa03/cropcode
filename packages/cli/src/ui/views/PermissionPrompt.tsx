@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Box, Text } from "ink";
 import { useTerminalInput } from "../hooks";
-import type { AskPermissionRequest, AskPermissionScope, UserToolPermission } from "../../common/permissions";
-import type { PermissionScope } from "../../settings";
+import type { AskPermissionRequest, AskPermissionScope, UserToolPermission } from "@YuanyuanMa03/cropcode-core";
+import type { PermissionScope } from "@YuanyuanMa03/cropcode-core";
 
 export type PermissionPromptResult = {
   permissions: UserToolPermission[];
