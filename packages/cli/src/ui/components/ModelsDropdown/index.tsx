@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useInput } from "ink";
 import DropdownMenu from "../../DropdownMenu";
-import type { ModelConfigSelection, ReasoningEffort } from "@YuanyuanMa03/cropcode-core";
-import { findProviderById, type ProviderModel } from "@YuanyuanMa03/cropcode-core";
+import type { ModelConfigSelection, ReasoningEffort, DiscoveredModel } from "@YuanyuanMa03/cropcode-core";
+import { findProviderById, discoverModels } from "@YuanyuanMa03/cropcode-core";
 import { getActiveCredential } from "@YuanyuanMa03/cropcode-core";
 
 type ModelStep = "model" | "thinking";
@@ -31,12 +31,12 @@ function getThinkingOptionIndex(config: Pick<ModelConfigSelection, "thinkingEnab
   return index >= 0 ? index : 0;
 }
 
-function resolveModels(): ProviderModel[] {
+function resolvePresetModels(): DiscoveredModel[] {
   const cred = getActiveCredential();
   if (cred) {
     const provider = findProviderById(cred.providerId);
     if (provider) {
-      return provider.models;
+      return provider.models.map((preset) => ({ id: preset.id, preset, unknown: false }));
     }
   }
   return [];
@@ -62,7 +62,23 @@ const ModelsDropdown: React.FC<Props> = ({
   const [step, setStep] = useState<ModelStep | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [pendingModel, setPendingModel] = useState<string | null>(null);
-  const models = resolveModels();
+  const [models, setModels] = useState<DiscoveredModel[]>(resolvePresetModels);
+
+  // Dynamic model discovery: when the dropdown opens, fetch the provider's
+  // actual available models via GET /models and merge with presets. Newly
+  // released models not yet in provider-presets.ts appear as "unknown" entries.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void discoverModels().then((discovered) => {
+      if (!cancelled && discovered.length > 0) {
+        setModels(discovered);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -149,7 +165,7 @@ const ModelsDropdown: React.FC<Props> = ({
     step === "model"
       ? models.map((model) => ({
           key: model.id,
-          label: model.label || model.id,
+          label: model.unknown ? `${model.id} (new)` : model.preset?.label || model.id,
           description: model.id === modelConfig.model ? "current" : "",
           selected: model.id === (pendingModel ?? modelConfig.model),
         }))

@@ -121,6 +121,10 @@ export {
 } from "./common/providers";
 export type { ProviderCredential } from "./common/providers";
 
+// Dynamic model discovery (cropcode-specific)
+export { fetchAvailableModels, mergeDiscoveredModels, discoverModels } from "./common/model-discovery";
+export type { DiscoveredModel } from "./common/model-discovery";
+
 // Hooks engine (cropcode-specific, Claude-Code-style command hooks)
 export { executeHooks, aggregateHookResults, getMatchingHooks } from "./hooks";
 export type { HookInput, HookResult } from "./hooks";
