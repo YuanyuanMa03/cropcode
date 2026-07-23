@@ -3,7 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import OpenAI from "openai";
 import { Agent, fetch as undiciFetch } from "undici";
-import { resolveCurrentSettings } from "../ui/views/App";
+import { resolveCurrentSettings } from "../settings";
 import { getActiveApiKey, getActiveBaseURL, getActiveModel } from "./providers";
 
 const keepAliveAgent = new Agent({ keepAliveTimeout: 180_000 });

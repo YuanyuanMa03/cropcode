@@ -133,7 +133,7 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
       const color = message.meta.kind === "error" ? "red" : "cyan";
       return (
         <Box marginY={0} marginLeft={1} marginBottom={1} flexDirection="column">
-          {(message.content ?? "").split("\n").map((line, i) => (
+          {(message.content ?? "").split("\n").map((line: string, i: number) => (
             <Text key={i} color={color}>
               {line}
             </Text>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useInput } from "ink";
 import DropdownMenu from "../../DropdownMenu";
-import type { PermissionDefaultMode } from "../../../settings";
+import type { PermissionDefaultMode } from "@YuanyuanMa03/cropcode-core";
 
 type PermissionStep = "mode" | "save";
 

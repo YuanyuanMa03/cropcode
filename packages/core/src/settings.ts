@@ -7,8 +7,8 @@ import { defaultsToThinkingMode } from "./common/model-capabilities";
 // Derive defaults from the first provider preset instead of hardcoding a specific vendor
 import { BUILTIN_PROVIDERS } from "./common/provider-presets";
 const FIRST_PROVIDER = BUILTIN_PROVIDERS[0];
-const DEFAULT_MODEL = FIRST_PROVIDER?.models[0]?.id ?? "deepseek-v4-pro";
-const DEFAULT_BASE_URL = FIRST_PROVIDER?.baseURL ?? "https://api.deepseek.com";
+export const DEFAULT_MODEL = FIRST_PROVIDER?.models[0]?.id ?? "deepseek-v4-pro";
+export const DEFAULT_BASE_URL = FIRST_PROVIDER?.baseURL ?? "https://api.deepseek.com";
 
 export type CropcodeEnv = Record<string, string | undefined> & {
   MODEL?: string;

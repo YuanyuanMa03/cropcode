@@ -1,4 +1,4 @@
-import type { SessionMessage } from "../../../session";
+import type { SessionMessage } from "@YuanyuanMa03/cropcode-core";
 
 export type MessageViewProps = {
   message: SessionMessage;

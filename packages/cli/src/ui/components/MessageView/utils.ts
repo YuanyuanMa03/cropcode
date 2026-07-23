@@ -1,5 +1,5 @@
 import type { DiffPreviewLine, ToolSummary } from "./types";
-import type { SessionMessage } from "../../../session";
+import type { SessionMessage } from "@YuanyuanMa03/cropcode-core";
 import { RawMode } from "../../contexts";
 import chalk from "chalk";
 
