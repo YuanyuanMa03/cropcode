@@ -13,10 +13,10 @@ if (!existsSync(distDir)) {
   mkdirSync(distDir, { recursive: true });
 }
 
-// cropcode keeps templates/ at the repo root (not under packages/core).
-// Copy templates/ → dist/templates/, excluding skills/bundled/. Bundled skills
-// are copied separately to dist/bundled/ and resolved from there at runtime.
-const templatesSrc = join(root, "templates");
+// Copy core/templates/ → dist/templates/, excluding skills/bundled/.
+// Bundled skills are copied separately to dist/bundled/ and resolved from
+// there at runtime.
+const templatesSrc = join(root, "packages", "core", "templates");
 const templatesDest = join(distDir, "templates");
 
 if (!existsSync(templatesSrc)) {
