@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import DropdownMenu from "./DropdownMenu";
-import { BUILTIN_PROVIDERS, type ProviderPreset, type ProviderModel } from "../common/provider-presets";
-import { setActiveCredential } from "../common/providers";
+import { BUILTIN_PROVIDERS, type ProviderPreset, type ProviderModel } from "@YuanyuanMa03/cropcode-core";
+import { setActiveCredential } from "@YuanyuanMa03/cropcode-core";
 
 type LoginStep = "provider" | "mode" | "model" | "apikey";
 type AccessMode = "api" | "coding-plan";

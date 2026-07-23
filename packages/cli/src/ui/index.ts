@@ -1,8 +1,8 @@
 import { getThinkingOptionIndex, MODEL_COMMAND_THINKING_OPTIONS } from "./components/ModelsDropdown";
 
-export { readSettings, readProjectSettings, writeSettings, writeProjectSettings } from "../settings";
+export { readSettings, readProjectSettings, writeSettings, writeProjectSettings } from "@YuanyuanMa03/cropcode-core";
 export { writeModelConfigSelection, resolveCurrentSettings, buildPromptDraftFromSessionMessage } from "./views/App";
-export { createOpenAIClient } from "../common/openai-client";
+export { createOpenAIClient } from "@YuanyuanMa03/cropcode-core";
 export { default as AppContainer } from "./views/AppContainer";
 export { AskUserQuestionPrompt } from "./views/AskUserQuestionPrompt";
 export { MessageView } from "./components";

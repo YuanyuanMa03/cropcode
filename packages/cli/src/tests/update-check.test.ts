@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compareVersions, parseNpmViewVersion } from "../common/update-check";
+import { compareVersions, parseNpmViewVersion } from "@YuanyuanMa03/cropcode-core";
 
 test("compareVersions orders semantic versions", () => {
   assert.equal(compareVersions("0.1.4", "0.1.3"), 1);

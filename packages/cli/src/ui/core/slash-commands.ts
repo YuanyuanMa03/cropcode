@@ -1,4 +1,4 @@
-import type { SkillInfo } from "../../session";
+import type { SkillInfo } from "@YuanyuanMa03/cropcode-core";
 
 export type SlashCommandKind =
   | "skill"
