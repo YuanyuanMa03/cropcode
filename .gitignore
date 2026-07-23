@@ -5,6 +5,11 @@ release/
 *.log
 *.tgz
 .DS_Store
+# macOS resource fork files
+._*
+# monorepo 子包构建产物
+packages/*/dist/
+packages/*/.tsbuildinfo
 .idea/
 .vscode/
 __pycache__/
