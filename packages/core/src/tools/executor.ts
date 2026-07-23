@@ -1,4 +1,3 @@
-import type OpenAI from "openai";
 import { handleAskUserQuestionTool } from "./ask-user-question-handler";
 import { handleBashTool } from "./bash-handler";
 import { handleEditTool } from "./edit-handler";
@@ -12,103 +11,30 @@ import type { McpManager } from "../mcp/mcp-manager";
 import type { HooksSettings } from "../settings";
 import { executeHooks, aggregateHookResults, type HookInput } from "../hooks";
 
-export type CreateOpenAIClient = () => {
-  client: OpenAI | null;
-  model: string;
-  baseURL?: string;
-  temperature?: number;
-  thinkingEnabled: boolean;
-  reasoningEffort?: string;
-  debugLogEnabled?: boolean;
-  notify?: string;
-  webSearchTool?: string;
-  env?: Record<string, string>;
-  machineId?: string;
-};
-
-export type ToolCall = {
-  id: string;
-  type: "function";
-  function: {
-    name: string;
-    arguments: string;
-  };
-};
-
-export type BackgroundProcessCompletion = {
-  taskId: string;
-  processId: number;
-  command: string;
-  outputPath: string;
-  ok: boolean;
-  exitCode: number | null;
-  signal: string | null;
-  error?: string;
-  cwd: string | null;
-  shellPath: string;
-  startedAtMs: number;
-  completedAtMs: number;
-};
-
-export type ToolExecutionContext = {
-  sessionId: string;
-  projectRoot: string;
-  toolCall: ToolCall;
-  createOpenAIClient?: CreateOpenAIClient;
-  onProcessStart?: (processId: string | number, command: string) => void;
-  onProcessExit?: (processId: string | number) => void;
-  onProcessStdout?: (processId: string | number, chunk: string) => void;
-  onProcessTimeoutControl?: (processId: string | number, control: ProcessTimeoutControl | null) => void;
-  onBackgroundProcessComplete?: (completion: BackgroundProcessCompletion) => void;
-  onBeforeFileMutation?: (filePath: string) => void;
-  onAfterFileMutation?: (filePath: string) => void;
-  bashTimeoutMs?: number;
-  bashMinTimeoutMs?: number;
-};
-
-export type ToolExecutionHooks = {
-  onProcessStart?: (processId: string | number, command: string) => void;
-  onProcessExit?: (processId: string | number) => void;
-  onProcessStdout?: (processId: string | number, chunk: string) => void;
-  onProcessTimeoutControl?: (processId: string | number, control: ProcessTimeoutControl | null) => void;
-  onBackgroundProcessComplete?: (completion: BackgroundProcessCompletion) => void;
-  onBeforeFileMutation?: (filePath: string) => void;
-  onAfterFileMutation?: (filePath: string) => void;
-  shouldStop?: () => boolean;
-};
-
-export type ProcessTimeoutInfo = {
-  timeoutMs: number;
-  startedAtMs: number;
-  deadlineAtMs: number;
-  timedOut: boolean;
-};
-
-export type ProcessTimeoutControl = {
-  getInfo: () => ProcessTimeoutInfo;
-  setTimeoutMs: (timeoutMs: number) => ProcessTimeoutInfo;
-};
-
-export type ToolExecutionResult = {
-  ok: boolean;
-  name: string;
-  output?: string;
-  error?: string;
-  metadata?: Record<string, unknown>;
-  awaitUserResponse?: boolean;
-  followUpMessages?: ToolExecutionFollowUpMessage[];
-};
-
-export type ToolExecutionFollowUpMessage = {
-  role: "system";
-  content: string;
-  contentParams?: unknown | null;
-};
-
-export type ToolHandler = (
-  args: Record<string, unknown>,
-  context: ToolExecutionContext
-) => Promise<ToolExecutionResult>;
+// Re-export shared tool types from common/tool-types so existing consumers
+// (`from "./executor"` / `from "../tools/executor"`) keep working after the
+// types were extracted to break the runtime/validate → executor cycle.
+export type {
+  CreateOpenAIClient,
+  ToolCall,
+  BackgroundProcessCompletion,
+  ToolExecutionContext,
+  ToolExecutionHooks,
+  ProcessTimeoutInfo,
+  ProcessTimeoutControl,
+  ToolExecutionResult,
+  ToolExecutionFollowUpMessage,
+  ToolHandler,
+  ToolCallExecution,
+} from "../common/tool-types";
+import type {
+  CreateOpenAIClient,
+  ToolCall,
+  ToolExecutionHooks,
+  ToolHandler,
+  ToolCallExecution,
+  ToolExecutionResult,
+} from "../common/tool-types";
 
 const BUILT_IN_TOOL_NAME_ALIASES = new Map<string, string>([
   ["Bash", "bash"],
@@ -116,12 +42,6 @@ const BUILT_IN_TOOL_NAME_ALIASES = new Map<string, string>([
   ["Write", "write"],
   ["Edit", "edit"],
 ]);
-
-export type ToolCallExecution = {
-  toolCallId: string;
-  content: string;
-  result: ToolExecutionResult;
-};
 
 export class ToolExecutor {
   private readonly projectRoot: string;
