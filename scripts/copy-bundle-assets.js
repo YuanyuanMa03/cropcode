@@ -2,8 +2,6 @@ import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/* global console, process */
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const cliRoot = join(root, "packages", "cli");
