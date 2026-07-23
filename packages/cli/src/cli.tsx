@@ -1,6 +1,7 @@
 import React from "react";
 import { render } from "ink";
-import { setShellIfWindows, checkForNpmUpdate, promptForPendingUpdate, type PackageInfo } from "@YuanyuanMa03/cropcode-core";
+import { setShellIfWindows } from "@YuanyuanMa03/cropcode-core";
+import { checkForNpmUpdate, promptForPendingUpdate, type PackageInfo } from "./common/update-check";
 import { AppContainer } from "./ui";
 
 const args = process.argv.slice(2);
@@ -96,7 +97,7 @@ if (isMarketplaceCommand) {
 
 async function handleMarketplaceCommand(argv: string[]): Promise<void> {
   const { addMarketplace, removeMarketplace, listMarketplaces, installPlugin, removePlugin, listInstalledPlugins } =
-    await import("./marketplace");
+    await import("@YuanyuanMa03/cropcode-core");
   const subcommand = argv[0];
   const action = argv[1];
 
@@ -131,7 +132,7 @@ async function handleMarketplaceCommand(argv: string[]): Promise<void> {
         const manifest = addMarketplace(name, source);
         process.stdout.write(`[OK] Marketplace "${name}" added.\n`);
         process.stdout.write(`  ${manifest.description ?? manifest.name}\n`);
-        process.stdout.write(`  Plugins: ${manifest.plugins.map((p) => p.name).join(", ")}\n`);
+        process.stdout.write(`  Plugins: ${manifest.plugins.map((p: { name: string }) => p.name).join(", ")}\n`);
       } else if (action === "list") {
         const marketplaces = listMarketplaces();
         if (marketplaces.length === 0) {

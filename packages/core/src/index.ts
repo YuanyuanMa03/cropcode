@@ -100,7 +100,12 @@ export { McpClient } from "./mcp/mcp-client";
 export type { McpServerStatus } from "./mcp/mcp-manager";
 
 // Multi-provider system (cropcode-specific)
-export { BUILTIN_PROVIDERS, findProviderById, findModelInProvider, resolveProviderBaseURL } from "./common/provider-presets";
+export {
+  BUILTIN_PROVIDERS,
+  findProviderById,
+  findModelInProvider,
+  resolveProviderBaseURL,
+} from "./common/provider-presets";
 export type { ProviderPreset, ProviderModel } from "./common/provider-presets";
 export {
   getActiveCredential,
@@ -108,6 +113,8 @@ export {
   getActiveBaseURL,
   getActiveApiKey,
   getActiveModel,
+  getActiveThinkingEnabled,
+  getActiveReasoningEffort,
   hasCredentials,
   getActiveProviderLabel,
   getActiveModelLabel,
@@ -150,11 +157,7 @@ export {
 export { findGitBashPath, resolveShellPath, setShellIfWindows } from "./common/shell-utils";
 export { logApiError } from "./common/error-logger";
 export { logOpenAIChatCompletionDebug } from "./common/debug-logger";
-export {
-  truncateWithTail,
-  maybePersistToolResult,
-  BASH_PERSIST_THRESHOLD,
-} from "./common/tool-result-storage";
+export { truncateWithTail, maybePersistToolResult, BASH_PERSIST_THRESHOLD } from "./common/tool-result-storage";
 export {
   clampBashTimeoutMs,
   DEFAULT_BASH_TIMEOUT_MS,
@@ -180,10 +183,6 @@ export type {
   PermissionToolCall,
   UserToolPermission,
 } from "./common/permissions";
-
-// Update checker (cropcode-specific)
-export { checkForNpmUpdate, promptForPendingUpdate } from "./common/update-check";
-export type { PackageInfo } from "./common/update-check";
 
 // State types
 export type { FileState, FileSnippet, FileLineEnding } from "./common/state";

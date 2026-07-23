@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useInput } from "ink";
 import DropdownMenu from "../../DropdownMenu";
-import type { ModelConfigSelection, ReasoningEffort } from "../../../settings";
-import { findProviderById, type ProviderModel } from "../../../common/provider-presets";
-import { getActiveCredential } from "../../../common/providers";
+import type { ModelConfigSelection, ReasoningEffort } from "@YuanyuanMa03/cropcode-core";
+import { findProviderById, type ProviderModel } from "@YuanyuanMa03/cropcode-core";
+import { getActiveCredential } from "@YuanyuanMa03/cropcode-core";
 
 type ModelStep = "model" | "thinking";
 
