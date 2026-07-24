@@ -11,7 +11,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   // Node environment for build/start scripts (console, process, __dirname, ...)
   {
-    files: ["scripts/**/*.js"],
+    files: ["scripts/**/*.{js,mjs}"],
     languageOptions: {
       globals: globals.node,
       sourceType: "module",
