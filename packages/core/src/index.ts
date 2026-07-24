@@ -160,6 +160,8 @@ export {
 } from "./common/model-capabilities";
 export { findGitBashPath, resolveShellPath, setShellIfWindows } from "./common/shell-utils";
 export { logApiError } from "./common/error-logger";
+export { describeLlmError, getLlmErrorDetails } from "./common/llm-error";
+export type { LlmErrorDetails } from "./common/llm-error";
 export { logOpenAIChatCompletionDebug } from "./common/debug-logger";
 export { truncateWithTail, maybePersistToolResult, BASH_PERSIST_THRESHOLD } from "./common/tool-result-storage";
 export {
