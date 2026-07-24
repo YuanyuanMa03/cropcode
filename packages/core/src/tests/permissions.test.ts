@@ -29,6 +29,13 @@ test("parseBashSideEffects accepts valid scopes and normalizes unsafe values to 
   assert.deepEqual(parseBashSideEffects(["mcp"]), ["unknown"]);
 });
 
+test("parseBashSideEffects accepts a single string (backward compat with old schema)", () => {
+  assert.deepEqual(parseBashSideEffects("network"), ["network"]);
+  assert.deepEqual(parseBashSideEffects("read-in-cwd"), ["read-in-cwd"]);
+  assert.deepEqual(parseBashSideEffects("mcp"), ["unknown"]);
+  assert.deepEqual(parseBashSideEffects("invalid-scope"), ["unknown"]);
+});
+
 test("evaluatePermissionScopes applies deny, ask, allow, and default mode precedence", () => {
   const settings = {
     allow: ["read-in-cwd" as const],
@@ -43,6 +50,26 @@ test("evaluatePermissionScopes applies deny, ask, allow, and default mode preced
   assert.equal(evaluatePermissionScopes(["write-in-cwd"], settings), "ask");
   assert.equal(evaluatePermissionScopes([], settings), "allow");
   assert.equal(evaluatePermissionScopes(["unknown"], settings), "ask");
+});
+
+test("evaluatePermissionScopes bypassPermissions allows everything including unknown and deny", () => {
+  const bypassSettings = {
+    allow: [],
+    deny: ["write-out-cwd" as const],
+    ask: ["network" as const],
+    defaultMode: "bypassPermissions" as const,
+  };
+
+  // unknown scope — previously always asked, now bypassed
+  assert.equal(evaluatePermissionScopes(["unknown"], bypassSettings), "allow");
+  // deny scope — UI promises "绕过所有限制（含deny）"
+  assert.equal(evaluatePermissionScopes(["write-out-cwd"], bypassSettings), "allow");
+  // ask scope — also bypassed
+  assert.equal(evaluatePermissionScopes(["network"], bypassSettings), "allow");
+  // mixed scopes including unknown
+  assert.equal(evaluatePermissionScopes(["unknown", "write-in-cwd"], bypassSettings), "allow");
+  // empty scopes still allow
+  assert.equal(evaluatePermissionScopes([], bypassSettings), "allow");
 });
 
 test("computeToolCallPermissions maps tool calls to permission requests", () => {
