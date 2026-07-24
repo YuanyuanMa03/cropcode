@@ -85,7 +85,8 @@ console.log("Created release/SHA256SUMS");
 async function createApplication(stage, targetName, windows) {
   await mkdir(path.join(stage, "dist"), { recursive: true });
   await copyFile(path.join(root, "dist-portable", "cli.js"), path.join(stage, "dist", "cli.js"));
-  await cp(path.join(root, "templates"), path.join(stage, "templates"), { recursive: true });
+  // Templates moved to packages/core/templates/ during the monorepo split.
+  await cp(path.join(root, "packages", "core", "templates"), path.join(stage, "templates"), { recursive: true });
   await copyFile(path.join(root, "LICENSE"), path.join(stage, "LICENSE"));
   await copyFile(path.join(root, "README.md"), path.join(stage, "README.md"));
   await writeFile(

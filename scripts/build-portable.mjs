@@ -11,7 +11,9 @@ await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
 
 await build({
-  entryPoints: [path.join(root, "src", "cli.tsx")],
+  // Monorepo: CLI entrypoint lives in packages/cli/src/cli.tsx.
+  // The bundle output is self-contained (packages: "bundle" inlines @YuanyuanMa03/cropcode-core).
+  entryPoints: [path.join(root, "packages", "cli", "src", "cli.tsx")],
   outfile: path.join(outputDir, "cli.js"),
   bundle: true,
   packages: "bundle",
