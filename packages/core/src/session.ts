@@ -5,7 +5,6 @@ import * as crypto from "crypto";
 import { fileURLToPath } from "url";
 import matter from "gray-matter";
 import ejs from "ejs";
-import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
 import { launchNotifyScript } from "./common/notify";
 import { withRetry } from "./common/retry";
 import { OpenAIMessageConverter } from "./common/openai-message-converter";
@@ -1423,7 +1422,11 @@ ${agentInstructions}
 
         let response;
         try {
-          const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId), thinkingEnabled, model);
+          const messages = this.messageConverter.buildMessages(
+            this.listSessionMessages(sessionId),
+            thinkingEnabled,
+            model
+          );
           const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, model, reasoningEffort);
           response = await this.createChatCompletionStream(
             client,
@@ -2530,196 +2533,6 @@ ${agentInstructions}
     return { waitingForUser };
   }
 
-  private buildOpenAIMessages(
-    messages: SessionMessage[],
-    thinkingEnabled: boolean,
-    model: string
-  ): ChatCompletionMessageParam[] {
-    return this.messageConverter.buildMessages(messages, thinkingEnabled, model);
-  }
-
-  private sessionMessageToOpenAIMessage(
-    message: SessionMessage,
-    thinkingEnabled: boolean,
-    model: string
-  ): ChatCompletionMessageParam {
-    const content = this.renderOpenAIMessageContent(message);
-    const base: ChatCompletionMessageParam = {
-      role: message.role,
-      content,
-    } as ChatCompletionMessageParam;
-
-    const messageParams = message.messageParams as
-      | { tool_calls?: unknown[]; tool_call_id?: string; reasoning_content?: string }
-      | null
-      | undefined;
-    if (messageParams?.tool_calls) {
-      (base as { tool_calls?: unknown[] }).tool_calls = messageParams.tool_calls;
-    }
-    if (messageParams?.tool_call_id) {
-      (base as { tool_call_id?: string }).tool_call_id = messageParams.tool_call_id;
-    }
-    if (typeof messageParams?.reasoning_content === "string") {
-      (base as { reasoning_content?: string }).reasoning_content = messageParams.reasoning_content;
-    } else if (thinkingEnabled && message.role === "assistant") {
-      // Thinking-mode providers require every replayed assistant message
-      // to include the reasoning_content field, even when it is empty.
-      (base as { reasoning_content?: string }).reasoning_content = "";
-    }
-
-    if ((message.role === "user" || message.role === "system") && message.contentParams) {
-      const contentParts: ChatCompletionContentPart[] = [];
-      if (content) {
-        contentParts.push({ type: "text", text: content });
-      }
-      const params = Array.isArray(message.contentParams) ? message.contentParams : [message.contentParams];
-      for (const param of params) {
-        const part = param as ChatCompletionContentPart;
-        if (part && (part.type !== "image_url" || supportsMultimodal(model))) {
-          contentParts.push(part);
-        }
-      }
-      const contentValue: string | ChatCompletionContentPart[] = contentParts.length > 0 ? contentParts : content;
-      (base as { content: string | ChatCompletionContentPart[] }).content = contentValue;
-    }
-
-    return base;
-  }
-
-  private renderOpenAIMessageContent(message: SessionMessage): string {
-    if (message.role === "user" && message.content === "/init") {
-      return this.renderInitCommandPrompt();
-    }
-    const content = message.content ?? "";
-    if (message.role === "tool") {
-      let tcPrefix = "";
-      try {
-        const parsed = JSON.parse(content);
-        if (typeof parsed?.metadata?.tc === "string") {
-          tcPrefix = `[${parsed.metadata.tc}] `;
-        }
-      } catch {
-        // not JSON, skip
-      }
-      if (content.length > MAX_TOOL_RESULT_CHARS) {
-        const half = Math.floor(MAX_TOOL_RESULT_CHARS / 2);
-        return (
-          tcPrefix +
-          content.slice(0, half) +
-          `\n\n... [truncated ${content.length - MAX_TOOL_RESULT_CHARS} chars] ...\n\n` +
-          content.slice(-half)
-        );
-      }
-      return tcPrefix + content;
-    }
-    return content;
-  }
-
-  private pairToolMessages(messages: SessionMessage[]): Map<string, number> {
-    const pairings = new Map<string, number>();
-    const usedToolMessageIndexes = new Set<number>();
-
-    for (let assistantIndex = 0; assistantIndex < messages.length; assistantIndex += 1) {
-      const toolCalls = this.getAssistantToolCalls(messages[assistantIndex]);
-      for (let toolCallIndex = 0; toolCallIndex < toolCalls.length; toolCallIndex += 1) {
-        const toolCallId = this.getToolCallId(toolCalls[toolCallIndex]);
-        if (!toolCallId) {
-          continue;
-        }
-
-        const toolIndex = this.findPairableToolMessageIndex(
-          messages,
-          assistantIndex,
-          toolCallId,
-          usedToolMessageIndexes
-        );
-        if (toolIndex == null) {
-          continue;
-        }
-
-        usedToolMessageIndexes.add(toolIndex);
-        pairings.set(this.buildToolPairingKey(assistantIndex, toolCallIndex), toolIndex);
-      }
-    }
-
-    return pairings;
-  }
-
-  private findPairableToolMessageIndex(
-    messages: SessionMessage[],
-    assistantIndex: number,
-    toolCallId: string,
-    usedToolMessageIndexes: Set<number>
-  ): number | null {
-    let firstMatchingIndex: number | null = null;
-    for (let index = assistantIndex + 1; index < messages.length; index += 1) {
-      const message = messages[index];
-      if (message.role !== "tool" || usedToolMessageIndexes.has(index)) {
-        continue;
-      }
-
-      const candidateToolCallId = this.getToolMessageCallId(message);
-      if (candidateToolCallId !== toolCallId) {
-        continue;
-      }
-
-      if (firstMatchingIndex == null) {
-        firstMatchingIndex = index;
-      }
-      if (!this.isInterruptedToolMessage(message)) {
-        return index;
-      }
-    }
-    return firstMatchingIndex;
-  }
-
-  private getAssistantToolCalls(message: SessionMessage): unknown[] {
-    if (message.role !== "assistant") {
-      return [];
-    }
-    const messageParams = message.messageParams as { tool_calls?: unknown[] } | null;
-    return Array.isArray(messageParams?.tool_calls) ? messageParams.tool_calls : [];
-  }
-
-  private getToolCallId(toolCall: unknown): string | null {
-    if (!toolCall || typeof toolCall !== "object") {
-      return null;
-    }
-    const id = (toolCall as { id?: unknown }).id;
-    return typeof id === "string" && id ? id : null;
-  }
-
-  private getToolMessageCallId(message: SessionMessage): string | null {
-    const messageParams = message.messageParams as { tool_call_id?: unknown } | null;
-    const toolCallId = messageParams?.tool_call_id;
-    return typeof toolCallId === "string" && toolCallId ? toolCallId : null;
-  }
-
-  private buildToolPairingKey(assistantIndex: number, toolCallIndex: number): string {
-    return `${assistantIndex}:${toolCallIndex}`;
-  }
-
-  private isInterruptedToolMessage(message: SessionMessage): boolean {
-    if (typeof message.content !== "string" || !message.content.trim()) {
-      return false;
-    }
-    try {
-      const parsed = JSON.parse(message.content) as { metadata?: { interrupted?: unknown } };
-      return parsed.metadata?.interrupted === true;
-    } catch {
-      return false;
-    }
-  }
-
-  private buildInterruptedOpenAIToolMessage(toolCalls: unknown[], toolCallId: string): ChatCompletionMessageParam {
-    const toolFunction = this.findToolFunction(toolCalls, toolCallId);
-    return {
-      role: "tool",
-      content: this.buildInterruptedToolResult(toolFunction, "Previous tool call did not complete."),
-      tool_call_id: toolCallId,
-    } as ChatCompletionMessageParam;
-  }
-
   private findToolFunction(toolCalls: unknown[], toolCallId: string): unknown | null {
     for (const toolCall of toolCalls) {
       if (!toolCall || typeof toolCall !== "object") {
@@ -3058,25 +2871,6 @@ ${agentInstructions}
       }
     }
     return ids;
-  }
-
-  private buildInterruptedToolResult(toolFunction: unknown | null, reason: string): string {
-    const toolName =
-      toolFunction && typeof toolFunction === "object" && typeof (toolFunction as { name?: unknown }).name === "string"
-        ? (toolFunction as { name: string }).name
-        : "tool";
-    return JSON.stringify(
-      {
-        ok: false,
-        name: toolName,
-        error: reason,
-        metadata: {
-          interrupted: true,
-        },
-      },
-      null,
-      2
-    );
   }
 
   private normalizeSessionEntry(entry: unknown): SessionEntry {
