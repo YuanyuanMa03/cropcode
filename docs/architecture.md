@@ -1,6 +1,6 @@
 # CropCode 软件架构文档
 
-> 版本：0.2.0 | 最后更新：2026-06-04
+> 版本：2.0.0 | 最后更新：2026-07-24
 
 ---
 
@@ -34,147 +34,154 @@ CropCode 是一个基于 TypeScript + React (Ink) 构建的 AI 编程代理 CLI 
 | UI 框架 | React + Ink (终端 TUI) |
 | 构建工具 | esbuild |
 | 包管理 | npm |
-| 运行时 | Node.js >= 18 |
+| 运行时 | Node.js >= 22 |
 | 测试 | 自定义测试框架 + `tsx --test` |
 
 ### 入口点
 
 ```
-src/cli.tsx → 解析命令行参数 → 启动 Ink TUI → AppContainer → App
+packages/cli/src/cli.tsx → 解析命令行参数 → 启动 Ink TUI → AppContainer → App
 ```
 
 ---
 
 ## 2. 系统架构
 
+v2.0.0 起采用 npm workspaces monorepo（对齐 deepcode 工程结构），核心库与 CLI 分包：
+
 ```
-┌─────────────────────────────────────────────────────────┐
-│                      CLI 入口 (cli.tsx)                  │
-├─────────────────────────────────────────────────────────┤
-│                    UI 层 (src/ui/)                       │
-│  ┌──────────┐ ┌──────────┐ ┌───────────┐ ┌───────────┐ │
-│  │   App    │ │ Prompt   │ │ Permission│ │  Session  │ │
-│  │  (主视图) │ │  Input   │ │  Prompt   │ │   List    │ │
-│  └────┬─────┘ └────┬─────┘ └─────┬─────┘ └─────┬─────┘ │
-├───────┼────────────┼─────────────┼──────────────┼───────┤
-│       │         Session 层 (session.ts)          │       │
-│       │  ┌─────────────────────────────────────┐ │       │
-│       │  │         SessionManager              │ │       │
-│       │  │  - 会话生命周期管理                    │ │       │
-│       │  │  - 上下文压缩 (auto/reactive/micro)  │ │       │
-│       │  │  - 权限计算与请求                     │ │       │
-│       │  │  - 工具执行协调                       │ │       │
-│       │  └──────────┬──────────────────────────┘ │       │
-├─────────────────────┼─────────────────────────────┤       │
-│                     │   工具层 (src/tools/)        │       │
-│  ┌────────┐ ┌──────┴───┐ ┌──────┐ ┌──────┐ ┌────┐       │
-│  │  Bash  │ │ Executor │ │ Read │ │ Write│ │Edit│       │
-│  └────────┘ └──────────┘ └──────┘ └──────┘ └────┘       │
-├──────────────────────────────────────────────────────────┤
-│                    公共层 (src/common/)                   │
-│  ┌──────────┐ ┌──────────┐ ┌───────────┐ ┌───────────┐  │
-│  │ OpenAI   │ │Permissions│ │  Model    │ │  Hooks    │  │
-│  │ Client   │ │          │ │ Capabilities│ │  Engine   │  │
-│  └──────────┘ └──────────┘ └───────────┘ └───────────┘  │
-├──────────────────────────────────────────────────────────┤
-│                   扩展层                                 │
-│  ┌──────────────────┐    ┌──────────────────────┐       │
-│  │  MCP (src/mcp/)   │    │ Marketplace          │       │
-│  │  Model Context    │    │ (src/marketplace/)   │       │
-│  │  Protocol 集成    │    │ 插件市场系统          │       │
-│  └──────────────────┘    └──────────────────────┘       │
-└──────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  packages/cli  (@YuanyuanMa03/cropcode-cli)                  │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  CLI 入口 (src/cli.tsx) + AsciiArt + LoginScreen       │  │
+│  ├────────────────────────────────────────────────────────┤  │
+│  │  UI 层 (src/ui/)                                       │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌───────────┐ ┌──────────┐ │  │
+│  │  │   App    │ │ Prompt   │ │ Permission│ │ Session  │ │  │
+│  │  │ (主视图) │ │  Input   │ │  Prompt   │ │   List   │ │  │
+│  │  └────┬─────┘ └────┬─────┘ └─────┬─────┘ └─────┬────┘ │  │
+│  │  views / components / contexts / hooks / core         │  │
+│  └────────────────────┬───────────────────────────────────┘  │
+└───────────────────────┼──────────────────────────────────────┘
+                        │ 依赖 @YuanyuanMa03/cropcode-core
+┌───────────────────────┼──────────────────────────────────────┐
+│  packages/core (@YuanyuanMa03/cropcode-core)                  │
+│  ┌─────────────────────┴──────────────────────────────────┐  │
+│  │  Session 层 (src/session.ts)                            │  │
+│  │  ┌────────────────────────────────────────────────────┐ │  │
+│  │  │  SessionManager                                     │ │  │
+│  │  │  - 会话生命周期管理 / 上下文压缩 (auto/reactive/micro) │ │  │
+│  │  │  - 权限计算与请求 / 工具执行协调                       │ │  │
+│  │  └────────────────────┬───────────────────────────────┘ │  │
+│  ├───────────────────────┼────────────────────────────────┤  │
+│  │             工具层 (src/tools/)                         │  │
+│  │  ┌────────┐ ┌──────┴───┐ ┌──────┐ ┌──────┐ ┌────┐      │  │
+│  │  │  Bash  │ │ Executor │ │ Read │ │Write │ │Edit│ ...  │  │
+│  │  └────────┘ └──────────┘ └──────┘ └──────┘ └────┘      │  │
+│  ├────────────────────────────────────────────────────────┤  │
+│  │  公共层 (src/common/)                                   │  │
+│  │  OpenAI Client / Permissions / Model Capabilities /     │  │
+│  │  Provider Presets / Model Discovery / LLM Error /       │  │
+│  │  Hooks Engine / Runtime / Validate / Tool Types         │  │
+│  ├────────────────────────────────────────────────────────┤  │
+│  │  扩展层                                                 │  │
+│  │  ┌──────────────────┐  ┌──────────────────────┐        │  │
+│  │  │ MCP (src/mcp/)   │  │ Marketplace          │        │  │
+│  │  │ Model Context    │  │ (src/marketplace/)   │        │  │
+│  │  │ Protocol 集成    │  │ 插件市场系统          │        │  │
+│  │  └──────────────────┘  └──────────────────────┘        │  │
+│  │  Hooks (src/hooks/) — PreToolUse / PostToolUse 引擎     │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+> 图中 `src/...` 均为各包内相对路径（即 `packages/<pkg>/src/...`）。
 
 ### 目录结构
 
 ```
-src/
-├── cli.tsx                    # CLI 入口，参数解析，启动 TUI
-├── session.ts                 # SessionManager - 核心会话管理
-├── prompt.ts                  # System prompt 构建，工具定义
-├── settings.ts                # 配置类型定义与解析
-├── updateCheck.ts             # npm 版本更新检查
+cropcode/
+├── package.json               # 根：workspaces 编排、构建脚本、devDeps
+├── tsconfig.json              # composite + references → core / cli
+├── packages/
+│   ├── core/                  # @YuanyuanMa03/cropcode-core（内核）
+│   │   ├── package.json       # main: dist/index.js, deps(openai/zod/undici/ejs/...)
+│   │   ├── tsconfig.json      # composite, declaration, outDir dist
+│   │   ├── templates/         # prompts / settings / skills / tools（运行时模板）
+│   │   └── src/
+│   │       ├── index.ts             # 公共 API 边界（对外导出）
+│   │       ├── session.ts           # SessionManager - 核心会话管理
+│   │       ├── prompt.ts            # System prompt 构建，工具定义
+│   │       ├── settings.ts          # 配置类型定义与解析
+│   │       ├── common/              # 公共工具库
+│   │       │   ├── model-capabilities.ts   # 模型能力检测，压缩阈值计算
+│   │       │   ├── model-discovery.ts      # 动态模型发现 (GET /models)
+│   │       │   ├── openai-client.ts        # OpenAI API 客户端封装
+│   │       │   ├── openai-message-converter.ts # OpenAI 消息格式转换
+│   │       │   ├── openai-thinking.ts      # Thinking/Reasoning 模式支持
+│   │       │   ├── provider-presets.ts     # 内置 Provider 预设
+│   │       │   ├── providers.ts            # LLM Provider / 凭据管理
+│   │       │   ├── permissions.ts          # 权限计算引擎
+│   │       │   ├── tool-types.ts           # 共享工具类型（破除循环依赖）
+│   │       │   ├── runtime.ts / validate.ts # 工具运行时与参数校验
+│   │       │   ├── llm-error.ts            # 凭据安全的 LLM 错误描述
+│   │       │   ├── error-logger.ts         # 错误日志（脱敏）
+│   │       │   ├── file-history.ts         # 文件历史快照 (checkpoint/restore)
+│   │       │   ├── file-utils.ts / retry.ts / notify.ts / state.ts
+│   │       │   ├── shell-utils.ts / process-tree.ts / bash-timeout.ts
+│   │       │   └── debug-logger.ts / tool-result-storage.ts
+│   │       ├── tools/               # 工具处理器
+│   │       │   ├── executor.ts            # ToolExecutor - 工具执行引擎
+│   │       │   ├── bash-handler.ts / read-handler.ts / write-handler.ts
+│   │       │   ├── edit-handler.ts / glob-handler.ts / grep-handler.ts
+│   │       │   ├── web-search-handler.ts / ask-user-question-handler.ts
+│   │       │   └── update-plan-handler.ts
+│   │       ├── hooks/               # Hooks 系统（cropcode 独有）
+│   │       │   ├── types.ts / engine.ts / index.ts
+│   │       ├── mcp/                 # MCP 协议集成
+│   │       │   ├── mcp-client.ts / mcp-manager.ts
+│   │       ├── marketplace/         # 插件市场（cropcode 独有）
+│   │       │   ├── marketplace-manager.ts / marketplace-repo.ts / types.ts / index.ts
+│   │       └── tests/               # core 测试套件 (185 个)
+│   │
+│   └── cli/                   # @YuanyuanMa03/cropcode-cli（UI + 入口）
+│       ├── package.json       # bin: cropcode → dist/cli.js, deps(core file:../core, ink/react/...)
+│       ├── tsconfig.json      # paths 别名 → core/src，jsx，noEmit
+│       └── src/
+│           ├── cli.tsx              # CLI 入口，参数解析，启动 TUI
+│           ├── AsciiArt.ts          # 启动 ASCII 艺术
+│           ├── common/
+│           │   └── update-check.ts  # npm 版本更新检查（v2.0.0 从 core 迁入）
+│           ├── ui/                  # Ink TUI 组件
+│           │   ├── views/           # App / AppContainer / PromptInput /
+│           │   │                    # PermissionPrompt / SessionList / WelcomeScreen /
+│           │   │                    # LoginScreen / UpdatePrompt / ...
+│           │   ├── components/      # MessageView / FileMentionMenu /
+│           │   │                    # ModelsDropdown / SkillsDropdown / PermissionsDropdown / ...
+│           │   ├── contexts/        # AppContext / RawModeContext
+│           │   ├── hooks/           # useHistoryNavigation / usePasteHandling / useTerminalInput
+│           │   └── core/            # slash-commands / prompt-buffer / file-mentions /
+│           │                        # clipboard / ask-user-question / thinking-state / ...
+│           └── tests/               # cli 测试套件 (182 个)
 │
-├── common/                    # 公共工具库
-│   ├── model-capabilities.ts  # 模型能力检测，压缩阈值计算
-│   ├── openai-client.ts       # OpenAI API 客户端封装
-│   ├── openai-thinking.ts     # Thinking/Reasoning 模式支持
-│   ├── permissions.ts         # 权限计算引擎
-│   ├── providers.ts           # LLM Provider 管理
-│   ├── provider-presets.ts    # 内置 Provider 预设
-│   ├── file-history.ts        # 文件历史快照 (checkpoint/restore)
-│   ├── state.ts               # 全局状态管理
-│   ├── shell-utils.ts         # Shell 工具函数
-│   ├── process-tree.ts        # 进程树管理
-│   ├── bash-timeout.ts        # Bash 命令超时控制
-│   ├── debug-logger.ts        # 调试日志
-│   ├── error-logger.ts        # 错误日志
-│   └── notify.ts              # 系统通知
-│
-├── tools/                     # 工具处理器
-│   ├── executor.ts            # ToolExecutor - 工具执行引擎
-│   ├── bash-handler.ts        # Bash 命令执行
-│   ├── read-handler.ts        # 文件读取
-│   ├── write-handler.ts       # 文件写入
-│   ├── edit-handler.ts        # 文件编辑 (diff-based)
-│   ├── web-search-handler.ts  # Web 搜索
-│   ├── ask-user-question-handler.ts  # 用户交互
-│   └── update-plan-handler.ts # 计划更新
-│
-├── hooks/                     # Hooks 系统
-│   ├── types.ts               # Hook 类型定义
-│   ├── engine.ts              # Hook 执行引擎
-│   └── index.ts               # 导出
-│
-├── ui/                        # Ink TUI 组件
-│   ├── views/                 # 页面级组件
-│   │   ├── App.tsx            # 主应用视图
-│   │   ├── AppContainer.tsx   # 应用容器
-│   │   ├── PromptInput.tsx    # 用户输入组件
-│   │   ├── PermissionPrompt.tsx # 权限确认弹窗
-│   │   ├── SessionList.tsx    # 会话列表
-│   │   ├── WelcomeScreen.tsx  # 欢迎屏幕
-│   │   └── ...
-│   ├── components/            # 可复用组件
-│   │   ├── MessageView/       # 消息渲染
-│   │   ├── FileMentionMenu/   # @文件提及菜单
-│   │   ├── ModelsDropdown/    # 模型选择下拉
-│   │   └── SkillsDropdown/    # 技能选择下拉
-│   ├── contexts/              # React Context
-│   │   ├── AppContext.tsx      # 全局应用状态
-│   │   └── RawModeContext.tsx  # 终端原始模式
-│   ├── hooks/                 # UI Hooks
-│   │   ├── useHistoryNavigation.ts  # 历史导航
-│   │   ├── usePasteHandling.ts      # 粘贴处理
-│   │   └── useTerminalInput.ts      # 终端输入
-│   └── core/                  # UI 核心逻辑
-│       ├── slash-commands.ts  # 斜杠命令
-│       ├── prompt-buffer.ts   # 输入缓冲
-│       ├── file-mentions.ts   # @文件提及
-│       └── clipboard.ts       # 剪贴板
-│
-├── mcp/                       # MCP 协议集成
-│   ├── mcp-client.ts          # MCP 客户端
-│   └── mcp-manager.ts         # MCP 多服务器管理
-│
-├── marketplace/               # 插件市场
-│   ├── marketplace-manager.ts # 市场管理 (增删查)
-│   ├── marketplace-repo.ts    # Git 仓库操作
-│   └── types.ts               # 类型定义
-│
-└── tests/                     # 测试套件 (362 个测试)
-    ├── session.test.ts        # Session 测试
-    ├── permissions.test.ts    # 权限测试
-    ├── clipboard.test.ts      # 剪贴板测试
-    └── ...
+├── scripts/                   # 构建编排
+│   ├── build.js                     # 三步：core tsc → rewrite-esm-imports → cli bundle
+│   ├── esbuild.config.js            # splitting/metafile/keepNames
+│   ├── rewrite-esm-imports.js       # tsc 产物补 .js 扩展
+│   ├── copy-bundle-assets.js        # core/templates → cli/dist/templates
+│   ├── build-portable.mjs           # 自包含 portable bundle
+│   ├── package-distributions.mjs    # 打包平台分发包 (win/mac/linux)
+│   └── generate-git-commit-info.js / clean.js / start.js
+├── install.sh / install.ps1   # 一键安装引导（下载 release 分发包）
+├── resources/ docs/           # 静态资源与文档
+└── .github/workflows/         # ci.yml (check+bundle+test) / release.yml (package:all)
 ```
 
 ---
 
 ## 3. 核心模块
 
-### 3.1 SessionManager (`src/session.ts`)
+### 3.1 SessionManager (`packages/core/src/session.ts`)
 
 SessionManager 是系统的核心，负责管理整个会话生命周期。
 
@@ -228,7 +235,7 @@ type SessionMessage = {
 }
 ```
 
-### 3.2 ToolExecutor (`src/tools/executor.ts`)
+### 3.2 ToolExecutor (`packages/core/src/tools/executor.ts`)
 
 工具执行引擎，支持并发执行和 Hook 集成。
 
@@ -250,7 +257,7 @@ export class ToolExecutor {
 }
 ```
 
-### 3.3 OpenAI Client (`src/common/openai-client.ts`)
+### 3.3 OpenAI Client (`packages/core/src/common/openai-client.ts`)
 
 封装 OpenAI 兼容 API，支持流式响应、thinking 模式、多模态输入。
 
@@ -319,7 +326,7 @@ CropCode 实现了四层压缩策略，参考 Claude Code 的架构设计。
 **阈值计算：**
 
 ```typescript
-// src/common/model-capabilities.ts
+// packages/core/src/common/model-capabilities.ts
 threshold = effectiveContextWindow - outputReserved - buffer
 
 // buffer 根据上下文窗口大小动态调整：
@@ -673,7 +680,7 @@ type HookConfig = {
 ### 8.6 执行引擎
 
 ```typescript
-// src/hooks/engine.ts
+// packages/core/src/hooks/engine.ts
 export async function executeHooks(
   event: HookEvent,
   toolName: string | undefined,
@@ -846,7 +853,7 @@ cropcode plugin list
 ### 12.2 配置字段
 
 ```typescript
-type DeepcodingSettings = {
+type CropcodeSettings = {
   env?: Record<string, string>
   apiKey?: string
   baseURL?: string
@@ -868,7 +875,7 @@ type DeepcodingSettings = {
 内置多个 LLM Provider 预设，支持 OpenAI 兼容 API：
 
 ```typescript
-// src/common/provider-presets.ts
+// packages/core/src/common/provider-presets.ts
 BUILTIN_PROVIDERS = [
   { name: "DeepSeek", baseURL: "https://api.deepseek.com", models: [...] },
   { name: "OpenAI", baseURL: "https://api.openai.com/v1", models: [...] },
@@ -883,45 +890,57 @@ BUILTIN_PROVIDERS = [
 ### 13.1 命令
 
 ```bash
-npm run build        # 完整构建：typecheck + lint + format + bundle
-npm run check        # 检查：typecheck + lint + format
-npm run typecheck    # TypeScript 类型检查
-npm run lint         # ESLint
-npm run test         # 运行全部测试 (362 个)
-npm run test:single  # 运行单个测试文件
-npm run bundle       # esbuild 打包到 dist/cli.js
+npm run build        # 完整构建：core tsc → rewrite-esm-imports → cli esbuild bundle
+npm run check        # 检查：typecheck (workspaces) + lint + format:check
+npm run typecheck    # 各 workspace 的 tsc --noEmit
+npm run lint         # ESLint (packages/*/src + scripts)
+npm run test         # 运行全部测试 (core 185 + cli 182 = 367 个)
+npm run bundle       # 单独打包 CLI (esbuild + copy assets) → packages/cli/dist/cli.js
+npm run bundle:portable  # 自包含 portable bundle → dist-portable/cli.js
+npm run package:all      # 打包平台分发包 → release/ (win/mac/linux + SHA256SUMS)
 ```
 
 ### 13.2 构建流程
 
+monorepo 三步编排（`scripts/build.js`）：
+
 ```
-源码 (src/)
-  │
-  ├── tsc --noEmit          # 类型检查
-  ├── eslint src/            # 代码规范
-  ├── prettier --check       # 格式检查
-  │
-  └── esbuild               # 打包
-       ├── 入口: src/cli.tsx
-       ├── 平台: node
-       ├── 格式: ESM
-       ├── 目标: node18
-       └── 输出: dist/cli.js
+packages/core/src/                packages/cli/src/
+       │                                 │
+       └─ tsc -p (composite)             │
+            ↓                            │
+       packages/core/dist/               │
+       (+ rewrite-esm-imports.js         │
+        给相对导入补 .js 扩展)            │
+            │                            │
+            └────────┬───────────────────┘
+                     ↓
+              esbuild (scripts/esbuild.config.js)
+              packages: "bundle" 内联 core
+                     │
+                     ├── 入口: packages/cli/src/cli.tsx
+                     ├── 平台: node / 格式: ESM / 目标: node22
+                     ├── splitting + metafile + keepNames
+                     └── 输出: packages/cli/dist/cli.js (+ chunks/)
+                     │
+                     └─ copy-bundle-assets.js
+                        core/templates → cli/dist/templates
+                        core/templates/skills/bundled → cli/dist/bundled
 ```
 
 ### 13.3 测试覆盖
 
-362 个测试覆盖以下模块：
+367 个测试覆盖以下模块（core 185 + cli 182）：
 
 | 模块 | 测试文件 | 覆盖内容 |
 |------|---------|---------|
-| Session | session.test.ts | 创建、压缩、恢复、删除 |
-| 权限 | permissions.test.ts, permission-prompt.test.ts | 评估、UI 交互 |
-| 工具 | clipboard.test.ts, fileMentions.test.ts | 输入处理 |
-| MCP | mcp-client.test.ts | 客户端连接 |
-| UI | promptInputKeys.test.ts, dropdownMenu.test.ts | 组件交互 |
-| 模型 | openai-thinking.test.ts | Thinking 模式 |
-| 其他 | process-tree.test.ts, debug-logger.test.ts | 工具函数 |
+| Session | packages/core/src/tests/session.test.ts | 创建、压缩、恢复、删除 |
+| 权限 | packages/core/src/tests/permissions.test.ts | 权限评估 |
+| 工具 | packages/core/src/tests/*.test.ts | executor / handlers |
+| 模型 | packages/core/src/tests/openai-thinking.test.ts | Thinking 模式 |
+| MCP | packages/core/src/tests/mcp-client.test.ts | 客户端连接 |
+| UI | packages/cli/src/tests/*.test.ts | 组件交互、输入处理 |
+| 其他 | packages/core/src/tests/{process-tree,debug-logger}.test.ts | 工具函数 |
 
 ---
 
@@ -1001,20 +1020,20 @@ PromptInput → SessionManager.createSession()
 
 ## 附录 C：类型导出索引
 
-### `src/session.ts`
-`SessionEntry`, `SessionMessage`, `SessionStatus`, `ModelUsage`, `SessionManager`, `UserPromptContent`, `SkillInfo`
+### `packages/core/src/session.ts`
+`SessionEntry`, `SessionMessage`, `SessionMessageRole`, `SessionStatus`, `ModelUsage`, `SessionProcessEntry`, `SessionsIndex`, `MessageMeta`, `UndoTarget`, `UserPromptContent`, `SkillInfo`, `SessionManager`
 
-### `src/settings.ts`
-`DeepcodingSettings`, `ResolvedDeepcodingSettings`, `PermissionScope`, `PermissionDefaultMode`, `PermissionSettings`, `HookEvent`, `HookConfig`, `HookMatcher`, `HooksSettings`, `McpServerConfig`
+### `packages/core/src/settings.ts`
+`CropcodeSettings`, `ResolvedCropcodeSettings`, `CropcodeEnv`, `ModelConfigSelection`, `PermissionScope`, `PermissionDefaultMode`, `PermissionSettings`, `HookEvent`, `HookConfig`, `HookMatcher`, `HooksSettings`, `McpServerConfig`, `EnabledSkillsSettings`, `ReasoningEffort`
 
-### `src/common/permissions.ts`
+### `packages/core/src/common/permissions.ts`
 `PermissionDecision`, `UserToolPermission`, `MessageToolPermission`, `AskPermissionRequest`, `PermissionPlan`, `computeToolCallPermissions`, `evaluatePermissionScopes`
 
-### `src/tools/executor.ts`
+### `packages/core/src/tools/executor.ts`
 `ToolExecutor`, `ToolCall`, `ToolExecutionResult`, `ToolCallExecution`, `ToolHandler`, `ToolExecutionContext`
 
-### `src/hooks/`
+### `packages/core/src/hooks/`
 `HookEvent`, `HookConfig`, `HookMatcher`, `HooksSettings`, `HookInput`, `HookResult`, `HookExecutionResult`, `executeHooks`, `aggregateHookResults`
 
-### `src/common/model-capabilities.ts`
-`getCompactPromptTokenThreshold`, `getContextWindowForModel`, `getEffectiveContextWindow`, `supportsMultimodal`, `supportsThinking`, `MICROCOMPACT_TRIGGER_THRESHOLD`, `MICROCOMPACT_KEEP_RECENT`, `MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES`
+### `packages/core/src/common/model-capabilities.ts`
+`getCompactPromptTokenThreshold`, `getContextWindowForModel`, `getEffectiveContextWindow`, `getMaxOutputTokens`, `supportsMultimodal`, `supportsThinking`, `supportsReasoningEffort`, `MICROCOMPACT_TRIGGER_THRESHOLD`, `MICROCOMPACT_KEEP_RECENT`, `MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES`
