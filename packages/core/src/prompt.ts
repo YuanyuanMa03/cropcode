@@ -453,21 +453,23 @@ export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDe
                 'Clear, concise description of what this command does in active voice. Never use words like "complex" or "risk" in the description - just describe what it does.',
             },
             sideEffects: {
-              type: "string",
-              enum: [
-                "read-in-cwd",
-                "read-out-cwd",
-                "write-in-cwd",
-                "write-out-cwd",
-                "delete-in-cwd",
-                "delete-out-cwd",
-                "query-git-log",
-                "mutate-git-log",
-                "network",
-                "mcp",
-              ],
+              type: "array",
+              items: {
+                type: "string",
+                enum: [
+                  "read-in-cwd",
+                  "read-out-cwd",
+                  "write-in-cwd",
+                  "write-out-cwd",
+                  "delete-in-cwd",
+                  "delete-out-cwd",
+                  "query-git-log",
+                  "mutate-git-log",
+                  "network",
+                ],
+              },
               description:
-                "Permission scope that best describes the side effects of this command. Required for every bash call.",
+                "Permission scopes that best describe the side effects of this command. Pass one or more scopes as an array. Required for every bash call.",
             },
             run_in_background: {
               type: "boolean",

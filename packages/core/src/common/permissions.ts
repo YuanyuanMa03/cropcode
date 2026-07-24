@@ -273,11 +273,16 @@ export function evaluatePermissionScopes(
     defaultMode: "allowAll",
   }
 ): PermissionDecision {
-  if (scopes.includes("unknown")) {
-    return "ask";
-  }
   if (scopes.length === 0) {
     return "allow";
+  }
+  // bypassPermissions: auto-allow everything including deny and unknown
+  // (UI promises "绕过所限制（含deny）"). Must come before deny/ask/unknown checks.
+  if (settings.defaultMode === "bypassPermissions") {
+    return "allow";
+  }
+  if (scopes.includes("unknown")) {
+    return "ask";
   }
   const permissionScopes = scopes.filter((scope): scope is PermissionScope => scope !== "unknown");
   if (permissionScopes.some((scope) => settings.deny.includes(scope))) {
@@ -287,10 +292,6 @@ export function evaluatePermissionScopes(
     return "ask";
   }
   if (permissionScopes.every((scope) => settings.allow.includes(scope))) {
-    return "allow";
-  }
-  // bypassPermissions: auto-allow everything not explicitly denied
-  if (settings.defaultMode === "bypassPermissions") {
     return "allow";
   }
   // plan: read-only mode — allow reads, ask for writes/deletes/network
@@ -327,6 +328,10 @@ export function getPermissionScopesRequiringAsk(
 ): AskPermissionScope[] {
   const result: AskPermissionScope[] = [];
   for (const scope of scopes) {
+    // bypassPermissions: auto-allow everything including deny and unknown
+    if (settings.defaultMode === "bypassPermissions") {
+      continue;
+    }
     if (scope === "unknown") {
       result.push(scope);
       continue;
@@ -339,9 +344,6 @@ export function getPermissionScopesRequiringAsk(
       continue;
     }
     if (settings.allow.includes(scope)) {
-      continue;
-    }
-    if (settings.defaultMode === "bypassPermissions") {
       continue;
     }
     if (settings.defaultMode === "plan") {
@@ -385,6 +387,10 @@ export function parseBashSideEffects(value: unknown): AskPermissionScope[] {
     "network",
     "unknown",
   ]);
+  if (typeof value === "string") {
+    // Backward compat: LLM may send a single string instead of an array.
+    value = [value];
+  }
   if (!Array.isArray(value)) {
     return ["unknown"];
   }
