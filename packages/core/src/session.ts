@@ -12,7 +12,6 @@ import { buildThinkingRequestOptions } from "./common/openai-thinking";
 import {
   getCompactPromptTokenThreshold,
   getMaxOutputTokens,
-  supportsMultimodal,
   MICROCOMPACT_TRIGGER_THRESHOLD,
   MICROCOMPACT_KEEP_RECENT,
   MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES,
@@ -66,7 +65,6 @@ import { clearSessionWorkingDir } from "./tools/bash-handler";
 import { GitFileHistory, type FileHistoryCheckpointResult } from "./common/file-history";
 
 const MAX_SESSION_ENTRIES = 50;
-const MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_SESSION_RETENTION_DAYS = 30;
 const BACKGROUND_FAILURE_LOG_TAIL_CHARS = 4000;
 const MAX_PROJECT_CODE_LENGTH = 64;

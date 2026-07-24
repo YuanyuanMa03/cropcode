@@ -350,14 +350,16 @@ Read the full [Architecture Document](docs/architecture.md) for data flow diagra
 
 ## 🧪 Development
 
+CropCode uses an npm workspaces monorepo (`packages/core` + `packages/cli`).
+
 ```bash
-npm install
-npm run check      # TypeCheck + Lint + Format
-npm run bundle     # esbuild → dist/cli.js
-npm test           # 335 tests
+npm install        # install deps + link workspaces
+npm run check      # typecheck + lint + format (all workspaces)
+npm run build      # core tsc → cli esbuild bundle → packages/cli/dist/cli.js
+npm test           # 367 tests (core 185 + cli 182)
 ```
 
-See [CLAUDE.md](CLAUDE.md) for project conventions and development guide.
+Build output: `packages/cli/dist/cli.js`. Core library: `packages/core/dist/`.
 
 ## 🤝 Contributing
 
@@ -721,14 +723,16 @@ cropcode plugin install <技能名>@nature-skills
 
 ## 🧪 开发
 
+CropCode 使用 npm workspaces monorepo（`packages/core` + `packages/cli`）。
+
 ```bash
-npm install
-npm run check      # TypeCheck + Lint + Format
-npm run bundle     # esbuild → dist/cli.js
-npm test           # 335 个测试
+npm install        # 安装依赖 + 链接工作区
+npm run check      # typecheck + lint + format（所有工作区）
+npm run build      # core tsc → cli esbuild 打包 → packages/cli/dist/cli.js
+npm test           # 367 个测试（core 185 + cli 182）
 ```
 
-见 [CLAUDE.md](CLAUDE.md) 了解项目约定和开发指南。
+构建产物：`packages/cli/dist/cli.js`。核心库：`packages/core/dist/`。
 
 ## 🤝 参与贡献
 

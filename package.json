@@ -22,17 +22,17 @@
     "bundle": "npm run generate && node scripts/esbuild.config.js && node scripts/copy-bundle-assets.js",
     "bundle:portable": "node scripts/build-portable.mjs",
     "package:all": "npm run bundle:portable && node scripts/package-distributions.mjs",
-    "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\"",
-    "lint:fix": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\" --fix",
-    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\"",
-    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\"",
+    "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.{js,mjs}\"",
+    "lint:fix": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.{js,mjs}\" --fix",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.{js,mjs}\"",
+    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.{js,mjs}\"",
     "check": "npm run typecheck && npm run lint && npm run format:check",
     "clean": "node scripts/clean.js",
     "build": "node scripts/build.js",
     "start": "node scripts/start.js",
     "build-and-start": "npm run build && npm run start",
     "test": "npm run test --workspaces --if-present",
-    "prepare": "husky && npm run build"
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
