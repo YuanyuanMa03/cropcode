@@ -86,7 +86,7 @@ cropcode plugin install nature-writing@nature-skills
 安装后无需手动调用。CropCode 在每次对话时自动匹配 skill：
 
 ```
-> 帮我审查 src/tools/edit-handler.ts 的代码质量
+> 帮我审查 packages/core/src/tools/edit-handler.ts 的代码质量
 
 CropCode 自动匹配并激活 code-review skill
 → 使用代码审查最佳实践进行分析
@@ -139,13 +139,13 @@ cropcode plugin install documentation@agent-skills
 ### 步骤 4：开始使用
 
 ```
-> 帮我 review 一下 src/session.ts，重点关注安全和性能问题
+> 帮我 review 一下 packages/core/src/session.ts，重点关注安全和性能问题
 
 CropCode 自动激活 code-review skill，按照最佳实践进行审查。
 ```
 
 ```
-> 给 src/common/openai-client.ts 的 createOpenAIClient 函数写单元测试
+> 给 packages/core/src/common/openai-client.ts 的 createOpenAIClient 函数写单元测试
 
 CropCode 自动激活 testing skill，生成全面的测试用例。
 ```
