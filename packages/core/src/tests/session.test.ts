@@ -77,7 +77,7 @@ test("SessionManager preserves structured system content when building OpenAI me
     },
   ];
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "mimo-v2.5") as Array<{
+  const openAIMessages = (manager as any).messageConverter.buildMessages(messages, false, "mimo-v2.5") as Array<{
     role: string;
     content: unknown;
   }>;
@@ -126,7 +126,7 @@ test("SessionManager filters image content for non-multimodal models", () => {
     },
   ];
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "deepseek-v4-pro") as Array<{
+  const openAIMessages = (manager as any).messageConverter.buildMessages(messages, false, "deepseek-v4-pro") as Array<{
     role: string;
     content: unknown;
   }>;
@@ -172,7 +172,7 @@ test("SessionManager preserves empty reasoning content on assistant tool calls",
     reasoning_content: "",
   });
 
-  const openAIMessages = (manager as any).buildOpenAIMessages([message], true, "qwen3-max") as Array<{
+  const openAIMessages = (manager as any).messageConverter.buildMessages([message], true, "qwen3-max") as Array<{
     reasoning_content?: string;
   }>;
 
@@ -215,10 +215,10 @@ test("SessionManager repairs legacy thinking tool calls missing reasoning conten
     },
   ];
 
-  const thinkingMessages = (manager as any).buildOpenAIMessages(messages, true, "qwen3-max") as Array<{
+  const thinkingMessages = (manager as any).messageConverter.buildMessages(messages, true, "qwen3-max") as Array<{
     reasoning_content?: string;
   }>;
-  const nonThinkingMessages = (manager as any).buildOpenAIMessages(messages, false, "qwen3-max") as Array<{
+  const nonThinkingMessages = (manager as any).messageConverter.buildMessages(messages, false, "qwen3-max") as Array<{
     reasoning_content?: string;
   }>;
 
@@ -254,10 +254,10 @@ test("SessionManager replays normal assistant messages with reasoning content in
     },
   ];
 
-  const thinkingMessages = (manager as any).buildOpenAIMessages(messages, true, "qwen3-max") as Array<{
+  const thinkingMessages = (manager as any).messageConverter.buildMessages(messages, true, "qwen3-max") as Array<{
     reasoning_content?: string;
   }>;
-  const nonThinkingMessages = (manager as any).buildOpenAIMessages(messages, false, "qwen3-max") as Array<{
+  const nonThinkingMessages = (manager as any).messageConverter.buildMessages(messages, false, "qwen3-max") as Array<{
     reasoning_content?: string;
   }>;
 
@@ -650,7 +650,7 @@ test("createSession stores /init and sends the active .cropcode project AGENTS p
   const sessionId = await manager.createSession({ text: "/init" });
   const messages = manager.listSessionMessages(sessionId);
   const userMessage = messages.find((message) => message.role === "user");
-  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "qwen3-max") as Array<{
+  const openAIMessages = (manager as any).messageConverter.buildMessages(messages, false, "qwen3-max") as Array<{
     role: string;
     content: string;
   }>;
@@ -715,7 +715,7 @@ test("replySession stores /init and sends the active root project AGENTS path to
   const messages = manager.listSessionMessages(sessionId);
   const userMessages = messages.filter((message) => message.role === "user");
   const replyMessage = userMessages[userMessages.length - 1];
-  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "qwen3-max") as Array<{
+  const openAIMessages = (manager as any).messageConverter.buildMessages(messages, false, "qwen3-max") as Array<{
     role: string;
     content: string;
   }>;
@@ -741,7 +741,7 @@ test("createSession stores /init and sends generate prompt when no project AGENT
   const sessionId = await manager.createSession({ text: "/init" });
   const messages = manager.listSessionMessages(sessionId);
   const userMessage = messages.find((message) => message.role === "user");
-  const openAIMessages = (manager as any).buildOpenAIMessages(messages, false, "qwen3-max") as Array<{
+  const openAIMessages = (manager as any).messageConverter.buildMessages(messages, false, "qwen3-max") as Array<{
     role: string;
     content: string;
   }>;
@@ -1221,7 +1221,7 @@ test("buildOpenAIMessages inserts interrupted results for missing tool messages"
   ) as SessionMessage;
   const userMessage = buildTestMessage("user-after-tool-call", "session-1", "user", "continue");
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(
+  const openAIMessages = (manager as any).messageConverter.buildMessages(
     [assistantMessage, userMessage],
     false,
     "qwen3-max"
@@ -1271,7 +1271,7 @@ test("buildOpenAIMessages keeps only the first non-interrupted tool result for a
     { name: "bash", arguments: '{"command":"date"}' }
   ) as SessionMessage;
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(
+  const openAIMessages = (manager as any).messageConverter.buildMessages(
     [assistantMessage, successToolMessage, interruptedToolMessage],
     false,
     "qwen3-max"
@@ -1316,7 +1316,7 @@ test("buildOpenAIMessages prefers a later real tool result over an earlier inter
     { name: "bash", arguments: '{"command":"date"}' }
   ) as SessionMessage;
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(
+  const openAIMessages = (manager as any).messageConverter.buildMessages(
     [assistantMessage, interruptedToolMessage, successToolMessage],
     false,
     "qwen3-max"
@@ -1338,7 +1338,7 @@ test("buildOpenAIMessages ignores orphan tool messages", () => {
     { name: "bash", arguments: '{"command":"echo orphan"}' }
   ) as SessionMessage;
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(
+  const openAIMessages = (manager as any).messageConverter.buildMessages(
     [userMessage, orphanToolMessage],
     false,
     "qwen3-max"
@@ -1374,7 +1374,7 @@ test("buildOpenAIMessages moves a later paired tool message behind its assistant
     { name: "bash", arguments: '{"command":"date"}' }
   ) as SessionMessage;
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(
+  const openAIMessages = (manager as any).messageConverter.buildMessages(
     [assistantMessage, userMessage, toolMessage],
     false,
     "qwen3-max"
@@ -1420,7 +1420,7 @@ test("buildOpenAIMessages preserves a complete multi-tool happy path", () => {
   ) as SessionMessage;
   const userMessage = buildTestMessage("user-after-complete-tools", "session-1", "user", "thanks");
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(
+  const openAIMessages = (manager as any).messageConverter.buildMessages(
     [assistantMessage, firstToolMessage, secondToolMessage, userMessage],
     false,
     "qwen3-max"
@@ -1461,7 +1461,7 @@ test("buildOpenAIMessages preserves a real failed tool result", () => {
     { name: "bash", arguments: '{"command":"false"}' }
   ) as SessionMessage;
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(
+  const openAIMessages = (manager as any).messageConverter.buildMessages(
     [assistantMessage, failedToolMessage],
     false,
     "qwen3-max"
@@ -1620,7 +1620,7 @@ test("buildOpenAIMessages repairs mixed missing duplicate and orphan tool messag
   ) as SessionMessage;
   const userMessage = buildTestMessage("user-after-mixed-tools", "session-1", "user", "continue");
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(
+  const openAIMessages = (manager as any).messageConverter.buildMessages(
     [assistantMessage, orphanToolMessage, pairedToolMessage, duplicateToolMessage, userMessage],
     false,
     "qwen3-max"
@@ -1668,7 +1668,7 @@ test("buildOpenAIMessages ignores tool messages that appear before their assista
     ""
   ) as SessionMessage;
 
-  const openAIMessages = (manager as any).buildOpenAIMessages(
+  const openAIMessages = (manager as any).messageConverter.buildMessages(
     [earlyToolMessage, assistantMessage],
     false,
     "qwen3-max"
