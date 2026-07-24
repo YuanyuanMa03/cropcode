@@ -1,6 +1,6 @@
 {
   "name": "@YuanyuanMa03/cropcode-core",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "CropCode core library — LLM session management, tool execution, hooks, marketplace, and shared utilities for agricultural research agents",
   "license": "MIT",
   "type": "module",
