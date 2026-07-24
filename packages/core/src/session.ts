@@ -37,6 +37,7 @@ import type { McpServerConfig, PermissionSettings, HooksSettings } from "./setti
 import { readProjectSettings } from "./settings";
 import type { AskPermissionRequest } from "./common/permissions";
 import { logApiError } from "./common/error-logger";
+import { describeLlmError, getLlmErrorDetails } from "./common/llm-error";
 import { logOpenAIChatCompletionDebug, normalizeDebugError } from "./common/debug-logger";
 import { killProcessTree } from "./common/process-tree";
 import {
@@ -557,11 +558,7 @@ export class SessionManager {
         requestId,
         sessionId,
         model: typeof request.model === "string" ? request.model : undefined,
-        error: {
-          name: error instanceof Error ? error.name : "UnknownError",
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        },
+        error: getLlmErrorDetails(error),
         request: streamRequest,
       });
       this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
@@ -691,11 +688,7 @@ export class SessionManager {
         requestId,
         sessionId,
         model: typeof request.model === "string" ? request.model : undefined,
-        error: {
-          name: error instanceof Error ? error.name : "UnknownError",
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        },
+        error: getLlmErrorDetails(error),
         request: streamRequest,
       });
       throw error;
@@ -1567,7 +1560,7 @@ ${agentInstructions}
         false
       );
     } catch (error) {
-      const errMessage = error instanceof Error ? error.message : String(error);
+      const errMessage = describeLlmError(error);
       const aborted = this.isAbortLikeError(error) || sessionController.signal.aborted;
       this.updateSessionEntry(sessionId, (entry) => ({
         ...entry,
@@ -1960,6 +1953,23 @@ ${agentInstructions}
   getSession(sessionId: string): SessionEntry | null {
     const index = this.loadSessionsIndex();
     return index.entries.find((entry) => entry.id === sessionId) ?? null;
+  }
+
+  renameSession(sessionId: string, summary: string): boolean {
+    const trimmed = summary.trim();
+    if (!trimmed) {
+      return false;
+    }
+    const entry = this.getSession(sessionId);
+    if (!entry) {
+      return false;
+    }
+    this.updateSessionEntry(sessionId, (existing) => ({
+      ...existing,
+      summary: trimmed,
+      updateTime: new Date().toISOString(),
+    }));
+    return true;
   }
 
   listSessionMessages(sessionId: string): SessionMessage[] {
