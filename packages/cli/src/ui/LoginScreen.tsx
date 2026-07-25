@@ -152,7 +152,15 @@ export function LoginScreen({ width, onComplete }: LoginScreenProps): React.Reac
           return;
         }
         if (!provider || !selectedModel) return;
-        setActiveCredential(provider.id, apiKey.trim(), selectedModel.id, selectedMode);
+        const thinkingEnabled = selectedModel.defaultThinking ?? false;
+        setActiveCredential(
+          provider.id,
+          apiKey.trim(),
+          selectedModel.id,
+          selectedMode,
+          thinkingEnabled,
+          thinkingEnabled ? "high" : undefined
+        );
         onComplete();
         return;
       }

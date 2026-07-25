@@ -180,6 +180,8 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const [statusLine, setStatusLine] = useState<string>("");
   const [errorLine, setErrorLine] = useState<string | null>(null);
   const [streamProgress, setStreamProgress] = useState<LlmStreamProgress | null>(null);
+  const [streamingContent, setStreamingContent] = useState<string>("");
+  const [streamingReasoning, setStreamingReasoning] = useState<string>("");
   const [runningProcesses, setRunningProcesses] = useState<SessionEntry["processes"]>(null);
   const [activeStatus, setActiveStatus] = useState<SessionStatus | null>(null);
   const [askPermissions, setAskPermissions] = useState<AskPermissionRequest[]>([]);
@@ -202,6 +204,9 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const streamProgressRef = useRef<LlmStreamProgress | null>(null);
   const lastProgressFlushRef = useRef(0);
   const PROGRESS_FLUSH_INTERVAL = 200;
+  const streamingContentRef = useRef<string>("");
+  const streamingReasoningRef = useRef<string>("");
+  const lastDeltaFlushRef = useRef(0);
 
   rawModeRef.current = mode;
   messagesRef.current = messages;
@@ -237,6 +242,35 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         if (now - lastProgressFlushRef.current >= PROGRESS_FLUSH_INTERVAL) {
           lastProgressFlushRef.current = now;
           setStreamProgress(progress);
+        }
+      },
+      onLlmStreamDelta: (delta) => {
+        if (delta.phase === "start") {
+          streamingContentRef.current = "";
+          streamingReasoningRef.current = "";
+          lastDeltaFlushRef.current = 0;
+          setStreamingContent("");
+          setStreamingReasoning("");
+          return;
+        }
+        if (delta.phase === "end") {
+          streamingContentRef.current = "";
+          streamingReasoningRef.current = "";
+          setStreamingContent("");
+          setStreamingReasoning("");
+          return;
+        }
+        if (delta.contentDelta) {
+          streamingContentRef.current += delta.contentDelta;
+        }
+        if (delta.reasoningDelta) {
+          streamingReasoningRef.current += delta.reasoningDelta;
+        }
+        const now = Date.now();
+        if (now - lastDeltaFlushRef.current >= PROGRESS_FLUSH_INTERVAL) {
+          lastDeltaFlushRef.current = now;
+          setStreamingContent(streamingContentRef.current);
+          setStreamingReasoning(streamingReasoningRef.current);
         }
       },
       onMcpStatusChanged: () => {
@@ -698,7 +732,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const handlePermissionsChange = useCallback(
     (mode: PermissionDefaultMode, saveTarget: "user" | "project"): string => {
       const target = saveTarget === "project" ? readProjectSettings(projectRoot) : readSettings();
-      const currentMode = target?.permissions?.defaultMode ?? "allowAll";
+      const currentMode = target?.permissions?.defaultMode ?? "acceptEdits";
       if (currentMode === mode) {
         return "Permission mode unchanged";
       }
@@ -1043,6 +1077,16 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           );
         }}
       </Static>
+      {busy && (streamingReasoning.length > 0 || streamingContent.length > 0) ? (
+        <Box flexDirection="column">
+          {streamingReasoning.length > 0 ? (
+            <Text dimColor>{"✧ " + streamingReasoning.split("\n").slice(-4).join("\n")}</Text>
+          ) : null}
+          {streamingContent.length > 0 ? (
+            <Text color="green">{"✦ " + streamingContent.split("\n").slice(-8).join("\n")}</Text>
+          ) : null}
+        </Box>
+      ) : null}
       {busy || statusLine ? <StatusLine busy={busy} text={statusLine} /> : null}
       {errorLine ? (
         <Box>
