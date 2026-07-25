@@ -17,28 +17,28 @@ test("buildThinkingRequestOptions returns empty for unknown model", () => {
 test("buildThinkingRequestOptions enables deepseek thinking with default effort", () => {
   assert.deepEqual(buildThinkingRequestOptions(true, "deepseek-v4-pro"), {
     thinking: { type: "enabled" },
-    extra_body: { reasoning_effort: "max" },
+    reasoning_effort: "high",
   });
 });
 
 test("buildThinkingRequestOptions enables deepseek thinking with high effort", () => {
   assert.deepEqual(buildThinkingRequestOptions(true, "deepseek-v4-flash", "high"), {
     thinking: { type: "enabled" },
-    extra_body: { reasoning_effort: "high" },
+    reasoning_effort: "high",
   });
 });
 
 test("buildThinkingRequestOptions enables GLM thinking (same format as deepseek)", () => {
   assert.deepEqual(buildThinkingRequestOptions(true, "glm-5.1"), {
     thinking: { type: "enabled" },
-    extra_body: { reasoning_effort: "max" },
+    reasoning_effort: "high",
   });
 });
 
 test("buildThinkingRequestOptions enables qwen thinking with budget", () => {
   assert.deepEqual(buildThinkingRequestOptions(true, "qwen3-max"), {
     enable_thinking: true,
-    thinking_budget: 32768,
+    thinking_budget: 16384,
   });
 });
 

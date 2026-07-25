@@ -466,10 +466,11 @@ export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDe
                   "query-git-log",
                   "mutate-git-log",
                   "network",
+                  "unknown",
                 ],
               },
               description:
-                "Permission scopes that best describe the side effects of this command. Pass one or more scopes as an array. Required for every bash call.",
+                'Permission scopes required by this bash command. Use [] only for commands that do not read, write, delete, or access the network. Use ["unknown"] when the effects cannot be classified safely. Required for every bash call.',
             },
             run_in_background: {
               type: "boolean",

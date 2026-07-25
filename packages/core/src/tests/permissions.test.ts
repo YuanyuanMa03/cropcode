@@ -41,7 +41,7 @@ test("evaluatePermissionScopes applies deny, ask, allow, and default mode preced
     allow: ["read-in-cwd" as const],
     deny: ["write-out-cwd" as const],
     ask: ["network" as const],
-    defaultMode: "askAll" as const,
+    defaultMode: "plan" as const,
   };
 
   assert.equal(evaluatePermissionScopes(["write-out-cwd"], settings), "deny");
@@ -72,16 +72,60 @@ test("evaluatePermissionScopes bypassPermissions allows everything including unk
   assert.equal(evaluatePermissionScopes([], bypassSettings), "allow");
 });
 
+test("evaluatePermissionScopes acceptEdits auto-allows file ops, asks for network/mcp/bash", () => {
+  const acceptEditsSettings = {
+    allow: [],
+    deny: [],
+    ask: [],
+    defaultMode: "acceptEdits" as const,
+  };
+
+  // read-only auto-allowed
+  assert.equal(evaluatePermissionScopes(["read-in-cwd"], acceptEditsSettings), "allow");
+  assert.equal(evaluatePermissionScopes(["read-out-cwd"], acceptEditsSettings), "allow");
+  assert.equal(evaluatePermissionScopes(["query-git-log"], acceptEditsSettings), "allow");
+  // file writes/deletes auto-allowed
+  assert.equal(evaluatePermissionScopes(["write-in-cwd"], acceptEditsSettings), "allow");
+  assert.equal(evaluatePermissionScopes(["write-out-cwd"], acceptEditsSettings), "allow");
+  assert.equal(evaluatePermissionScopes(["delete-in-cwd"], acceptEditsSettings), "allow");
+  // network / mcp / unknown still ask
+  assert.equal(evaluatePermissionScopes(["network"], acceptEditsSettings), "ask");
+  assert.equal(evaluatePermissionScopes(["mcp"], acceptEditsSettings), "ask");
+  assert.equal(evaluatePermissionScopes(["unknown"], acceptEditsSettings), "ask");
+  // mixed file + network asks (network triggers ask)
+  assert.equal(evaluatePermissionScopes(["write-in-cwd", "network"], acceptEditsSettings), "ask");
+});
+
+test("evaluatePermissionScopes ask allows reads, asks for writes/network (same as plan in evaluation layer)", () => {
+  const askSettings = {
+    allow: [],
+    deny: [],
+    ask: [],
+    defaultMode: "ask" as const,
+  };
+
+  // read-only auto-allowed
+  assert.equal(evaluatePermissionScopes(["read-in-cwd"], askSettings), "allow");
+  assert.equal(evaluatePermissionScopes(["read-out-cwd"], askSettings), "allow");
+  assert.equal(evaluatePermissionScopes(["query-git-log"], askSettings), "allow");
+  // writes/deletes/network/mcp all ask
+  assert.equal(evaluatePermissionScopes(["write-in-cwd"], askSettings), "ask");
+  assert.equal(evaluatePermissionScopes(["delete-in-cwd"], askSettings), "ask");
+  assert.equal(evaluatePermissionScopes(["network"], askSettings), "ask");
+  assert.equal(evaluatePermissionScopes(["mcp"], askSettings), "ask");
+  assert.equal(evaluatePermissionScopes(["unknown"], askSettings), "ask");
+});
+
 test("computeToolCallPermissions maps tool calls to permission requests", () => {
   const projectRoot = createTempDir("cropcode-permissions-workspace-");
   const plan = computeToolCallPermissions({
     sessionId: "session-1",
     projectRoot,
     settings: {
-      allow: [],
+      allow: ["write-in-cwd"],
       deny: [],
       ask: ["write-out-cwd", "network"],
-      defaultMode: "allowAll",
+      defaultMode: "plan",
     },
     resolveSnippetPath: () => path.join(projectRoot, "src", "file.ts"),
     toolCalls: [
@@ -129,7 +173,7 @@ test("computeToolCallPermissions only asks for scopes not already allowed", () =
       allow: ["read-in-cwd"],
       deny: [],
       ask: [],
-      defaultMode: "askAll",
+      defaultMode: "plan",
     },
     toolCalls: [
       {
@@ -174,7 +218,7 @@ test("appendProjectPermissionAllows seeds inherited permissions before adding al
       allow: ["read-in-cwd"],
       deny: ["write-out-cwd"],
       ask: ["network"],
-      defaultMode: "askAll",
+      defaultMode: "plan",
     },
   });
 
@@ -184,7 +228,7 @@ test("appendProjectPermissionAllows seeds inherited permissions before adding al
     allow: ["read-in-cwd", "query-git-log"],
     deny: ["write-out-cwd"],
     ask: ["network"],
-    defaultMode: "askAll",
+    defaultMode: "plan",
   });
 });
 
@@ -196,7 +240,7 @@ test("appendProjectPermissionAllows moves inherited ask and deny scopes into all
       allow: ["read-in-cwd"],
       deny: ["write-out-cwd"],
       ask: ["network", "mcp"],
-      defaultMode: "askAll",
+      defaultMode: "plan",
     },
   });
 
@@ -206,7 +250,7 @@ test("appendProjectPermissionAllows moves inherited ask and deny scopes into all
     allow: ["read-in-cwd", "network", "write-out-cwd"],
     deny: [],
     ask: ["mcp"],
-    defaultMode: "askAll",
+    defaultMode: "plan",
   });
 });
 
@@ -218,7 +262,7 @@ test("appendProjectPermissionAllows writes inherited permissions even when scope
       allow: ["read-in-cwd"],
       deny: [],
       ask: ["network"],
-      defaultMode: "askAll",
+      defaultMode: "plan",
     },
   });
 
@@ -228,7 +272,7 @@ test("appendProjectPermissionAllows writes inherited permissions even when scope
     allow: ["read-in-cwd"],
     deny: [],
     ask: ["network"],
-    defaultMode: "askAll",
+    defaultMode: "plan",
   });
 });
 
@@ -238,7 +282,7 @@ test("appendProjectPermissionAllows preserves existing project permissions", () 
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   fs.writeFileSync(
     settingsPath,
-    JSON.stringify({ permissions: { allow: ["read-in-cwd"], defaultMode: "allowAll" } }),
+    JSON.stringify({ permissions: { allow: ["read-in-cwd"], defaultMode: "plan" } }),
     "utf8"
   );
 
@@ -247,14 +291,14 @@ test("appendProjectPermissionAllows preserves existing project permissions", () 
       allow: ["write-in-cwd"],
       deny: ["write-out-cwd"],
       ask: ["network"],
-      defaultMode: "askAll",
+      defaultMode: "plan",
     },
   });
 
   const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
   assert.deepEqual(settings.permissions, {
     allow: ["read-in-cwd", "query-git-log"],
-    defaultMode: "allowAll",
+    defaultMode: "plan",
   });
 });
 
@@ -269,7 +313,7 @@ test("appendProjectPermissionAllows removes existing ask and deny conflicts", ()
         allow: ["read-in-cwd"],
         deny: ["network", "write-out-cwd"],
         ask: ["network", "mcp"],
-        defaultMode: "askAll",
+        defaultMode: "plan",
       },
     }),
     "utf8"
@@ -282,7 +326,7 @@ test("appendProjectPermissionAllows removes existing ask and deny conflicts", ()
     allow: ["read-in-cwd", "network"],
     deny: ["write-out-cwd"],
     ask: ["mcp"],
-    defaultMode: "askAll",
+    defaultMode: "plan",
   });
 });
 

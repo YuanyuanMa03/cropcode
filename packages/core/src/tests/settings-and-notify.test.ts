@@ -293,7 +293,7 @@ test("resolveSettings allows explicit thinkingEnabled to override model defaults
   assert.equal(resolved.thinkingEnabled, false);
 });
 
-test("resolveSettings defaults invalid reasoning effort to max", () => {
+test("resolveSettings defaults invalid reasoning effort to high", () => {
   const resolved = resolveSettings(
     {
       reasoningEffort: "turbo" as never,
@@ -305,7 +305,7 @@ test("resolveSettings defaults invalid reasoning effort to max", () => {
     TEST_PROCESS_ENV
   );
 
-  assert.equal(resolved.reasoningEffort, "max");
+  assert.equal(resolved.reasoningEffort, "high");
 });
 
 test("applyModelConfigSelection writes model only when the effective model changes or already exists", () => {

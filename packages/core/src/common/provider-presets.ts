@@ -79,7 +79,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
-        reasoningEfforts: ["high", "max"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["推荐", "代码最强"],
       },
       {
@@ -93,7 +93,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
-        reasoningEfforts: ["high", "max"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["轻量快速"],
       },
     ],
@@ -152,7 +152,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
-        reasoningEfforts: ["high", "max"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["旗舰", "长任务"],
       },
       {
@@ -165,7 +165,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
-        reasoningEfforts: ["high", "max"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["上代旗舰"],
       },
       {
@@ -178,7 +178,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
-        reasoningEfforts: ["high", "max"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["推荐", "Agentic"],
       },
       {
@@ -191,7 +191,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
-        reasoningEfforts: ["high", "max"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["稳定"],
       },
       {
@@ -203,7 +203,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         free: true,
         supportsThinking: true,
         thinkingFormat: "deepseek",
-        reasoningEfforts: ["high", "max"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["限时免费"],
       },
       {
@@ -258,7 +258,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "qwen",
-        reasoningEfforts: ["high", "max"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["旗舰"],
       },
       {
@@ -271,7 +271,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "qwen",
-        reasoningEfforts: ["high", "max"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["推荐", "性价比"],
       },
       {
@@ -284,7 +284,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "qwen",
-        reasoningEfforts: ["high", "max"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["轻量", "低成本"],
       },
       {
@@ -296,7 +296,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         contextWindow: "256K",
         supportsThinking: true,
         thinkingFormat: "qwen",
-        reasoningEfforts: ["high", "max"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["上代旗舰"],
       },
     ],
@@ -362,7 +362,7 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
-        reasoningEfforts: ["low", "medium", "high"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["推荐", "旗舰"],
       },
       {
@@ -376,8 +376,39 @@ export const BUILTIN_PROVIDERS: ProviderPreset[] = [
         supportsThinking: true,
         defaultThinking: true,
         thinkingFormat: "deepseek",
-        reasoningEfforts: ["low", "medium", "high"],
+        reasoningEfforts: ["low", "medium", "high", "max"],
         tags: ["全模态"],
+      },
+    ],
+  },
+
+  // ── 5. LongCat (美团) ─────────────────────────────────────────
+  {
+    id: "longcat",
+    label: "LongCat",
+    description: "美团大模型·1M超长上下文·128K输出·Agentic模型",
+    icon: "🐱",
+    baseURL: "https://api.longcat.chat/openai",
+    website: "https://longcat.chat/platform/",
+    apiKeyPage: "https://longcat.chat/platform/api_keys",
+    pricingPage: "https://longcat.chat/platform/docs/zh/api-pay-as-you-go",
+    topUpPage: "https://longcat.chat/platform/",
+    freeTier: "新用户有初始配额，API按量付费",
+    keyFormat: "sk-...",
+    openaiCompatible: true,
+    models: [
+      {
+        id: "longcat-2.0",
+        label: "LongCat-2.0",
+        inputPricePerMTok: 3, // 假设价格，请根据实际调整
+        outputPricePerMTok: 6, // 假设价格，请根据实际调整
+        contextWindow: "1M",
+        multimodal: false,
+        supportsThinking: true,
+        defaultThinking: false, // 需要确认是否支持 thinking
+        thinkingFormat: "deepseek" as ThinkingFormat,
+        reasoningEfforts: ["low", "medium", "high", "max"],
+        tags: ["推荐", "Agentic"],
       },
     ],
   },

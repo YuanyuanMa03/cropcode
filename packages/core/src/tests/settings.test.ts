@@ -7,7 +7,7 @@ import {
   mergePermissionLists,
   mergePermissions,
 } from "../settings";
-import type { PermissionScope } from "../settings";
+import type { PermissionScope, PermissionDefaultMode } from "../settings";
 
 describe("normalizePermissionList", () => {
   it("returns empty array for undefined", () => {
@@ -29,17 +29,19 @@ describe("normalizePermissionList", () => {
 
 describe("normalizePermissionDefaultMode", () => {
   it("returns valid modes unchanged", () => {
-    assert.strictEqual(normalizePermissionDefaultMode("allowAll"), "allowAll");
-    assert.strictEqual(normalizePermissionDefaultMode("askAll"), "askAll");
-    assert.strictEqual(normalizePermissionDefaultMode("plan"), "plan");
+    assert.strictEqual(normalizePermissionDefaultMode("ask"), "ask");
     assert.strictEqual(normalizePermissionDefaultMode("acceptEdits"), "acceptEdits");
+    assert.strictEqual(normalizePermissionDefaultMode("plan"), "plan");
     assert.strictEqual(normalizePermissionDefaultMode("bypassPermissions"), "bypassPermissions");
   });
 
-  it("falls back to allowAll for invalid values", () => {
-    assert.strictEqual(normalizePermissionDefaultMode(undefined), "allowAll");
-    assert.strictEqual(normalizePermissionDefaultMode("invalid"), "allowAll");
-    assert.strictEqual(normalizePermissionDefaultMode(42), "allowAll");
+  it("falls back to acceptEdits for invalid or legacy values", () => {
+    assert.strictEqual(normalizePermissionDefaultMode(undefined), "acceptEdits");
+    assert.strictEqual(normalizePermissionDefaultMode("invalid"), "acceptEdits");
+    assert.strictEqual(normalizePermissionDefaultMode(42), "acceptEdits");
+    // Legacy modes (allowAll/askAll) are removed and fall back to acceptEdits
+    assert.strictEqual(normalizePermissionDefaultMode("allowAll"), "acceptEdits");
+    assert.strictEqual(normalizePermissionDefaultMode("askAll"), "acceptEdits");
   });
 });
 
@@ -50,7 +52,7 @@ describe("normalizePermissions", () => {
       allow: [],
       deny: [],
       ask: [],
-      defaultMode: "allowAll",
+      defaultMode: "acceptEdits",
     });
   });
 
@@ -77,18 +79,24 @@ describe("mergePermissionLists", () => {
 describe("mergePermissions", () => {
   it("project settings take precedence for defaultMode", () => {
     const result = mergePermissions(
-      { permissions: { defaultMode: "allowAll" } },
-      { permissions: { defaultMode: "askAll" } }
+      { permissions: { defaultMode: "plan" } },
+      { permissions: { defaultMode: "bypassPermissions" } }
     );
-    assert.strictEqual(result.defaultMode, "askAll");
+    assert.strictEqual(result.defaultMode, "bypassPermissions");
   });
 
-  it("user defaultMode used when project is allowAll", () => {
+  it("user defaultMode used when project has no defaultMode", () => {
+    const result = mergePermissions({ permissions: { defaultMode: "bypassPermissions" } }, { permissions: {} });
+    assert.strictEqual(result.defaultMode, "bypassPermissions");
+  });
+
+  it("legacy modes are normalized to acceptEdits", () => {
     const result = mergePermissions(
       { permissions: { defaultMode: "plan" } },
-      { permissions: { defaultMode: "allowAll" } }
+      { permissions: { defaultMode: "allowAll" as unknown as PermissionDefaultMode } }
     );
-    assert.strictEqual(result.defaultMode, "plan");
+    // Project explicitly set a (legacy) mode → normalized to acceptEdits, takes precedence.
+    assert.strictEqual(result.defaultMode, "acceptEdits");
   });
 
   it("merges allow lists from both sources", () => {
