@@ -69,20 +69,23 @@ Usage notes:
       "type": "string"
     },
     "sideEffects": {
-      "description": "Permission scope that best describes the side effects of this command. Required for every bash call.",
-      "type": "string",
-      "enum": [
-        "read-in-cwd",
-        "read-out-cwd",
-        "write-in-cwd",
-        "write-out-cwd",
-        "delete-in-cwd",
-        "delete-out-cwd",
-        "query-git-log",
-        "mutate-git-log",
-        "network",
-        "mcp"
-      ]
+      "description": "Permission scopes required by this bash command. Use [] only for commands that do not read, write, delete, or access the network. Use [\"unknown\"] when the effects cannot be classified safely. Required for every bash call.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "read-in-cwd",
+          "read-out-cwd",
+          "write-in-cwd",
+          "write-out-cwd",
+          "delete-in-cwd",
+          "delete-out-cwd",
+          "query-git-log",
+          "mutate-git-log",
+          "network",
+          "unknown"
+        ]
+      }
     },
     "run_in_background": {
       "description": "Set to true to run this command in the background. You will be notified when it finishes. Only use this if you don't need the result immediately and are OK being notified when it completes. You do not need to use '&' at the end of the command when using this parameter.",
