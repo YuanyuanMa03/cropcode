@@ -445,24 +445,26 @@ type PermissionScope =
 
 ```typescript
 type PermissionDefaultMode =
-  | "allowAll"          // 全部允许（默认）
-  | "askAll"            // 全部询问
-  | "plan"              // 只读模式：读取允许，写入/删除/网络询问
-  | "acceptEdits"       // 编辑模式：文件操作允许，网络/MCP/Bash 询问
-  | "bypassPermissions" // 绕过模式：全部自动允许（除显式拒绝）
+  | "ask"               // 变更前确认：读取自动允许，写入/删除/网络/MCP 询问
+  | "acceptEdits"       // 自动编辑（默认）：文件读写删除自动允许，网络/MCP/Bash 询问
+  | "plan"              // 计划模式：只读允许，写入/删除/网络/MCP 询问
+  | "bypassPermissions" // 完全访问：跳过所有检查（含 deny 和 unknown）
 ```
 
 **各模式行为矩阵：**
 
-| 操作类型 | allowAll | askAll | plan | acceptEdits | bypassPermissions |
-|---------|----------|--------|------|-------------|-------------------|
-| 文件读取 | allow | ask | allow | allow | allow |
-| 文件写入 | allow | ask | ask | allow | allow |
-| 文件删除 | allow | ask | ask | ask | allow |
-| Git 查询 | allow | ask | allow | allow | allow |
-| Git 修改 | allow | ask | ask | ask | allow |
-| 网络访问 | allow | ask | ask | ask | allow |
-| MCP 调用 | allow | ask | ask | ask | allow |
+| 操作类型 | ask | acceptEdits | plan | bypassPermissions |
+|---------|-----|-------------|------|-------------------|
+| 文件读取 | allow | allow | allow | allow |
+| 文件写入 | ask | allow | ask | allow |
+| 文件删除 | ask | allow | ask | allow |
+| Git 查询 | allow | allow | allow | allow |
+| Git 修改 | ask | ask | ask | allow |
+| 网络访问 | ask | ask | ask | allow |
+| MCP 调用 | ask | ask | ask | allow |
+
+> 注：`ask` 与 `plan` 在权限评估层行为一致（只读自动通过，其余询问），区别体现在产品语义。
+> 旧值（`allowAll`/`askAll`）及非法值经 `normalizePermissionDefaultMode` 回退到 `acceptEdits`。
 
 ### 6.3 权限评估流程
 
