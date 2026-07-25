@@ -1,4 +1,4 @@
-import { getThinkingOptionIndex, MODEL_COMMAND_THINKING_OPTIONS } from "./components/ModelsDropdown";
+import { getThinkingOptionIndex } from "./components/ModelsDropdown";
 
 export { readSettings, readProjectSettings, writeSettings, writeProjectSettings } from "@YuanyuanMa03/cropcode-core";
 export { writeModelConfigSelection, resolveCurrentSettings, buildPromptDraftFromSessionMessage } from "./views/App";
@@ -26,7 +26,7 @@ export {
   type PromptDraft,
   type InputKey,
 } from "./views/PromptInput";
-export { getThinkingOptionIndex, MODEL_COMMAND_THINKING_OPTIONS };
+export { getThinkingOptionIndex };
 export { disableTerminalExtendedKeys, enableTerminalExtendedKeys, getPromptCursorPlacement } from "./hooks/cursor";
 export { SessionList, formatSessionTitle, filterSessions, formatSessionStatus } from "./views/SessionList";
 export { ThemedGradient } from "./views/ThemedGradient";

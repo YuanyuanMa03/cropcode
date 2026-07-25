@@ -12,11 +12,10 @@ type ModeOption = {
 };
 
 const MODE_OPTIONS: ModeOption[] = [
-  { label: "allowAll", mode: "allowAll", description: "全部自动允许（默认）" },
-  { label: "askAll", mode: "askAll", description: "每步确认" },
-  { label: "plan", mode: "plan", description: "只读允许，写入需确认" },
-  { label: "acceptEdits", mode: "acceptEdits", description: "文件读写允许，bash/网络需确认" },
-  { label: "bypassPermissions", mode: "bypassPermissions", description: "绕过所有限制（含deny）" },
+  { label: "ask", mode: "ask", description: "变更前确认（读写均需确认）" },
+  { label: "acceptEdits", mode: "acceptEdits", description: "自动编辑（文件编辑自动通过，其他需确认）（默认）" },
+  { label: "plan", mode: "plan", description: "计划模式（只读允许，其余需确认）" },
+  { label: "bypassPermissions", mode: "bypassPermissions", description: "完全访问（跳过所有限制，含deny）" },
 ];
 
 type SaveOption = {
