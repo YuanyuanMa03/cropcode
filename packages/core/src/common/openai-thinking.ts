@@ -24,7 +24,7 @@ function effortToBudget(effort: string): number {
 export function buildThinkingRequestOptions(
   thinkingEnabled: boolean,
   model: string = "",
-  reasoningEffort: string = "max"
+  reasoningEffort: string = "high"
 ): ThinkingRequestOptions {
   if (!thinkingEnabled || !modelSupportsThinking(model)) {
     return {};
@@ -35,9 +35,13 @@ export function buildThinkingRequestOptions(
   switch (format) {
     case "deepseek": {
       // DeepSeek, GLM, and MiMo support reasoning_effort.
+      // Send reasoning_effort as a top-level field — the Node openai SDK
+      // passes unknown body keys through to the HTTP request as-is.
+      // (extra_body is a Python-SDK-only convention; Node treats it as a
+      // nested object, so the provider never sees the value.)
       const opts: ThinkingRequestOptions = { thinking: { type: "enabled" } };
       if (supportsReasoningEffort(model)) {
-        opts.extra_body = { reasoning_effort: reasoningEffort };
+        opts.reasoning_effort = reasoningEffort;
       }
       return opts;
     }

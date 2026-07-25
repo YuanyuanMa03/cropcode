@@ -637,7 +637,7 @@ async function inferOldStringNotFoundReasonWithLLM(
     return null;
   }
 
-  const { client, model, baseURL, thinkingEnabled, reasoningEffort } = clientFactory();
+  const { client, model, thinkingEnabled, reasoningEffort } = clientFactory();
   if (!client) {
     return null;
   }
@@ -676,7 +676,7 @@ async function inferOldStringNotFoundReasonWithLLM(
             "</output_format>",
         },
       ],
-      ...buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort),
+      ...buildThinkingRequestOptions(thinkingEnabled, model, reasoningEffort),
     });
 
     return parseOldStringNotFoundReason(response.choices?.[0]?.message?.content ?? "");
@@ -721,7 +721,7 @@ async function correctEscapedStringsWithLLM(
     return null;
   }
 
-  const { client, model, baseURL, thinkingEnabled, reasoningEffort } = clientFactory();
+  const { client, model, thinkingEnabled, reasoningEffort } = clientFactory();
   if (!client) {
     return null;
   }
@@ -754,7 +754,7 @@ async function correctEscapedStringsWithLLM(
             "</output_format>",
         },
       ],
-      ...buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort),
+      ...buildThinkingRequestOptions(thinkingEnabled, model, reasoningEffort),
     });
 
     const content = response.choices?.[0]?.message?.content ?? "";

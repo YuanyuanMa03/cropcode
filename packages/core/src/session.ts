@@ -318,6 +318,7 @@ type SessionManagerOptions = {
   onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   onSessionEntryUpdated?: (entry: SessionEntry) => void;
   onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
+  onLlmStreamDelta?: (delta: LlmStreamDelta) => void;
   onMcpStatusChanged?: () => void;
   onProcessStdout?: (pid: number, chunk: string) => void;
 };
@@ -328,6 +329,14 @@ export type LlmStreamProgress = {
   startedAt: string;
   estimatedTokens: number;
   formattedTokens: string;
+  phase: "start" | "update" | "end";
+};
+
+export type LlmStreamDelta = {
+  requestId: string;
+  sessionId?: string;
+  contentDelta?: string;
+  reasoningDelta?: string;
   phase: "start" | "update" | "end";
 };
 
@@ -346,6 +355,7 @@ export class SessionManager {
   private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   private readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
   private readonly onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
+  private readonly onLlmStreamDelta?: (delta: LlmStreamDelta) => void;
   private readonly onMcpStatusChanged?: () => void;
   private readonly onProcessStdout?: (pid: number, chunk: string) => void;
   private activeSessionId: string | null = null;
@@ -366,6 +376,7 @@ export class SessionManager {
     this.onAssistantMessage = options.onAssistantMessage;
     this.onSessionEntryUpdated = options.onSessionEntryUpdated;
     this.onLlmStreamProgress = options.onLlmStreamProgress;
+    this.onLlmStreamDelta = options.onLlmStreamDelta;
     this.onMcpStatusChanged = options.onMcpStatusChanged;
     this.onProcessStdout = options.onProcessStdout;
     this.messageConverter = new OpenAIMessageConverter({
@@ -503,7 +514,8 @@ export class SessionManager {
     request: Record<string, unknown>,
     options?: Record<string, unknown>,
     sessionId?: string,
-    debug?: ChatCompletionDebugOptions
+    debug?: ChatCompletionDebugOptions,
+    streamDelta?: boolean
   ): Promise<{
     choices?: Array<{ message?: Record<string, unknown> }>;
     usage?: ModelUsage | null;
@@ -513,6 +525,9 @@ export class SessionManager {
     const startedAtMs = Date.now();
     let estimatedTokens = 0;
     this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "start", sessionId);
+    if (streamDelta) {
+      this.onLlmStreamDelta?.({ requestId, sessionId, phase: "start" });
+    }
 
     const streamRequest = {
       ...request,
@@ -562,11 +577,17 @@ export class SessionManager {
         request: streamRequest,
       });
       this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
+      if (streamDelta) {
+        this.onLlmStreamDelta?.({ requestId, sessionId, phase: "end" });
+      }
       throw error;
     }
 
     if (!response || typeof (response as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] !== "function") {
       this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
+      if (streamDelta) {
+        this.onLlmStreamDelta?.({ requestId, sessionId, phase: "end" });
+      }
       this.logChatCompletionDebug(debug, {
         timestamp: new Date().toISOString(),
         location: debug?.location ?? "SessionManager.createChatCompletionStream",
@@ -624,12 +645,18 @@ export class SessionManager {
           if (typeof contentDelta === "string") {
             content += contentDelta;
             trackText(contentDelta);
+            if (streamDelta) {
+              this.onLlmStreamDelta?.({ requestId, sessionId, contentDelta, phase: "update" });
+            }
           }
 
           const reasoningDelta = delta.reasoning_content ?? delta.reasoning;
           if (typeof reasoningDelta === "string") {
             reasoningContent += reasoningDelta;
             trackText(reasoningDelta);
+            if (streamDelta) {
+              this.onLlmStreamDelta?.({ requestId, sessionId, reasoningDelta, phase: "update" });
+            }
           }
 
           if (typeof delta.refusal === "string") {
@@ -694,6 +721,9 @@ export class SessionManager {
       throw error;
     } finally {
       this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
+      if (streamDelta) {
+        this.onLlmStreamDelta?.({ requestId, sessionId, phase: "end" });
+      }
     }
 
     const toolCalls = Array.from(toolCallsByIndex.entries())
@@ -1436,7 +1466,8 @@ ${agentInstructions}
               location: "SessionManager.activateSession",
               baseURL,
               params: { iteration, temperature, thinkingEnabled, reasoningEffort },
-            }
+            },
+            true
           );
         } catch (apiError) {
           const apiErrMsg = apiError instanceof Error ? apiError.message : String(apiError);

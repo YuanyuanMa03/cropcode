@@ -81,7 +81,7 @@ export type PermissionScope =
   | "network"
   | "mcp";
 
-export type PermissionDefaultMode = "allowAll" | "askAll" | "plan" | "acceptEdits" | "bypassPermissions";
+export type PermissionDefaultMode = "ask" | "acceptEdits" | "plan" | "bypassPermissions";
 
 export type PermissionSettings = {
   allow?: PermissionScope[];
@@ -124,7 +124,7 @@ const permissionSettingsSchema = z.object({
   allow: z.array(z.string()).optional(),
   deny: z.array(z.string()).optional(),
   ask: z.array(z.string()).optional(),
-  defaultMode: z.enum(["allowAll", "askAll", "plan", "acceptEdits", "bypassPermissions"]).optional(),
+  defaultMode: z.enum(["ask", "acceptEdits", "plan", "bypassPermissions"]).optional(),
 });
 
 const cropcodeSettingsSchema = z
@@ -322,16 +322,11 @@ export function normalizePermissionList(scopes: PermissionScope[] | undefined): 
 }
 
 export function normalizePermissionDefaultMode(value: unknown): PermissionDefaultMode {
-  if (
-    value === "allowAll" ||
-    value === "askAll" ||
-    value === "plan" ||
-    value === "acceptEdits" ||
-    value === "bypassPermissions"
-  ) {
+  if (value === "ask" || value === "acceptEdits" || value === "plan" || value === "bypassPermissions") {
     return value;
   }
-  return "allowAll";
+  // Legacy modes (allowAll/askAll) and invalid values fall back to the safe default.
+  return "acceptEdits";
 }
 
 export function normalizePermissions(permissions: PermissionSettings | undefined): Required<PermissionSettings> {
@@ -353,12 +348,14 @@ export function mergePermissions(
 ): Required<PermissionSettings> {
   const user = normalizePermissions(userSettings?.permissions);
   const project = normalizePermissions(projectSettings?.permissions);
+  // Project-level defaultMode takes precedence when explicitly set; otherwise fall back to user-level.
+  const projectHasDefaultMode = projectSettings?.permissions?.defaultMode !== undefined;
 
   return {
     allow: mergePermissionLists(user.allow, project.allow),
     deny: mergePermissionLists(user.deny, project.deny),
     ask: mergePermissionLists(user.ask, project.ask),
-    defaultMode: project.defaultMode !== "allowAll" ? project.defaultMode : user.defaultMode,
+    defaultMode: projectHasDefaultMode ? project.defaultMode : user.defaultMode,
   };
 }
 
@@ -399,7 +396,7 @@ export function resolveSettingsSources(
     resolveReasoningEffort(projectEnv.REASONING_EFFORT) ??
     resolveReasoningEffort(userSettings?.reasoningEffort) ??
     resolveReasoningEffort(userEnv.REASONING_EFFORT) ??
-    "max";
+    "high";
 
   const debugLogEnabled =
     parseBoolean(systemEnv.DEBUG_LOG_ENABLED) ??

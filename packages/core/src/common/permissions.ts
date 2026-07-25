@@ -270,7 +270,7 @@ export function evaluatePermissionScopes(
     allow: [],
     deny: [],
     ask: [],
-    defaultMode: "allowAll",
+    defaultMode: "acceptEdits",
   }
 ): PermissionDecision {
   if (scopes.length === 0) {
@@ -294,8 +294,10 @@ export function evaluatePermissionScopes(
   if (permissionScopes.every((scope) => settings.allow.includes(scope))) {
     return "allow";
   }
-  // plan: read-only mode — allow reads, ask for writes/deletes/network
-  if (settings.defaultMode === "plan") {
+  // plan / ask: read-only operations are auto-allowed; everything else asks.
+  // (In the evaluation layer plan and ask behave identically; their difference
+  // is only semantic/UI. Reads always pass without prompting in both modes.)
+  if (settings.defaultMode === "plan" || settings.defaultMode === "ask") {
     const isReadOnly = permissionScopes.every(
       (scope) => scope === "read-in-cwd" || scope === "read-out-cwd" || scope === "query-git-log"
     );
@@ -314,7 +316,7 @@ export function evaluatePermissionScopes(
     );
     return isFileOp ? "allow" : "ask";
   }
-  return settings.defaultMode === "askAll" ? "ask" : "allow";
+  return "allow";
 }
 
 export function getPermissionScopesRequiringAsk(
@@ -323,7 +325,7 @@ export function getPermissionScopesRequiringAsk(
     allow: [],
     deny: [],
     ask: [],
-    defaultMode: "allowAll",
+    defaultMode: "acceptEdits",
   }
 ): AskPermissionScope[] {
   const result: AskPermissionScope[] = [];
@@ -346,7 +348,8 @@ export function getPermissionScopesRequiringAsk(
     if (settings.allow.includes(scope)) {
       continue;
     }
-    if (settings.defaultMode === "plan") {
+    // plan / ask: read-only operations are auto-allowed; everything else asks.
+    if (settings.defaultMode === "plan" || settings.defaultMode === "ask") {
       if (scope === "read-in-cwd" || scope === "read-out-cwd" || scope === "query-git-log") {
         continue;
       }
@@ -366,9 +369,6 @@ export function getPermissionScopesRequiringAsk(
       }
       result.push(scope);
       continue;
-    }
-    if (settings.defaultMode === "askAll") {
-      result.push(scope);
     }
   }
   return result;

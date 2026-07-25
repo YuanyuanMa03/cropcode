@@ -54,6 +54,7 @@ export type {
   SessionProcessEntry,
   BashTimeoutAdjustment,
   LlmStreamProgress,
+  LlmStreamDelta,
 } from "./session";
 
 // Prompt utilities
@@ -157,6 +158,7 @@ export {
   getCompactPromptTokenThreshold,
   getMaxOutputTokens,
   supportsMultimodal,
+  supportsThinking,
 } from "./common/model-capabilities";
 export { findGitBashPath, resolveShellPath, setShellIfWindows } from "./common/shell-utils";
 export { logApiError } from "./common/error-logger";
