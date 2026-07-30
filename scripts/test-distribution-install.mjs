@@ -98,14 +98,22 @@ function resolveArchive() {
 
 function extract(archive, destination) {
   if (process.platform === "win32") {
-    run("powershell.exe", [
-      "-NoProfile",
-      "-NonInteractive",
-      "-Command",
-      "Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force",
-      archive,
-      destination,
-    ]);
+    run(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Expand-Archive -LiteralPath $env:CROPCODE_ARCHIVE_SOURCE -DestinationPath $env:CROPCODE_ARCHIVE_DESTINATION -Force",
+      ],
+      {
+        env: {
+          ...process.env,
+          CROPCODE_ARCHIVE_SOURCE: archive,
+          CROPCODE_ARCHIVE_DESTINATION: destination,
+        },
+      }
+    );
     return;
   }
   run("tar", ["-xzf", archive, "-C", destination]);
