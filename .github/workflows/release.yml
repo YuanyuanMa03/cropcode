@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   package:
@@ -22,7 +21,6 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          registry-url: https://npm.pkg.github.com
 
       - name: Install dependencies
         run: npm ci
@@ -30,43 +28,17 @@ jobs:
       - name: Verify source
         run: npm run check && npm test
 
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          test "$GITHUB_REF_NAME" = "v$PACKAGE_VERSION"
+
       - name: Build Windows, macOS, and Linux packages
         run: npm run package:all
 
-      - name: Publish npm package (GitHub Packages)
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
-        run: |
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          PUBLISHED_VERSION=$(npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version --json 2>/dev/null || true)
-          if [ "$PUBLISHED_VERSION" = "\"$PACKAGE_VERSION\"" ]; then
-            echo "$PACKAGE_NAME@$PACKAGE_VERSION is already published"
-          else
-            npm publish
-          fi
-
-      - name: Publish npm package (npmjs.com)
-        if: startsWith(github.ref, 'refs/tags/v')
-        continue-on-error: true
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "NPM_TOKEN secret is not configured — skipping npmjs.com publish."
-            echo "Configure it at: Settings → Secrets and variables → Actions → NPM_TOKEN"
-            exit 0
-          fi
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          # package.json publishConfig points at GitHub Packages; override to npmjs.com here.
-          PUBLISHED_VERSION=$(npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version --registry=https://registry.npmjs.org --json 2>/dev/null || true)
-          if [ "$PUBLISHED_VERSION" = "\"$PACKAGE_VERSION\"" ]; then
-            echo "$PACKAGE_NAME@$PACKAGE_VERSION is already published on npmjs.com"
-          else
-            npm publish --registry=https://registry.npmjs.org
-          fi
+      - name: Test versioned installer
+        run: npm run test:distribution
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
@@ -76,6 +48,7 @@ jobs:
             release/*.zip
             release/*.tar.gz
             release/SHA256SUMS
+            release/manifest.json
 
       - name: Publish tag assets
         if: startsWith(github.ref, 'refs/tags/v')
@@ -83,7 +56,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" release/*.zip release/*.tar.gz release/SHA256SUMS --clobber
+            gh release upload "$GITHUB_REF_NAME" release/*.zip release/*.tar.gz release/SHA256SUMS release/manifest.json --clobber
           else
-            gh release create "$GITHUB_REF_NAME" release/*.zip release/*.tar.gz release/SHA256SUMS --generate-notes
+            gh release create "$GITHUB_REF_NAME" release/*.zip release/*.tar.gz release/SHA256SUMS release/manifest.json --generate-notes
           fi

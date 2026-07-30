@@ -22,6 +22,7 @@
     "bundle": "npm run generate && node scripts/esbuild.config.js && node scripts/copy-bundle-assets.js",
     "bundle:portable": "node scripts/build-portable.mjs",
     "package:all": "npm run bundle:portable && node scripts/package-distributions.mjs",
+    "test:distribution": "node scripts/test-distribution-install.mjs",
     "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.{js,mjs}\"",
     "lint:fix": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.{js,mjs}\" --fix",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.{js,mjs}\"",

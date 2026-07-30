@@ -16,8 +16,19 @@ New-Item -ItemType Directory -Path $tempDir | Out-Null
 
 try {
   $archive = Join-Path $tempDir $asset
+  $checksums = Join-Path $tempDir "SHA256SUMS"
   Write-Host "Downloading CropCode $version..."
   Invoke-WebRequest -UseBasicParsing -Uri "$downloadBase/$asset" -OutFile $archive
+  Invoke-WebRequest -UseBasicParsing -Uri "$downloadBase/SHA256SUMS" -OutFile $checksums
+  $checksumLine = Get-Content $checksums | Where-Object { $_ -match "\s+$([regex]::Escape($asset))$" } | Select-Object -First 1
+  if (-not $checksumLine) {
+    throw "SHA256SUMS does not contain $asset."
+  }
+  $expectedHash = ($checksumLine -split "\s+")[0].ToLowerInvariant()
+  $actualHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actualHash -ne $expectedHash) {
+    throw "Checksum verification failed for $asset."
+  }
   Expand-Archive -Path $archive -DestinationPath $tempDir -Force
   $installer = Get-ChildItem -Path $tempDir -Recurse -File -Filter install.ps1 |
     Where-Object { $_.DirectoryName -ne $tempDir } |

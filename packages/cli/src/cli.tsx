@@ -1,7 +1,13 @@
 import React from "react";
 import { render } from "ink";
 import { setShellIfWindows } from "@YuanyuanMa03/cropcode-core";
-import { checkForNpmUpdate, promptForPendingUpdate, type PackageInfo } from "./common/update-check";
+import {
+  checkForReleaseUpdate,
+  promptForPendingUpdate,
+  runRollbackCommand,
+  runUpdateCommand,
+  type PackageInfo,
+} from "./common/update-check";
 import { AppContainer } from "./ui";
 
 const args = process.argv.slice(2);
@@ -13,6 +19,16 @@ if (args[0] === "marketplace" || args[0] === "plugin") {
     () => process.exit(0),
     () => process.exit(1)
   );
+} else if (args[0] === "update") {
+  void runUpdateCommand(packageInfo, args.slice(1)).then(
+    (code) => process.exit(code),
+    (error) => {
+      process.stderr.write(`CropCode update failed: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.exit(1);
+    }
+  );
+} else if (args[0] === "rollback") {
+  void runRollbackCommand().then((code) => process.exit(code));
 } else if (args.includes("--version") || args.includes("-v")) {
   process.stdout.write(`${packageInfo.version || "unknown"}\n`);
   process.exit(0);
@@ -25,6 +41,8 @@ if (args[0] === "marketplace" || args[0] === "plugin") {
       "  cropcode                              Launch the interactive TUI in the current directory",
       "  cropcode -p <prompt>                  Launch with a pre-filled prompt",
       "  cropcode --prompt <prompt>            Same as -p",
+      "  cropcode update [--check]             Check for or install a portable release update",
+      "  cropcode rollback                     Switch back to the previously installed release",
       "  cropcode --version                    Print the version",
       "  cropcode --help                       Show this help",
       "",
@@ -81,9 +99,10 @@ let initialPrompt = extractInitialPrompt(args);
 const projectRoot = process.cwd();
 configureWindowsShell();
 
-const isMarketplaceCommand = args[0] === "marketplace" || args[0] === "plugin";
+const isStandaloneCommand =
+  args[0] === "marketplace" || args[0] === "plugin" || args[0] === "update" || args[0] === "rollback";
 
-if (isMarketplaceCommand) {
+if (isStandaloneCommand) {
   // Already handled above; wait for the async handler to exit.
 } else {
   if (!process.stdin.isTTY) {
@@ -209,7 +228,7 @@ async function handleMarketplaceCommand(argv: string[]): Promise<void> {
 
 async function main(): Promise<void> {
   const isPortableDistribution = process.env.CROPCODE_DISTRIBUTION === "portable";
-  if (!isPortableDistribution) {
+  if (isPortableDistribution) {
     const updatePromptResult = await promptForPendingUpdate(packageInfo);
     if (updatePromptResult.installed) {
       process.exit(0);
@@ -247,8 +266,10 @@ async function main(): Promise<void> {
     });
   }
 
-  if (!isPortableDistribution) {
-    void checkForNpmUpdate(packageInfo);
+  if (isPortableDistribution) {
+    void checkForReleaseUpdate(packageInfo).catch(() => {
+      // Automatic update checks must never interrupt the interactive CLI.
+    });
   }
 
   startApp();
