@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  checkForReleaseUpdate,
   compareVersions,
   getManifestUrl,
   getReleaseAssetUrl,
@@ -80,6 +81,28 @@ test("release URLs use GitHub by default and honor a mirror base", () => {
     getReleaseAssetUrl(manifest, asset, { CROPCODE_DOWNLOAD_BASE: "https://mirror.example/releases/" }),
     "https://mirror.example/releases/cropcode-macos-universal.tar.gz"
   );
+});
+
+test("checkForReleaseUpdate tolerates an unwritable update-state path", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "cropcode-update-state-test-"));
+  const homeFile = path.join(root, "not-a-directory");
+  const homeVariable = process.platform === "win32" ? "USERPROFILE" : "HOME";
+  const originalHome = process.env[homeVariable];
+  await writeFile(homeFile, "file blocks state directory creation\n");
+  process.env[homeVariable] = homeFile;
+  context.mock.method(
+    globalThis,
+    "fetch",
+    async () => new Response(JSON.stringify(manifest), { status: 200, headers: { "Content-Type": "application/json" } })
+  );
+
+  try {
+    assert.deepEqual(await checkForReleaseUpdate({ name: "cropcode", version: "2.1.0" }, true), manifest);
+  } finally {
+    if (originalHome === undefined) delete process.env[homeVariable];
+    else process.env[homeVariable] = originalHome;
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("rollbackInstalledVersion atomically swaps current and previous versions", async () => {

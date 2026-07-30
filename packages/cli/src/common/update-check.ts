@@ -131,7 +131,6 @@ export async function checkForReleaseUpdate(packageInfo: PackageInfo, force = fa
     });
     return manifest;
   } catch {
-    writeUpdateState({ ...state, lastCheckedAt: checkedAt });
     return null;
   }
 }
@@ -551,8 +550,18 @@ function readUpdateState(): UpdateState {
 
 function writeUpdateState(state: UpdateState): void {
   const statePath = getUpdateStatePath();
-  fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  const tempPath = `${statePath}.tmp-${process.pid}`;
+  try {
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(tempPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    fs.renameSync(tempPath, statePath);
+  } catch {
+    try {
+      fs.unlinkSync(tempPath);
+    } catch {
+      // Update state is best-effort and must never interrupt normal CLI operation.
+    }
+  }
 }
 
 function parseVersion(value: string): [number, number, number] {

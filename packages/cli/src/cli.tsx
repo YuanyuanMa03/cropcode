@@ -267,7 +267,9 @@ async function main(): Promise<void> {
   }
 
   if (isPortableDistribution) {
-    void checkForReleaseUpdate(packageInfo);
+    void checkForReleaseUpdate(packageInfo).catch(() => {
+      // Automatic update checks must never interrupt the interactive CLI.
+    });
   }
 
   startApp();

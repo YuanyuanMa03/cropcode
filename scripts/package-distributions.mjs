@@ -119,7 +119,7 @@ async function createApplication(stage, targetName, windows) {
   if (windows) {
     await writeFile(
       path.join(stage, "cropcode.cmd"),
-      '@echo off\r\nset "CROPCODE_HOME=%~dp0"\r\nset "PATH=%~dp0runtime;%PATH%"\r\n"%~dp0runtime\\node.exe" "%~dp0dist\\cli.js" %*\r\n'
+      '@echo off\r\nset "CROPCODE_HOME=%~dp0"\r\nset "CROPCODE_DISTRIBUTION=portable"\r\nset "PATH=%~dp0runtime;%PATH%"\r\n"%~dp0runtime\\node.exe" "%~dp0dist\\cli.js" %*\r\n'
     );
     await writeFile(
       path.join(stage, "install.cmd"),
@@ -291,7 +291,7 @@ if [ ! -x "$APP" ]; then
   echo "CropCode version $VERSION is not installed correctly." >&2
   exit 1
 fi
-export CROPCODE_INSTALL_DIR="$INSTALL_ROOT"
+export CROPCODE_INSTALL_DIR="$INSTALL_ROOT" CROPCODE_BIN_DIR="$BIN_ROOT"
 exec "$APP" "$@"
 EOF
 chmod 755 "$BIN_DIR/cropcode"
@@ -346,6 +346,7 @@ $rootLauncher = @'
 @echo off
 setlocal
 set "CROPCODE_INSTALL_DIR=%~dp0"
+set "CROPCODE_DISTRIBUTION=portable"
 set /p CROPCODE_VERSION=<"%~dp0current-version"
 if not exist "%~dp0versions\\%CROPCODE_VERSION%\\cropcode.cmd" (
   echo CropCode version %CROPCODE_VERSION% is not installed correctly. 1>&2

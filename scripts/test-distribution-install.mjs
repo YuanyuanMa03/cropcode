@@ -42,8 +42,21 @@ try {
 
   const launcher =
     process.platform === "win32" ? path.join(installRoot, "cropcode.cmd") : path.join(binRoot, "cropcode");
+  const launcherSource = await readFile(launcher, "utf8");
+  if (process.platform === "win32") {
+    assert.match(launcherSource, /CROPCODE_DISTRIBUTION=portable/);
+  } else {
+    assert.match(launcherSource, /CROPCODE_BIN_DIR="\$BIN_ROOT"/);
+  }
   const launchedVersion = run(launcher, ["--version"], { env, encoding: "utf8" }).stdout.trim();
   assert.equal(launchedVersion, version);
+
+  const windowsLauncher = run(
+    "unzip",
+    ["-p", path.join(root, "release", "cropcode-windows-x64.zip"), `cropcode-v${version}-windows-x64/cropcode.cmd`],
+    { encoding: "utf8" }
+  ).stdout;
+  assert.match(windowsLauncher, /CROPCODE_DISTRIBUTION=portable/);
 
   await writeFile(path.join(installRoot, "current-version"), "1.0.0\n");
   install(installer, env);
