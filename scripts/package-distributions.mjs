@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createWriteStream, existsSync } from "node:fs";
-import { chmod, copyFile, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, copyFile, cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -70,17 +70,38 @@ for (const targetName of selected) {
   } else {
     run("tar", ["-czf", outputPath, folderName], workDir);
   }
-  outputs.push(outputPath);
+  outputs.push({ targetName, outputPath });
   console.log(`Created ${path.relative(root, outputPath)}`);
 }
 
 const checksumLines = [];
-for (const output of outputs) {
-  checksumLines.push(`${await sha256(output)}  ${path.basename(output)}`);
+const manifestAssets = {};
+for (const { targetName, outputPath } of outputs) {
+  const hash = await sha256(outputPath);
+  checksumLines.push(`${hash}  ${path.basename(outputPath)}`);
+  manifestAssets[targetName] = {
+    file: path.basename(outputPath),
+    sha256: hash,
+    size: (await stat(outputPath)).size,
+  };
 }
 await writeFile(path.join(releaseDir, "SHA256SUMS"), `${checksumLines.join("\n")}\n`);
+await writeFile(
+  path.join(releaseDir, "manifest.json"),
+  `${JSON.stringify(
+    {
+      schemaVersion: 1,
+      version,
+      publishedAt: new Date().toISOString(),
+      releaseNotesUrl: `https://github.com/YuanyuanMa03/cropcode/releases/tag/v${version}`,
+      assets: manifestAssets,
+    },
+    null,
+    2
+  )}\n`
+);
 await rm(workDir, { recursive: true, force: true });
-console.log("Created release/SHA256SUMS");
+console.log("Created release/SHA256SUMS and release/manifest.json");
 
 async function createApplication(stage, targetName, windows) {
   await mkdir(path.join(stage, "dist"), { recursive: true });
@@ -218,19 +239,63 @@ set -eu
 SOURCE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 INSTALL_ROOT="\${CROPCODE_INSTALL_DIR:-$HOME/.local/share/cropcode}"
 BIN_DIR="\${CROPCODE_BIN_DIR:-$HOME/.local/bin}"
-if [ "$SOURCE" = "$INSTALL_ROOT" ]; then
-  echo "CropCode is already installed at $INSTALL_ROOT"
-  exit 0
+VERSION="${version}"
+TARGET_ROOT="$INSTALL_ROOT/versions/$VERSION"
+STAGING="$INSTALL_ROOT/.staging-$VERSION-$$"
+
+cleanup() {
+  rm -rf "$STAGING"
+}
+trap cleanup EXIT HUP INT TERM
+
+mkdir -p "$INSTALL_ROOT/versions" "$BIN_DIR"
+if [ ! -d "$TARGET_ROOT" ]; then
+  mkdir -p "$STAGING"
+  cp -R "$SOURCE"/. "$STAGING"/
+  INSTALLED_VERSION=$("$STAGING/cropcode" --version)
+  if [ "$INSTALLED_VERSION" != "$VERSION" ]; then
+    echo "Package version mismatch: expected $VERSION, got $INSTALLED_VERSION" >&2
+    exit 1
+  fi
+  mv "$STAGING" "$TARGET_ROOT"
+else
+  INSTALLED_VERSION=$("$TARGET_ROOT/cropcode" --version)
+  if [ "$INSTALLED_VERSION" != "$VERSION" ]; then
+    echo "Existing installation at $TARGET_ROOT is invalid." >&2
+    exit 1
+  fi
 fi
-rm -rf "$INSTALL_ROOT"
-mkdir -p "$INSTALL_ROOT" "$BIN_DIR"
-cp -R "$SOURCE"/. "$INSTALL_ROOT"/
-cat > "$BIN_DIR/cropcode" <<EOF
+
+if [ -f "$INSTALL_ROOT/current-version" ]; then
+  CURRENT_VERSION=$(sed -n '1p' "$INSTALL_ROOT/current-version")
+  if [ -n "$CURRENT_VERSION" ] && [ "$CURRENT_VERSION" != "$VERSION" ]; then
+    printf '%s\\n' "$CURRENT_VERSION" > "$INSTALL_ROOT/previous-version.tmp"
+    mv "$INSTALL_ROOT/previous-version.tmp" "$INSTALL_ROOT/previous-version"
+  fi
+fi
+printf '%s\\n' "$VERSION" > "$INSTALL_ROOT/current-version.tmp"
+mv "$INSTALL_ROOT/current-version.tmp" "$INSTALL_ROOT/current-version"
+printf '%s\\n' "$INSTALL_ROOT" > "$BIN_DIR/cropcode-root.tmp"
+mv "$BIN_DIR/cropcode-root.tmp" "$BIN_DIR/cropcode-root"
+
+cat > "$BIN_DIR/cropcode" <<'EOF'
 #!/bin/sh
-exec "$INSTALL_ROOT/cropcode" "\\$@"
+BIN_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+INSTALL_ROOT=$(sed -n '1p' "$BIN_ROOT/cropcode-root")
+VERSION=$(sed -n '1p' "$INSTALL_ROOT/current-version")
+case "$VERSION" in
+  ""|*[!0-9.]*) echo "CropCode current-version is invalid." >&2; exit 1 ;;
+esac
+APP="$INSTALL_ROOT/versions/$VERSION/cropcode"
+if [ ! -x "$APP" ]; then
+  echo "CropCode version $VERSION is not installed correctly." >&2
+  exit 1
+fi
+export CROPCODE_INSTALL_DIR="$INSTALL_ROOT"
+exec "$APP" "$@"
 EOF
 chmod 755 "$BIN_DIR/cropcode"
-echo "Installed CropCode to $INSTALL_ROOT"
+echo "Installed CropCode $VERSION to $TARGET_ROOT"
 echo "Launcher: $BIN_DIR/cropcode"
 case ":$PATH:" in *":$BIN_DIR:"*) ;; *) echo "Add $BIN_DIR to PATH to run 'cropcode' globally." ;; esac
 `;
@@ -240,20 +305,63 @@ function windowsInstaller() {
   return `$ErrorActionPreference = "Stop"
 $source = Split-Path -Parent $MyInvocation.MyCommand.Path
 $installRoot = if ($env:CROPCODE_INSTALL_DIR) { $env:CROPCODE_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "Programs\\CropCode" }
-if ((Resolve-Path $source).Path -eq $installRoot) {
-  Write-Host "CropCode is already installed at $installRoot"
-  exit 0
+$version = "${version}"
+$versionsRoot = Join-Path $installRoot "versions"
+$targetRoot = Join-Path $versionsRoot $version
+$staging = Join-Path $installRoot (".staging-" + $version + "-" + [guid]::NewGuid().ToString("N"))
+
+New-Item -ItemType Directory -Force -Path $versionsRoot | Out-Null
+try {
+  if (-not (Test-Path $targetRoot)) {
+    New-Item -ItemType Directory -Force -Path $staging | Out-Null
+    Copy-Item -Recurse -Force (Join-Path $source "*") $staging
+    $installedVersion = (& (Join-Path $staging "cropcode.cmd") --version | Select-Object -First 1).Trim()
+    if ($installedVersion -ne $version) {
+      throw "Package version mismatch: expected $version, got $installedVersion"
+    }
+    Move-Item -Path $staging -Destination $targetRoot
+  } else {
+    $installedVersion = (& (Join-Path $targetRoot "cropcode.cmd") --version | Select-Object -First 1).Trim()
+    if ($installedVersion -ne $version) {
+      throw "Existing installation at $targetRoot is invalid."
+    }
+  }
+} finally {
+  if (Test-Path $staging) { Remove-Item -Recurse -Force $staging }
 }
-if (Test-Path $installRoot) { Remove-Item -Recurse -Force $installRoot }
-New-Item -ItemType Directory -Force -Path $installRoot | Out-Null
-Copy-Item -Recurse -Force (Join-Path $source "*") $installRoot
+
+$currentVersionFile = Join-Path $installRoot "current-version"
+$previousVersionFile = Join-Path $installRoot "previous-version"
+if (Test-Path $currentVersionFile) {
+  $currentVersion = (Get-Content $currentVersionFile -TotalCount 1).Trim()
+  if ($currentVersion -and $currentVersion -ne $version) {
+    Set-Content -NoNewline -Path ($previousVersionFile + ".tmp") -Value ($currentVersion + [Environment]::NewLine)
+    Move-Item -Force ($previousVersionFile + ".tmp") $previousVersionFile
+  }
+}
+Set-Content -NoNewline -Path ($currentVersionFile + ".tmp") -Value ($version + [Environment]::NewLine)
+Move-Item -Force ($currentVersionFile + ".tmp") $currentVersionFile
+
+$rootLauncher = @'
+@echo off
+setlocal
+set "CROPCODE_INSTALL_DIR=%~dp0"
+set /p CROPCODE_VERSION=<"%~dp0current-version"
+if not exist "%~dp0versions\\%CROPCODE_VERSION%\\cropcode.cmd" (
+  echo CropCode version %CROPCODE_VERSION% is not installed correctly. 1>&2
+  exit /b 1
+)
+call "%~dp0versions\\%CROPCODE_VERSION%\\cropcode.cmd" %*
+exit /b %errorlevel%
+'@
+Set-Content -NoNewline -Path (Join-Path $installRoot "cropcode.cmd") -Value $rootLauncher
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 $entries = @($userPath -split ";" | Where-Object { $_ })
 if ($entries -notcontains $installRoot) {
   [Environment]::SetEnvironmentVariable("Path", (($entries + $installRoot) -join ";"), "User")
 }
 $env:Path = "$installRoot;$env:Path"
-Write-Host "Installed CropCode to $installRoot"
+Write-Host "Installed CropCode $version to $targetRoot"
 Write-Host "Open a new terminal and run: cropcode"
 `;
 }

@@ -94,6 +94,14 @@ Or download the package for your system from [GitHub Releases](https://github.co
 
 These packages include a Node.js runtime, so users do not need to install Node.js separately. You can also run `cropcode.cmd` (Windows) or `./cropcode` (macOS/Linux) directly without installing.
 
+Installed release packages check GitHub Releases for updates without blocking startup. Updates are installed into versioned directories, while settings and sessions under `~/.cropcode/` are preserved:
+
+```bash
+cropcode update --check
+cropcode update
+cropcode rollback
+```
+
 #### Install from source
 
 ```bash
@@ -215,6 +223,12 @@ LaTeX table generation, figure formatting for publications.
 CropCode operates autonomously: reads codebase → identifies issues → edits files → runs tests → reports results.
 
 ## 📋 Commands
+
+| CLI command | Description |
+|-------------|-------------|
+| `cropcode update --check` | Check GitHub Releases for an update |
+| `cropcode update` | Verify and install the latest release |
+| `cropcode rollback` | Switch back to the previously installed release |
 
 | Command | Description |
 |---------|-------------|
@@ -467,6 +481,14 @@ curl -fsSL https://raw.githubusercontent.com/YuanyuanMa03/cropcode/main/install.
 
 发布版已内置 Node.js，无需另外安装。也可以不安装，直接运行 Windows 下的 `cropcode.cmd` 或 macOS/Linux 下的 `./cropcode`。
 
+安装版会在后台检查 GitHub Releases，不会阻塞启动。更新采用版本目录，`~/.cropcode/` 下的设置、凭证和会话不会被覆盖：
+
+```bash
+cropcode update --check
+cropcode update
+cropcode rollback
+```
+
 #### 从源码安装
 
 ```bash
@@ -588,6 +610,12 @@ LaTeX 表格生成、出版物级别的图表排版。
 全自主操作：读取代码 → 定位问题 → 编辑文件 → 运行测试 → 报告结果。
 
 ## 📋 命令
+
+| CLI 命令 | 说明 |
+|----------|------|
+| `cropcode update --check` | 检查 GitHub Releases 是否有新版本 |
+| `cropcode update` | 校验并安装最新发布版 |
+| `cropcode rollback` | 切换回上一个已安装版本 |
 
 | 命令 | 说明 |
 |------|------|

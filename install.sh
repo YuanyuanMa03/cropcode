@@ -34,9 +34,30 @@ trap 'rm -rf "$TEMP_DIR"' EXIT HUP INT TERM
 echo "Downloading CropCode $VERSION..."
 if [ -n "${CROPCODE_DOWNLOAD_BASE:-}" ]; then
   curl -fsSL "$DOWNLOAD_BASE/$ASSET" -o "$TEMP_DIR/$ASSET"
+  curl -fsSL "$DOWNLOAD_BASE/SHA256SUMS" -o "$TEMP_DIR/SHA256SUMS"
 else
   curl --proto '=https' --tlsv1.2 -fsSL "$DOWNLOAD_BASE/$ASSET" -o "$TEMP_DIR/$ASSET"
+  curl --proto '=https' --tlsv1.2 -fsSL "$DOWNLOAD_BASE/SHA256SUMS" -o "$TEMP_DIR/SHA256SUMS"
 fi
+
+EXPECTED_HASH=$(awk -v asset="$ASSET" '$2 == asset { print $1; exit }' "$TEMP_DIR/SHA256SUMS")
+if [ -z "$EXPECTED_HASH" ]; then
+  echo "SHA256SUMS does not contain $ASSET." >&2
+  exit 1
+fi
+if command -v sha256sum >/dev/null 2>&1; then
+  ACTUAL_HASH=$(sha256sum "$TEMP_DIR/$ASSET" | awk '{ print $1 }')
+elif command -v shasum >/dev/null 2>&1; then
+  ACTUAL_HASH=$(shasum -a 256 "$TEMP_DIR/$ASSET" | awk '{ print $1 }')
+else
+  echo "sha256sum or shasum is required to verify CropCode." >&2
+  exit 1
+fi
+if [ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]; then
+  echo "Checksum verification failed for $ASSET." >&2
+  exit 1
+fi
+
 tar -xzf "$TEMP_DIR/$ASSET" -C "$TEMP_DIR"
 INSTALLER=$(find "$TEMP_DIR" -mindepth 2 -maxdepth 2 -type f -name install.sh -print -quit)
 if [ -z "$INSTALLER" ]; then
