@@ -66,7 +66,26 @@ for (const targetName of selected) {
   const outputPath = path.join(releaseDir, target.output);
   await rm(outputPath, { force: true });
   if (target.windows) {
-    run("zip", ["-q", "-r", outputPath, folderName], workDir);
+    if (process.platform === "win32") {
+      run(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "Compress-Archive -LiteralPath $env:CROPCODE_ARCHIVE_SOURCE -DestinationPath $env:CROPCODE_ARCHIVE_DESTINATION -Force",
+        ],
+        workDir,
+        "inherit",
+        {
+          ...process.env,
+          CROPCODE_ARCHIVE_SOURCE: path.join(workDir, folderName),
+          CROPCODE_ARCHIVE_DESTINATION: outputPath,
+        }
+      );
+    } else {
+      run("zip", ["-q", "-r", outputPath, folderName], workDir);
+    }
   } else {
     run("tar", ["-czf", outputPath, folderName], workDir);
   }
@@ -158,6 +177,30 @@ async function installNodeRuntime(stage, runtime, checksums) {
   await mkdir(path.dirname(destination), { recursive: true });
   const archiveRoot = `node-v${nodeVersion}-${runtime.archivePlatform}`;
   const member = isWindows ? `${archiveRoot}/node.exe` : `${archiveRoot}/bin/node`;
+  if (isWindows && process.platform === "win32") {
+    const extractRoot = path.join(workDir, ".runtime", runtime.archivePlatform);
+    await rm(extractRoot, { recursive: true, force: true });
+    await mkdir(extractRoot, { recursive: true });
+    run(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Expand-Archive -LiteralPath $env:CROPCODE_ARCHIVE_SOURCE -DestinationPath $env:CROPCODE_ARCHIVE_DESTINATION -Force",
+      ],
+      root,
+      "inherit",
+      {
+        ...process.env,
+        CROPCODE_ARCHIVE_SOURCE: archive,
+        CROPCODE_ARCHIVE_DESTINATION: extractRoot,
+      }
+    );
+    await copyFile(path.join(extractRoot, ...member.split("/")), destination);
+    await rm(extractRoot, { recursive: true, force: true });
+    return;
+  }
   const file = await import("node:fs").then((module) => module.openSync(destination, "w", 0o755));
   try {
     if (isWindows) {
@@ -204,8 +247,8 @@ async function sha256(file) {
   return hash.digest("hex");
 }
 
-function run(command, args, cwd, stdio = "inherit") {
-  const result = spawnSync(command, args, { cwd, stdio });
+function run(command, args, cwd, stdio = "inherit", env = process.env) {
+  const result = spawnSync(command, args, { cwd, stdio, env });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited with code ${result.status}`);
 }

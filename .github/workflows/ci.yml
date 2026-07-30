@@ -43,3 +43,39 @@ jobs:
 
       - name: Test
         run: npm test
+
+  distribution-install:
+    name: Distribution install / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: windows-latest
+            target: windows-x64
+          - os: macos-latest
+            target: macos-universal
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build native distribution
+        run: |
+          npm run bundle:portable
+          node scripts/package-distributions.mjs ${{ matrix.target }}
+
+      - name: Install and run without system Node.js
+        run: npm run test:distribution

@@ -17,9 +17,9 @@ try {
   assert.ok(existsSync(archive), `Missing distribution archive: ${archive}`);
 
   const extractRoot = path.join(tempRoot, "extract");
-  const installRoot = path.join(tempRoot, "install");
-  const binRoot = path.join(tempRoot, "bin");
-  const testHome = path.join(tempRoot, "home");
+  const installRoot = path.join(tempRoot, "install root");
+  const binRoot = path.join(tempRoot, "bin root");
+  const testHome = path.join(tempRoot, "user home");
   const settingsDir = path.join(testHome, ".cropcode");
   await mkdir(extractRoot, { recursive: true });
   await mkdir(settingsDir, { recursive: true });
@@ -31,9 +31,13 @@ try {
   const env = {
     ...process.env,
     HOME: testHome,
+    USERPROFILE: testHome,
+    PATH: systemPath(),
     CROPCODE_INSTALL_DIR: installRoot,
     CROPCODE_BIN_DIR: binRoot,
   };
+  const systemNode = spawnSync("node", ["--version"], { env, stdio: "pipe" });
+  assert.notEqual(systemNode.status, 0, "Distribution test PATH unexpectedly contains Node.js.");
 
   install(installer, env);
   assert.equal((await readFile(path.join(installRoot, "current-version"), "utf8")).trim(), version);
@@ -48,15 +52,8 @@ try {
   } else {
     assert.match(launcherSource, /CROPCODE_BIN_DIR="\$BIN_ROOT"/);
   }
-  const launchedVersion = run(launcher, ["--version"], { env, encoding: "utf8" }).stdout.trim();
+  const launchedVersion = launchVersion(launcher, env);
   assert.equal(launchedVersion, version);
-
-  const windowsLauncher = run(
-    "unzip",
-    ["-p", path.join(root, "release", "cropcode-windows-x64.zip"), `cropcode-v${version}-windows-x64/cropcode.cmd`],
-    { encoding: "utf8" }
-  ).stdout;
-  assert.match(windowsLauncher, /CROPCODE_DISTRIBUTION=portable/);
 
   await writeFile(path.join(installRoot, "current-version"), "1.0.0\n");
   install(installer, env);
@@ -127,6 +124,30 @@ function install(installer, env) {
     return;
   }
   run("sh", [installer], { env });
+}
+
+function launchVersion(launcher, env) {
+  if (process.platform === "win32") {
+    return run(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", "& $env:CROPCODE_TEST_LAUNCHER --version"],
+      {
+        env: { ...env, CROPCODE_TEST_LAUNCHER: launcher },
+        encoding: "utf8",
+      }
+    ).stdout.trim();
+  }
+  return run(launcher, ["--version"], { env, encoding: "utf8" }).stdout.trim();
+}
+
+function systemPath() {
+  if (process.platform !== "win32") return "/usr/bin:/bin";
+  const windowsRoot = process.env.SystemRoot || "C:\\Windows";
+  return [
+    path.join(windowsRoot, "System32"),
+    windowsRoot,
+    path.join(windowsRoot, "System32", "WindowsPowerShell", "v1.0"),
+  ].join(path.delimiter);
 }
 
 function run(command, args, options = {}) {
