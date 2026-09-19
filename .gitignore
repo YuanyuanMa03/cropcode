@@ -9,7 +9,7 @@ release/
 ._*
 # monorepo 子包构建产物
 packages/*/dist/
-packages/*/.tsbuildinfo
+packages/*/*.tsbuildinfo
 # 自动生成的版本信息（build 时生成）
 packages/cli/src/generated/
 .idea/
