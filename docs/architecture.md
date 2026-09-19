@@ -142,7 +142,7 @@ cropcode/
 │   │       │   ├── mcp-client.ts / mcp-manager.ts
 │   │       ├── marketplace/         # 插件市场（cropcode 独有）
 │   │       │   ├── marketplace-manager.ts / marketplace-repo.ts / types.ts / index.ts
-│   │       └── tests/               # core 测试套件 (185 个)
+│   │       └── tests/               # core 测试套件 (190 个)
 │   │
 │   └── cli/                   # @YuanyuanMa03/cropcode-cli（UI + 入口）
 │       ├── package.json       # bin: cropcode → dist/cli.js, deps(core file:../core, ink/react/...)
@@ -896,7 +896,7 @@ npm run build        # 完整构建：core tsc → rewrite-esm-imports → cli e
 npm run check        # 检查：typecheck (workspaces) + lint + format:check
 npm run typecheck    # 各 workspace 的 tsc --noEmit
 npm run lint         # ESLint (packages/*/src + scripts)
-npm run test         # 运行全部测试 (core 185 + cli 182 = 367 个)
+npm run test         # 运行全部测试 (core 190 + cli 182 = 372 个)
 npm run bundle       # 单独打包 CLI (esbuild + copy assets) → packages/cli/dist/cli.js
 npm run bundle:portable  # 自包含 portable bundle → dist-portable/cli.js
 npm run package:all      # 打包平台分发包 → release/ (win/mac/linux + SHA256SUMS)
@@ -932,7 +932,7 @@ packages/core/src/                packages/cli/src/
 
 ### 13.3 测试覆盖
 
-367 个测试覆盖以下模块（core 185 + cli 182）：
+372 个测试覆盖以下模块（core 190 + cli 182）：
 
 | 模块 | 测试文件 | 覆盖内容 |
 |------|---------|---------|
