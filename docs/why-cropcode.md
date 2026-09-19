@@ -1,143 +1,80 @@
-# 为什么选择 CropCode？
+# 为什么选择 CropCode
 
-> CropCode vs 其他 AI Coding Agent 的功能对比
+> 设计取舍、与主流工具的客观对比、以及当前的边界
 
-## 一句话定位
+## 定位
 
-CropCode 是一个**开源、多供应商、终端原生的 AI Coding Agent**。对标 Claude Code 和 Codex，但在供应商自由度、技能生态和开发者体验上做了差异化设计。
+CropCode 是一个**开源、多供应商、终端原生的 AI 编程代理**。它与 Claude Code、Codex CLI 属于同一形态：模型在授权的工具环境里自主完成多步骤任务。差异不在"能不能干活"，而在下面四个设计取舍。
 
----
+## 设计取舍
 
-## 核心差异
+### 1. Harness 自主实现，MIT 开源
 
-| 功能 | Claude Code | Codex (OpenAI) | Cursor | **CropCode** |
-|------|:---:|:---:|:---:|:---:|
-| **运行环境** | 终端 TUI | 终端 TUI | GUI IDE | 终端 TUI |
-| **LLM 供应商** | Anthropic only | OpenAI only | 多供应商 | **4 家国产供应商** |
-| **内置登录系统** | OAuth | API Key 手动 | 内置 | **TUI 交互式向导** |
-| **Thinking 模式** | Extended Thinking | ❌ | ❌ | **deepseek+qwen 双格式** |
-| **国内直连** | 需代理 | 需代理 | 部分 | **✅ 全部直连** |
-| **插件市场** | ❌ | ❌ | 扩展市场 | **✅ 社区市场** |
-| **自定义 Skill** | CLAUDE.md | .codex.md | .cursorrules | **SKILL.md + 市场分发** |
-| **会话管理** | ✅ | ✅ | ✅ | ✅ |
-| **撤销/恢复** | ✅ | ✅ | 有限 | ✅ |
-| **数据分析** | 通过 Bash | 通过 Bash | 通过扩展 | **Python/R 原生集成** |
-| **MCP 协议** | ✅ | 部分 | 部分 | ✅ |
-| **论文工具** | ❌ | ❌ | ❌ | **✅ LaTeX/引用/图表** |
-| **Token 计费** | API 自带 | API 自带 | 订阅制 | **按模型分开统计** |
-| **开源** | ❌ | ❌ | ❌ | **✅ MIT** |
+agent 循环、工具执行、权限门控、上下文压缩、会话持久化全部自研，不依赖任何闭源运行时。带来的直接收益：
 
----
+- **可审计**：权限逻辑、上下文裁剪策略都是可读的 TypeScript，安全敏感场景可以逐行核对
+- **可修改**：加工具、改协议、换默认行为都是常规 PR，不存在上游黑盒
+- **可自托管**：私有网络环境可完整运行，不回传遥测
 
-## 五大杀手锏
+### 2. 供应商自由
 
-### 1. 多供应商 TUI 登录 — 一键切换，无需代理
+四家 OpenAI 兼容供应商（DeepSeek、智谱 GLM、通义千问、小米 MiMo）接入同一套界面：
 
-传统 coding agent 要么绑定单一供应商，要么需要手动编辑 JSON 配置文件。CropCode 提供**终端原生的交互式登录向导**：
+- **两种计费**：按量计费 API Key 与订阅制套餐（GLM/Qwen Coding Plan、MiMo Token Plan）并存，`/login` 三步切换
+- **协议适配**：deepseek 与 qwen 两种 thinking 协议的格式差异、reasoning_effort 与 thinking_budget 的参数映射、reasoning_content 回放，全部由核心层处理，上层无感知
+- **国内直连**：四个供应商的 API 在中国大陆均可直接访问，无需代理
 
-```
- ╭─────────────────────────────────────────────────────────╮
- │  🌾 选择 AI 供应商                                      │
- │                                                        │
- │ ▶ 🔥 DeepSeek    最便宜·代码最强·送500万tokens          │
- │   🧠 智谱 GLM     免费模型·Coding Plan·推理最强         │
- │   ☁️ 通义千问      阿里云生态·Coding Plan·90天免费      │
- │   📱 MiMo 小米     1M超长上下文·Token Plan·开源          │
- ╰─────────────────────────────────────────────────────────╯
-```
+### 3. 技能分发标准化
 
-三步完成：选供应商 → 选模型 → 输入 API Key。不用编辑任何文件。
-
-**切换供应商**: `/login` → 重新选择  
-**切换模型**: `/model` → 同供应商内切换
-
-### 2. 技能市场 — AI Agent 的"应用商店"
-
-CropCode 是**第一个**引入社区技能市场的 coding agent。任何人可以发布、分享、安装技能：
+技能是 `SKILL.md` 标准格式的知识包，分发不经过中心化商店：
 
 ```bash
-# 注册社区市场
-cropcode marketplace add https://github.com/addyosmani/agent-skills.git
-cropcode marketplace add https://github.com/Yuan1z0825/nature-skills.git
-
-# 浏览可用技能
-cropcode marketplace list
-
-# 一键安装
-cropcode plugin install code-review@agent-skills
+cropcode marketplace add <任意 Git 仓库或本地路径>
+cropcode plugin install <技能名>@<市场名>
 ```
 
-技能自动匹配：输入 prompt 时，CropCode 通过 LLM 判断用户意图，自动激活相关技能。
+任何 GitHub 仓库都可以成为技能市场。技能在输入 prompt 时按意图自动激活，不需要手动启用。
 
-**已经可以安装的技能**：
+### 4. 科研工作流的默认优化
 
-| 市场 | 技能数 | 领域 |
-|------|:---:|------|
-| [agent-skills](https://github.com/addyosmani/agent-skills) | 6+ | 代码审查、测试、重构、调试、文档 |
-| [nature-skills](https://github.com/Yuan1z0825/nature-skills) | 10 | 论文写作、数据、图表、文献、审稿 |
+项目的初始场景是农业科研：Python/R 数据分析、LaTeX 排版、论文图表。系统提示词与内置技能面向这条工作流调优，例如 matplotlib 中文字体自动配置。
 
-详见 [技能市场指南](marketplace-guide.md)。
+## 与主流工具对比
 
-### 3. 深度推理 — 双格式 Thinking 适配
+只列可客观核实的维度，不做能力打分：
 
-不同供应商的 thinking 协议不同。CropCode 自动适配：
+| 维度 | Claude Code | Codex CLI | Cursor | CropCode |
+|------|-------------|-----------|--------|----------|
+| 许可证 | 专有 | 专有 | 专有 | **MIT 开源** |
+| 模型供应商 | Anthropic | OpenAI | 多家（订阅内） | 4 家国产，密钥自有 |
+| 计费模型 | API / 订阅 | API / 订阅 | 订阅制 | 供应商原生计费 |
+| 运行形态 | 终端 | 终端 | GUI IDE | 终端 |
+| 扩展机制 | 插件 + MCP | AGENTS.md + MCP | 扩展市场 | SKILL.md + 社区市场 + MCP |
+| 中国大陆直连 | 需代理 | 需代理 | 部分 | 全部直连 |
+| 生态成熟度 | 高 | 高 | 高 | 早期 |
 
-| 供应商 | Thinking 协议 | 适配方式 |
-|--------|:---:|------|
-| DeepSeek | `{thinking:{type:"enabled"}}` + `reasoning_effort` | 原生支持 |
-| GLM | 同 DeepSeek | 原生支持 |
-| MiMo | 同 DeepSeek，但**不支持** `reasoning_effort` | 自动过滤无效参数 |
-| Qwen | `{enable_thinking:true}` + `thinking_budget` | reasoning_effort → budget 映射 |
+## 当前边界
 
-用户只需通过 `/model` 选择 thinking 开关和强度（max/high），其余全部自动处理。
+不回避的差距（截至 v2.1.0）：
 
-### 4. 科学计算原生集成
+- **单 agent 循环**：暂无并行子代理，复杂任务串行完成
+- **网络工具以 WebSearch 为主**：无内置网页抓取工具；WebSearch 依赖自定义脚本或 LLM 端搜索
+- **生态早期**：社区市场技能数量有限，主要靠核心能力而非插件广度
 
-CropCode 内置 Python/R 数据分析最佳实践：
+## 什么时候选 CropCode
 
-- 自动配置中文字体（matplotlib 图表不乱码）
-- 数据清洗 → 统计分析 → 可视化 → 报告输出，全流程自主完成
-- LaTeX 排版、参考文献管理、论文图表生成 — 学术工作流开箱即用
-
-### 5. 开源 & 可自托管
-
-MIT 许可证。你可以：
-
-- Fork 并修改任何代码
-- 添加自定义供应商
-- 部署到私有服务器
-- 贡献代码和技能到社区
-
----
-
-## 什么时候选 CropCode？
-
-| 你的需求 | 推荐 |
+| 你的情况 | 建议 |
 |----------|------|
-| 在国内，不想配置代理 | **CropCode** |
-| 想用国产大模型 (DeepSeek/GLM/Qwen/MiMo) | **CropCode** |
-| 需要学术论文辅助 (LaTeX/引用/图表) | **CropCode** |
-| 想试用不同模型，来回切换对比 | **CropCode** |
-| 团队内部共享技能和工作流 | **CropCode** |
-| 需要最流畅的英文代码体验 | Claude Code |
-| 重度使用 GPT 生态 (Codex/GPT-5) | Codex / Cursor |
-| GUI 重度用户，不习惯终端 | Cursor / Copilot |
+| 在中国大陆，不想配代理 | CropCode |
+| 想用国产模型且保留切换自由 | CropCode |
+| 需要 MIT 开源 / 可审计 / 私有部署 | CropCode |
+| 科研数据分析 + 论文写作工作流 | CropCode |
+| 需要最强模型与最成熟生态 | Claude Code / Cursor |
+| GPT 生态重度用户 | Codex CLI |
+| 习惯 GUI 编辑器 | Cursor / Copilot |
 
----
+## 技术可信度
 
-## 技术架构可信度
-
-CropCode 不是"套壳"——所有 LLM 交互、工具调用、会话管理都是自主实现的：
-
-- **335 个测试** 覆盖核心路径 (tool execution, session, streaming, prompt)
-- **CI 矩阵**: 3 OS × 3 Node 版本 = 9 个 job
-- **完整架构文档**: [architecture.md](architecture.md)
-- **供应商适配**: 精确到每个模型的 thinking 格式、reasoning_effort 支持、reasoning_content 回放
-
----
-
-## 下一步
-
-- [快速开始](../README.md#快速开始) — 5 分钟上手
-- [技能市场指南](marketplace-guide.md) — 安装你的第一个社区技能
-- [系统架构](architecture.md) — 深入理解内部设计
+- **372 个测试**（core 190 + cli 182）覆盖工具执行、会话管理、流式解析、权限评估、压缩策略
+- **CI 矩阵**：3 操作系统 × 3 Node 版本（9 任务）
+- **架构文档**：[architecture.md](architecture.md) 包含完整数据流、模块分解与设计决策
