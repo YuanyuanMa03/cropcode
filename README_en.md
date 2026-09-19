@@ -207,6 +207,7 @@ Common settings:
 | `notify` | string | Notification script path |
 | `webSearchTool` | string | Custom search script path |
 | `disabledSkills` | string[] | Skills to disable |
+| `enabledSkills` | object | Per-skill enable toggles (all enabled by default) |
 
 Models and keys are managed via `/model` and `/login`; manual editing is rarely needed. All fields: [configuration reference](docs/configuration_en.md).
 

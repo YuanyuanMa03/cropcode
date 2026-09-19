@@ -207,6 +207,7 @@ cropcode plugin install <技能名>@nature-skills
 | `notify` | string | 通知脚本路径 |
 | `webSearchTool` | string | 自定义搜索脚本路径 |
 | `disabledSkills` | string[] | 禁用的技能列表 |
+| `enabledSkills` | object | 按名称启用的技能开关（默认全部启用） |
 
 模型与密钥通过 `/model`、`/login` 管理，通常无需手改配置。完整字段见[配置手册](docs/configuration.md)。
 
