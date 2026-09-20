@@ -38,3 +38,7 @@ dist-portable/
 # Local browser verification artifacts
 .playwright-cli/
 output/playwright/
+
+# Desktop runtime copies (from standalone builds)
+apps/desktop/resources/
+apps/desktop/release/

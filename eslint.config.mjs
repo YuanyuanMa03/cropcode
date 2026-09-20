@@ -43,7 +43,12 @@ export default tseslint.config(
   },
   // Test files: relaxed rules
   {
-    files: ["packages/*/src/tests/**/*.ts", "packages/*/src/tests/**/*.mjs"],
+    files: [
+      "packages/*/src/tests/**/*.ts",
+      "packages/*/src/tests/**/*.mjs",
+      "apps/*/src/tests/**/*.ts",
+      "apps/*/src/tests/**/*.mjs",
+    ],
     languageOptions: {
       globals: {
         process: "readonly",
@@ -57,11 +62,16 @@ export default tseslint.config(
   },
   // Script files: Node.js environment
   {
-    files: ["./scripts/**/*.js", "./scripts/**/*.mjs", "packages/*/scripts/**/*.js"],
+    files: ["./scripts/**/*.js", "./scripts/**/*.mjs", "packages/*/scripts/**/*.js", "apps/*/scripts/**/*.mjs"],
     languageOptions: {
       globals: {
         process: "readonly",
         console: "readonly",
+        fetch: "readonly",
+        URL: "readonly",
+        Buffer: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
       },
     },
   },
