@@ -7,7 +7,6 @@ import type { Argv } from "yargs";
 import Yargs from "yargs";
 import { getCliVersion } from "./utils/version";
 import { writeStderrLine } from "./utils/stdio-helpers";
-import { hideBin } from "yargs/helpers";
 
 // UUID v4 regex pattern for validation
 const SESSION_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -81,7 +80,12 @@ const EPILOG = [
 ].join("\n");
 
 async function configureYargs(argv?: string[]) {
-  const rawArgv = argv ?? hideBin(process.argv);
+  // Slice argv explicitly: yargs' hideBin strips only argv[0] when
+  // process.versions.electron is set without defaultApp, which breaks every
+  // ELECTRON_RUN_AS_NODE embedding (the desktop shell) by leaving the script
+  // path in the positional list. Every launch shape CropCode supports passes
+  // [runtime, script, ...args], so slice(2) is always correct.
+  const rawArgv = argv ?? process.argv.slice(2);
   const yargsInstance = Yargs(rawArgv)
     .locale("en")
     .scriptName("cropcode")

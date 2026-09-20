@@ -397,3 +397,24 @@ test("parseArguments exits when --last is combined with bare --resume", async ()
     assert.ok(exitSpy.calls.length >= 1);
   });
 });
+
+test("parseArguments stays correct under ELECTRON_RUN_AS_NODE (yargs hideBin electron trap)", async () => {
+  // yargs' hideBin strips only argv[0] when versions.electron is set without
+  // defaultApp; under the desktop shell's ELECTRON_RUN_AS_NODE sidecar this
+  // used to leave the script path in positionals and reject --port.
+  const originalArgv = process.argv;
+  const originalElectron = (process.versions as { electron?: string }).electron;
+  const versions = process.versions as { electron?: string };
+  process.argv = ["/fake/Electron", "/repo/packages/cli/dist/cli.js", "web", "--port", "50172"];
+  versions.electron = "39.8.10";
+  delete (process as { defaultApp?: boolean }).defaultApp;
+  try {
+    const parsed = await parseArguments();
+    assert.equal(parsed.web, true);
+    assert.equal(parsed.port, 50172);
+  } finally {
+    process.argv = originalArgv;
+    if (originalElectron === undefined) delete versions.electron;
+    else versions.electron = originalElectron;
+  }
+});
