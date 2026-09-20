@@ -80,29 +80,33 @@
         </section>
       </section>
       <footer class="composer-area">
+        <button id="jump-latest" class="jump-latest" type="button" hidden>↓ 回到最新</button>
         <div class="activity">
           <span id="activity-dot" class="local-dot"></span><span id="activity" role="status">等待连接本地服务</span
           ><span id="usage" class="muted"></span>
         </div>
-        <form id="composer" class="composer">
-          <label class="sr-only" for="prompt">消息</label>
-          <textarea
-            id="prompt"
-            rows="3"
-            maxlength="32000"
-            placeholder="描述你的问题，或引用项目中的文件路径…"
-            disabled
-          ></textarea>
-          <div class="composer-toolbar">
-            <label class="mode-switch"><input id="plan-mode" type="checkbox" /> Plan · 先规划</label>
-            <div class="composer-buttons">
-              <button id="stop" class="stop" type="button" hidden>■ 停止</button
-              ><button id="send" class="primary" type="submit" disabled>发送 <span>↑</span></button>
+        <div class="composer-stack">
+          <div id="trigger-menu" class="trigger-menu" role="listbox" aria-label="命令与文件引用" hidden></div>
+          <form id="composer" class="composer">
+            <label class="sr-only" for="prompt">消息</label>
+            <textarea
+              id="prompt"
+              rows="3"
+              maxlength="32000"
+              placeholder="描述你的问题，或引用项目中的文件路径…"
+              disabled
+            ></textarea>
+            <div class="composer-toolbar">
+              <label class="mode-switch"><input id="plan-mode" type="checkbox" /> Plan · 先规划</label>
+              <div class="composer-buttons">
+                <button id="stop" class="stop" type="button" hidden>■ 停止</button
+                ><button id="send" class="primary" type="submit" disabled>发送 <span>↑</span></button>
+              </div>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
         <div class="composer-meta">
-          <span id="model">读取本地模型配置</span><span>Enter 发送 · Shift+Enter 换行</span>
+          <span id="model">读取本地模型配置</span><span>Enter 发送 · Shift+Enter 换行 · / 命令 · @ 引用文件</span>
         </div>
       </footer>
     </main>

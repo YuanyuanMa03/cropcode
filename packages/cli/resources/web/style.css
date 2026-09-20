@@ -117,16 +117,28 @@ a {
   min-height: 0;
 }
 #sessions button {
-  display: block;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   width: 100%;
   text-align: left;
   background: transparent;
   border-color: transparent;
   margin: 4px 0;
   padding: 11px 10px;
+  min-width: 0;
+}
+.session-summary {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.session-time {
+  color: var(--muted);
+  font-size: 10px;
+  flex-shrink: 0;
 }
 #sessions button.selected {
   background: var(--surface);
@@ -261,7 +273,76 @@ h1 {
   font-weight: 400;
 }
 .composer-area {
+  position: relative;
   padding: 10px max(28px, calc((100% - 850px) / 2)) 18px;
+}
+.jump-latest {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  z-index: 4;
+  border-radius: 999px;
+  padding: 7px 15px;
+  font-size: 11px;
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+}
+.composer-stack {
+  position: relative;
+}
+.trigger-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  max-height: min(320px, 42vh);
+  overflow-y: auto;
+  padding: 6px;
+}
+.trigger-option {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  min-width: 0;
+  cursor: pointer;
+}
+.trigger-option.static {
+  cursor: default;
+}
+.trigger-option.highlighted {
+  background: var(--soft);
+}
+.option-label {
+  color: var(--green);
+  font-weight: 600;
+  white-space: nowrap;
+  font:
+    12px ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+}
+.option-desc {
+  color: var(--muted);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font:
+    11px ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
 }
 .activity {
   display: flex;
@@ -291,7 +372,7 @@ h1 {
   border-color: var(--green);
 }
 textarea {
-  resize: vertical;
+  resize: none;
   min-height: 65px;
   max-height: 200px;
   color: var(--text);
@@ -358,8 +439,29 @@ textarea::placeholder {
   white-space: nowrap;
 }
 .message {
+  position: relative;
   margin: 0 0 28px;
   overflow-wrap: anywhere;
+}
+.copy-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 10px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.message:hover .copy-button,
+.message:focus-within .copy-button,
+.copy-button:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .copy-button {
+    opacity: 1;
+  }
 }
 .message-label {
   font-size: 12px;
@@ -433,6 +535,18 @@ textarea::placeholder {
   margin: 0 0 16px;
   font-size: 12px;
   overflow: hidden;
+}
+/* Consecutive tool runs read as one grouped block. */
+.tool-card + .tool-card {
+  margin-top: -16px;
+  border-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.tool-card:has(+ .tool-card) {
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 .tool-card summary {
   padding: 12px 14px;
@@ -528,6 +642,32 @@ textarea::placeholder {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+/* Streaming state: a highlight band sweeps the label instead of dimming it. */
+#live .message-label span {
+  display: inline-block;
+  background: linear-gradient(100deg, var(--muted) 35%, var(--green) 50%, var(--muted) 65%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: live-shimmer 2.4s linear infinite;
+}
+@keyframes live-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #live .message-label span {
+    animation: none;
+  }
+  .copy-button {
+    transition: none;
+  }
 }
 [hidden] {
   display: none !important;
