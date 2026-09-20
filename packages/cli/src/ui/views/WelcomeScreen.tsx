@@ -4,7 +4,7 @@ import * as os from "node:os";
 import path from "node:path";
 import type { SkillInfo } from "@yuanyuanma03/cropcode-core";
 import type { ResolvedCropcodeSettings } from "@yuanyuanma03/cropcode-core";
-import { buildSlashCommands, formatSlashCommandDescription } from "../core/slash-commands";
+import { buildSlashCommands, forSurface, formatSlashCommandDescription } from "../core/slash-commands";
 import { findProviderByBaseURL } from "@yuanyuanma03/cropcode-core";
 import { ThemedGradient, THEME_COLORS } from "./ThemedGradient";
 import { AsciiLogo } from "../ascii-art";
@@ -144,7 +144,7 @@ export function formatHomeRelativePath(value: string, home = os.homedir()): stri
 }
 
 export function buildWelcomeTips(skills: SkillInfo[]): Array<{ label: string; description: string }> {
-  const slashTips = buildSlashCommands(skills)
+  const slashTips = forSurface(buildSlashCommands(skills), "terminal")
     .filter((item) => item.kind !== "skill" || item.skill?.isLoaded)
     .map((item) => ({
       label: item.label,

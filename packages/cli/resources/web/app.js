@@ -14,37 +14,24 @@
   // Composer trigger pipeline: "/" opens commands, "@" opens project file references.
   // Keyboard arbitration follows the combobox pattern: focus stays in the editor and
   // arrow/enter/tab/escape are intercepted while the menu is open, always IME-guarded.
-  const slashCommands = [
-    {
-      name: "plan",
-      description: "切换 Plan 规划模式（先规划，确认后执行）",
-      run: () => {
-        $("plan-mode").checked = !$("plan-mode").checked;
-        notice($("plan-mode").checked ? "已开启 Plan 规划模式。" : "已关闭 Plan 规划模式。");
-      },
+  // The command list itself comes from the shared registry via /api/commands; this
+  // table only maps registry action ids to local handlers.
+  const commandActions = {
+    "toggle-plan": () => {
+      $("plan-mode").checked = !$("plan-mode").checked;
+      notice($("plan-mode").checked ? "已开启 Plan 规划模式。" : "已关闭 Plan 规划模式。");
     },
-    {
-      name: "new",
-      description: "开始一个新的对话",
-      run: () => {
-        forceScroll = true;
-        void action("/api/session", { target: null });
-      },
+    "new-session": () => {
+      forceScroll = true;
+      void action("/api/session", { target: null });
     },
-    {
-      name: "continue",
-      description: "让 CropCode 继续当前任务",
-      run: () => submitCommandText("/continue"),
+    continue: () => submitCommandText("/continue"),
+    interrupt: () => {
+      if (state?.busy) void action("/api/interrupt", {});
+      else notice("当前没有正在执行的任务。", true);
     },
-    {
-      name: "stop",
-      description: "停止正在执行的任务",
-      run: () => {
-        if (state?.busy) void action("/api/interrupt", {});
-        else notice("当前没有正在执行的任务。", true);
-      },
-    },
-  ];
+  };
+  let commandRegistry = [];
   const menu = { open: false, mode: null, token: null, items: [], highlighted: 0 };
   let filesGeneration = 0;
   let filesTimer = 0;
@@ -565,13 +552,13 @@
     if (modeChanged) menu.highlighted = 0;
     if (found.mode === "slash") {
       const query = found.query.toLowerCase();
-      const items = slashCommands
-        .filter((command) => command.name.includes(query))
+      const items = commandRegistry
+        .filter((command) => command.name.includes(query) && commandActions[command.action])
         .map((command) => ({
           kind: "command",
           name: command.name,
           description: command.description,
-          run: command.run,
+          run: commandActions[command.action],
         }));
       if (!items.length) {
         closeMenu();
@@ -689,6 +676,7 @@
         window.history.replaceState(null, "", "/");
       }
       render(await request("/api/state"));
+      commandRegistry = (await request("/api/commands")).commands || [];
       connection(true);
       events = new window.EventSource("/api/events");
       events.addEventListener("state", (event) => {

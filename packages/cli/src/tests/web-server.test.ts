@@ -237,6 +237,21 @@ test("Permission replies match pending tool IDs and preserve both allow and deny
   }
 });
 
+test("Command registry endpoint serves the shared slash-command source for the web surface", async (t) => {
+  const web = await fixture(t);
+  assert.equal((await fetch(web.origin + "/api/commands")).status, 401);
+  const data = (await (
+    await fetch(web.origin + "/api/commands", { headers: { Cookie: web.headers.Cookie } })
+  ).json()) as { commands: Array<{ name: string; description: string; action: string }> };
+  const names = data.commands.map((command) => command.name);
+  assert.deepEqual([...names].sort(), ["continue", "new", "plan", "stop"]);
+  assert.ok(data.commands.every((command) => command.action && command.description));
+  // Terminal-only commands must not leak into the web menu.
+  for (const terminalOnly of ["login", "model", "exit", "raw", "undo"]) {
+    assert.ok(!names.includes(terminalOnly), `${terminalOnly} must stay terminal-only`);
+  }
+});
+
 test("File lookup serves composer references, stays available while busy and validates input", async (t) => {
   const web = await fixture(t);
   const response = await web.post("/api/files", { query: "" });

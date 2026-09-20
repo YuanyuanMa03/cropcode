@@ -34,7 +34,7 @@ import {
   redoPromptEdit,
   undoPromptEdit,
 } from "../core/prompt-undo-redo";
-import { buildSlashCommands, filterSlashCommands, findExactSlashCommand } from "../core/slash-commands";
+import { buildSlashCommands, filterSlashCommands, findExactSlashCommand, forSurface } from "../core/slash-commands";
 import type { SlashCommandItem } from "../core/slash-commands";
 import {
   filterFileMentionItems,
@@ -184,7 +184,7 @@ export const PromptInput = React.memo(function PromptInput({
     !openRawModelDropdown &&
     fileMentionToken !== null &&
     fileMentionKey !== dismissedFileMentionKey;
-  const slashItems = React.useMemo(() => buildSlashCommands(skills), [skills]);
+  const slashItems = React.useMemo(() => forSurface(buildSlashCommands(skills), "terminal"), [skills]);
   const slashToken = getCurrentSlashToken(buffer);
   const slashMenu = React.useMemo(
     () =>
