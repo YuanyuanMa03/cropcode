@@ -2,7 +2,7 @@ import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { request as httpRequest } from "node:http";
 import { setTimeout as delay } from "node:timers/promises";
-import type { SessionEntry, SessionMessage, UserPromptContent } from "@yuanyuanma03/cropcode-core";
+import type { ProviderCredential, SessionEntry, SessionMessage, UserPromptContent } from "@yuanyuanma03/cropcode-core";
 import { startWebServer, type WebServerOptions } from "../web/server";
 
 const settings = { model: "fixture-model", baseURL: "http://fixture.invalid/v1", apiKey: "fixture-private-key" };
@@ -17,7 +17,16 @@ type FixtureState = {
 };
 
 // Deterministic manager fixture. No model requests, file writes, or real credentials.
-async function fixture(t: TestContext, options: { init?: Promise<void>; configured?: boolean } = {}) {
+async function fixture(
+  t: TestContext,
+  options: {
+    init?: Promise<void>;
+    configured?: boolean;
+    baseURL?: string;
+    activate?: (credential: ProviderCredential) => void;
+    discover?: WebServerOptions["discoverModels"];
+  } = {}
+) {
   let active: string | null = null;
   let pending: (() => void) | null = null;
   let disposed = false;
@@ -28,7 +37,14 @@ async function fixture(t: TestContext, options: { init?: Promise<void>; configur
   const server = await startWebServer({
     projectRoot: process.cwd(),
     port: 0,
-    getSettings: () => ({ ...settings, apiKey: options.configured === false ? undefined : settings.apiKey }) as any,
+    getSettings: () =>
+      ({
+        ...settings,
+        baseURL: options.baseURL ?? settings.baseURL,
+        apiKey: options.configured === false ? undefined : settings.apiKey,
+      }) as any,
+    activateProvider: options.activate,
+    discoverModels: options.discover,
     createManager: (config) => {
       callbacks = config;
       return {
@@ -250,6 +266,83 @@ test("Command registry endpoint serves the shared slash-command source for the w
   for (const terminalOnly of ["login", "model", "exit", "raw", "undo"]) {
     assert.ok(!names.includes(terminalOnly), `${terminalOnly} must stay terminal-only`);
   }
+});
+
+test("Model settings plane: sanitized reads, write-only keys, busy guard and validation", async (t) => {
+  const activated: ProviderCredential[] = [];
+  const web = await fixture(t, {
+    baseURL: "https://api.deepseek.com",
+    activate: (credential) => activated.push(credential),
+    discover: async () => [
+      { id: "deepseek-chat", unknown: false },
+      { id: "deepseek-reasoner", unknown: true },
+    ],
+  });
+  const headers = { Cookie: web.headers.Cookie };
+  // Reads are sanitized: no key material anywhere in the responses.
+  const settings = (await (await fetch(web.origin + "/api/settings", { headers })).json()) as Record<string, unknown>;
+  assert.equal(settings.providerId, "deepseek");
+  assert.equal(settings.model, "fixture-model");
+  assert.equal(settings.configured, true);
+  assert.ok(!("apiKey" in settings));
+  const providers = (await (await fetch(web.origin + "/api/settings/providers", { headers })).json()) as {
+    providers: Array<{ id: string; models: Array<{ id: string }> }>;
+  };
+  assert.ok(providers.providers.some((preset) => preset.id === "deepseek" && preset.models.length > 0));
+  const models = (await (await fetch(web.origin + "/api/settings/models", { headers })).json()) as {
+    models: Array<{ id: string }>;
+  };
+  assert.deepEqual(
+    models.models.map((model) => model.id),
+    ["deepseek-chat", "deepseek-reasoner"]
+  );
+  const rawReads = JSON.stringify({ settings, providers, models });
+  assert.ok(!rawReads.includes("fixture-private-key"));
+  assert.equal((await fetch(web.origin + "/api/settings")).status, 401);
+  // Activation: full credential, injected (never writes the real store).
+  const activate = await web.post("/api/settings/provider", {
+    providerId: "deepseek",
+    apiKey: "sk-web-new",
+    model: "deepseek-chat",
+    thinkingEnabled: true,
+    reasoningEffort: "max",
+  });
+  assert.equal(activate.status, 200);
+  assert.deepEqual(activated.at(-1), {
+    providerId: "deepseek",
+    apiKey: "sk-web-new",
+    activeModel: "deepseek-chat",
+    mode: "api",
+    thinkingEnabled: true,
+    reasoningEffort: "max",
+  });
+  // Blank key keeps the existing one — same provider only.
+  const keep = await web.post("/api/settings/provider", { providerId: "deepseek", model: "deepseek-reasoner" });
+  assert.equal(keep.status, 200);
+  assert.equal(activated.at(-1)?.apiKey, settings.apiKey ?? "fixture-private-key");
+  // Switching providers without a new key is rejected; unknown ids too.
+  assert.equal((await web.post("/api/settings/provider", { providerId: "zhipu", model: "glm-5.3" })).status, 400);
+  assert.equal((await web.post("/api/settings/provider", { providerId: "nope", apiKey: "k", model: "m" })).status, 400);
+  assert.equal((await web.post("/api/settings/provider", { providerId: "deepseek", model: " " })).status, 400);
+  assert.equal(
+    (
+      await web.post("/api/settings/provider", {
+        providerId: "deepseek",
+        apiKey: "k",
+        model: "m",
+        reasoningEffort: "extreme",
+      })
+    ).status,
+    400
+  );
+  // Provider switches are rejected while a task runs.
+  await web.post("/api/prompt", { text: "wait" });
+  assert.equal(
+    (await web.post("/api/settings/provider", { providerId: "deepseek", apiKey: "k", model: "m" })).status,
+    409
+  );
+  await web.post("/api/interrupt", {});
+  await web.settled();
 });
 
 test("File lookup serves composer references, stays available while busy and validates input", async (t) => {

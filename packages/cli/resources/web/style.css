@@ -577,10 +577,20 @@ textarea::placeholder {
   color: var(--faint);
   padding: 11px 4px 0;
 }
-.composer-meta span:first-child {
+.composer-meta > :first-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.model-chip {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 3px 9px;
+  border-radius: 7px;
+}
+.model-chip:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
 }
 .composer-meta span:last-child {
   white-space: nowrap;
@@ -819,6 +829,154 @@ textarea::placeholder {
   padding: 9px 12px;
   background: var(--bg);
   box-shadow: 0 0 0 0.5px var(--line-2);
+}
+/* Settings plane: modal card over a dimmed backdrop. */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(28, 42, 33, 0.32);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  animation: fade-in 130ms var(--ease);
+}
+.settings-card {
+  width: min(560px, 100%);
+  max-height: min(640px, 90vh);
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: 18px;
+  box-shadow: var(--elev-menu);
+  padding: 22px;
+  animation: rise-in 160ms var(--ease);
+}
+.settings-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.settings-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.settings-head button {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--muted);
+}
+.settings-head button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 13px;
+}
+.settings-body form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.provider-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.provider-card {
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.provider-card:hover:not(:disabled) {
+  background: var(--surface);
+  box-shadow: 0 0 0 0.5px var(--line-3);
+}
+.provider-card.selected {
+  box-shadow:
+    0 0 0 1px var(--green),
+    0 0 0 4px var(--soft);
+}
+.provider-card strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+.provider-card small {
+  color: var(--faint);
+  font-size: 10px;
+}
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.settings-field select,
+.settings-field input {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: var(--bg);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  width: 100%;
+}
+.settings-field select:focus,
+.settings-field input:focus {
+  box-shadow: 0 0 0 0.5px var(--line-3);
+}
+.settings-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.settings-row select {
+  flex: 1;
+}
+.settings-inline {
+  font-size: 13px;
+  color: var(--text);
+}
+.settings-inline input {
+  accent-color: var(--green);
+  width: 15px;
+  height: 15px;
+}
+.settings-key {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.settings-actions .primary {
+  background: var(--green-fill);
+  color: #fff;
+  padding: 9px 20px;
+  font-weight: 500;
+}
+.settings-actions .primary:hover:not(:disabled) {
+  background: var(--green);
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
 }
 .sr-only {
   position: absolute;
