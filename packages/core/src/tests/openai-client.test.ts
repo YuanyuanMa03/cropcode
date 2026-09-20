@@ -1,21 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CROPCODE_PLUS_BASE_URL, resolveOpenAIConnection } from "../common/openai-client";
-
-test("resolveOpenAIConnection falls back to DeepCode Plus credentials", () => {
-  const resolved = resolveOpenAIConnection({ baseURL: "https://configured.example.com" }, "sk-plus-test");
-
-  assert.deepEqual(resolved, {
-    apiKey: "sk-plus-test",
-    baseURL: CROPCODE_PLUS_BASE_URL,
-  });
-});
+import { resolveOpenAIConnection } from "../common/openai-client";
 
 test("resolveOpenAIConnection prefers regular credentials", () => {
-  const resolved = resolveOpenAIConnection(
-    { apiKey: "sk-regular-test", baseURL: "https://configured.example.com" },
-    "sk-plus-test"
-  );
+  const resolved = resolveOpenAIConnection({ apiKey: "sk-regular-test", baseURL: "https://configured.example.com" });
 
   assert.deepEqual(resolved, {
     apiKey: "sk-regular-test",

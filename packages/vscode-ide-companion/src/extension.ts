@@ -14,7 +14,6 @@ import {
   type SkillInfo,
   type UserPromptContent,
   type UserToolPermission,
-  readCropcodePlusApiKey,
   resolveOpenAIConnection,
   resolveSettingsSources,
   type CropcodeSettings,
@@ -33,7 +32,7 @@ type ReasoningMessageParams = {
   reasoning_content?: string;
 };
 
-export class DeepCodeViewProvider implements vscode.WebviewViewProvider {
+export class CropCodeViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "cropcode.chatView";
 
   private readonly context: vscode.ExtensionContext;
@@ -400,16 +399,12 @@ export class DeepCodeViewProvider implements vscode.WebviewViewProvider {
     notify?: string;
     webSearchTool?: string;
     env?: Record<string, string>;
-    machineId?: string;
-    plusApiKey?: string;
   } {
     const settings = this.resolveCurrentSettings();
-    const plusApiKey = readCropcodePlusApiKey();
-    const connection = resolveOpenAIConnection(settings, plusApiKey);
+    const connection = resolveOpenAIConnection(settings);
 
     const { model, thinkingEnabled, reasoningEffort, debugLogEnabled, notify, webSearchTool, env } = settings;
     const { apiKey, baseURL } = connection;
-    const machineId = vscode.env.machineId;
 
     if (!apiKey) {
       return {
@@ -423,8 +418,6 @@ export class DeepCodeViewProvider implements vscode.WebviewViewProvider {
         notify,
         webSearchTool,
         env,
-        machineId,
-        plusApiKey,
       };
     }
 
@@ -444,8 +437,6 @@ export class DeepCodeViewProvider implements vscode.WebviewViewProvider {
       notify,
       webSearchTool,
       env,
-      machineId,
-      plusApiKey,
     };
   }
 
@@ -606,9 +597,9 @@ export function activate(context: vscode.ExtensionContext): void {
     void vscode.window.showErrorMessage(message);
   }
 
-  const provider = new DeepCodeViewProvider(context);
+  const provider = new CropCodeViewProvider(context);
   context.subscriptions.push(provider);
-  context.subscriptions.push(vscode.window.registerWebviewViewProvider(DeepCodeViewProvider.viewType, provider));
+  context.subscriptions.push(vscode.window.registerWebviewViewProvider(CropCodeViewProvider.viewType, provider));
   context.subscriptions.push(
     vscode.commands.registerCommand("cropcode.openView", async () => {
       await vscode.commands.executeCommand("workbench.view.extension.cropcode");

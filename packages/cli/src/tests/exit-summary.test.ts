@@ -147,7 +147,7 @@ test("buildPluginRateLimitHintText shows the UnderstandImage package hint", () =
 
   assert.equal(
     hint,
-    "This conversation just exceeded the UnderstandImage tool rate limit. Visit https://deepcode.vegamo.cn/plus/packages for more details."
+    "This conversation exceeded the UnderstandImage tool rate limit. Check your configured service quota."
   );
 });
 
@@ -157,10 +157,7 @@ test("buildPluginRateLimitHintText shows the WebSearch package hint", () => {
     pluginRateLimitedTool: "WebSearch",
   });
 
-  assert.equal(
-    hint,
-    "This conversation just exceeded the WebSearch tool rate limit. Visit https://deepcode.vegamo.cn/plus/packages for more details."
-  );
+  assert.equal(hint, "This conversation exceeded the WebSearch tool rate limit. Check your configured service quota.");
 });
 
 test("buildPluginRateLimitHintText returns null without a rate limit", () => {

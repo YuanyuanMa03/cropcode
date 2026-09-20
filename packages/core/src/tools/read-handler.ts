@@ -126,7 +126,7 @@ export async function handleReadTool(
       return {
         ok: false,
         name: "read",
-        error: "Image files are not supported by read. Use ReadImage or UnderstandImage instead.",
+        error: "Image files are not supported by read. Select a multimodal model and use ReadImage instead.",
       };
     }
 

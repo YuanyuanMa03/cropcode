@@ -7,7 +7,6 @@ import type { CreateOpenAIClient, ToolExecutionContext, ToolExecutionResult } fr
 const MAX_OUTPUT_CHARS = 30000;
 const MAX_CAPTURE_CHARS = 10 * 1024 * 1024;
 const WEB_SEARCH_TOOL_ACTIVITY_PREFIX = "WebSearch:";
-const DEFAULT_WEB_SEARCH_API_URL = "https://deepcode.vegamo.cn/api/plugin/web-search";
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 const DEEPSEEK_WEB_SEARCH_MODEL = "deepseek-v4-flash";
 const EMPTY_DEEPSEEK_WEB_SEARCH_OUTPUT = "No web search results were returned.";
@@ -34,8 +33,6 @@ type LLMClientContext = {
   notify?: string;
   webSearchTool?: string;
   env?: Record<string, string>;
-  machineId?: string;
-  plusApiKey?: string;
 };
 
 export async function handleWebSearchTool(
@@ -67,6 +64,14 @@ export async function handleWebSearchTool(
     };
   }
 
+  if (llmContext.baseURL?.replace(/\/$/, "").replace(/\/v1$/, "") !== DEEPSEEK_BASE_URL) {
+    return {
+      ok: false,
+      name: "WebSearch",
+      error:
+        "Configure webSearchTool with your own search script, or use a DeepSeek API connection for built-in web search.",
+    };
+  }
   return executeDefaultWebSearch(query, { ...llmContext, signal: context.signal }, context);
 }
 
@@ -138,15 +143,7 @@ async function executeDefaultWebSearch(
   try {
     const prepared = await prepareSearchQuery(query, llmContext);
     context.signal?.throwIfAborted();
-    const output =
-      llmContext.baseURL === DEEPSEEK_BASE_URL
-        ? await runDeepSeekWebSearchRequest(prepared.resolvedQuery, llmContext.client, context)
-        : await runDefaultWebSearchRequest(
-            prepared.resolvedQuery,
-            llmContext.machineId,
-            llmContext.plusApiKey,
-            context
-          );
+    const output = await runDeepSeekWebSearchRequest(prepared.resolvedQuery, llmContext.client, context);
 
     return {
       ok: true,
@@ -346,62 +343,6 @@ function stripCodeFence(text: string): string {
   const trimmed = text.trim();
   const fenceMatch = trimmed.match(/^```(?:[\w-]+)?\n([\s\S]*?)\n```$/);
   return fenceMatch ? fenceMatch[1] : trimmed;
-}
-
-async function runDefaultWebSearchRequest(
-  query: string,
-  machineId: string | undefined,
-  plusApiKey: string | undefined,
-  context: ToolExecutionContext
-): Promise<string> {
-  if (!machineId) {
-    throw new Error("Missing vscode.env.machineId for the default WebSearch request.");
-  }
-
-  const activityId = `web-search-${randomUUID()}`;
-  context.onProcessStart?.(activityId, formatWebSearchActivityLabel(query));
-  try {
-    const response = await fetch(DEFAULT_WEB_SEARCH_API_URL, {
-      method: "POST",
-      signal: context.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Token: machineId,
-        ...(plusApiKey ? { "PLUS-API-KEY": plusApiKey } : {}),
-      },
-      body: JSON.stringify({ query }),
-    });
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(`WebSearch API request failed with status ${response.status}${body ? `: ${body}` : ""}`);
-    }
-
-    context.signal?.throwIfAborted();
-    const payload = (await response.json()) as {
-      success?: unknown;
-      result?: unknown;
-      reason?: unknown;
-    };
-
-    context.signal?.throwIfAborted();
-    if (payload.success !== true) {
-      const reason =
-        typeof payload.reason === "string" && payload.reason.trim() ? payload.reason.trim() : "Unknown error";
-      if (reason.includes("rate limit exceeded")) {
-        context.onPluginRateLimitExceeded?.("WebSearch");
-      }
-      throw new Error(`WebSearch API failed: ${reason}`);
-    }
-
-    if (typeof payload.result === "string" && payload.result.trim()) {
-      return payload.result.trim();
-    }
-  } finally {
-    context.onProcessExit?.(activityId);
-  }
-
-  throw new Error("The web search response was empty.");
 }
 
 async function runDeepSeekWebSearchRequest(

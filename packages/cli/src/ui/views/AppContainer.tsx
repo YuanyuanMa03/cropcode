@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useWindowSize } from "ink";
-import { resolveCurrentSettings, readCropcodePlusApiKey } from "@yuanyuanma03/cropcode-core";
+import { resolveCurrentSettings } from "@yuanyuanma03/cropcode-core";
 import { LoginScreen } from "../LoginScreen";
 import { AppContext } from "../contexts";
 import App from "./App";
@@ -15,9 +15,7 @@ const AppContainer: React.FC<{
   onRestart: () => void;
 }> = ({ version, projectRoot, initialPrompt, resumeSessionId, forkSessionId, onRestart }) => {
   const { columns } = useWindowSize();
-  const [needsLogin, setNeedsLogin] = useState(
-    () => !resolveCurrentSettings(projectRoot).apiKey && !readCropcodePlusApiKey()
-  );
+  const [needsLogin, setNeedsLogin] = useState(() => !resolveCurrentSettings(projectRoot).apiKey);
   if (needsLogin) return <LoginScreen width={columns ?? 80} onComplete={() => setNeedsLogin(false)} />;
   return (
     <AppContext.Provider value={{ version: version }}>

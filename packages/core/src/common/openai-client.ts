@@ -1,9 +1,6 @@
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
 import OpenAI from "openai";
 import { Agent, fetch as undiciFetch } from "undici";
-import { readCropcodePlusApiKey, resolveCurrentSettings, type ReasoningEffort } from "../settings";
+import { resolveCurrentSettings, type ReasoningEffort } from "../settings";
 
 // Custom undici Agent with a 180-second keepAlive timeout.  The default
 // global fetch (undici) only keeps connections alive for 4 seconds, which
@@ -19,19 +16,11 @@ const keepAliveAgent = new Agent({ keepAliveTimeout: 180_000 });
 let cachedOpenAI: OpenAI | null = null;
 let cachedOpenAIKey = "";
 
-export const CROPCODE_PLUS_BASE_URL = "https://deepcode.vegamo.cn/plugin/openai";
-
-export function resolveOpenAIConnection(
-  settings: { apiKey?: string; baseURL: string },
-  plusApiKey?: string
-): { apiKey?: string; baseURL: string } {
-  if (settings.apiKey) {
-    return { apiKey: settings.apiKey, baseURL: settings.baseURL };
-  }
-  if (plusApiKey) {
-    return { apiKey: plusApiKey, baseURL: CROPCODE_PLUS_BASE_URL };
-  }
-  return { apiKey: undefined, baseURL: settings.baseURL };
+export function resolveOpenAIConnection(settings: { apiKey?: string; baseURL: string }): {
+  apiKey?: string;
+  baseURL: string;
+} {
+  return { apiKey: settings.apiKey, baseURL: settings.baseURL };
 }
 
 export function createOpenAIClient(projectRoot: string = process.cwd()): {
@@ -43,16 +32,12 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
   thinkingEnabled: boolean;
   reasoningEffort: ReasoningEffort;
   debugLogEnabled: boolean;
-  telemetryEnabled: boolean;
   notify?: string;
   webSearchTool?: string;
   env: Record<string, string>;
-  machineId?: string;
-  plusApiKey?: string;
 } {
   const settings = resolveCurrentSettings(projectRoot);
-  const plusApiKey = readCropcodePlusApiKey();
-  const connection = resolveOpenAIConnection(settings, plusApiKey);
+  const connection = resolveOpenAIConnection(settings);
   if (!connection.apiKey) {
     return {
       client: null,
@@ -63,12 +48,9 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       thinkingEnabled: settings.thinkingEnabled,
       reasoningEffort: settings.reasoningEffort,
       debugLogEnabled: settings.debugLogEnabled,
-      telemetryEnabled: settings.telemetryEnabled,
       notify: settings.notify,
       webSearchTool: settings.webSearchTool,
       env: settings.env,
-      machineId: getMachineId(),
-      plusApiKey,
     };
   }
 
@@ -83,12 +65,9 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
       thinkingEnabled: settings.thinkingEnabled,
       reasoningEffort: settings.reasoningEffort,
       debugLogEnabled: settings.debugLogEnabled,
-      telemetryEnabled: settings.telemetryEnabled,
       notify: settings.notify,
       webSearchTool: settings.webSearchTool,
       env: settings.env,
-      machineId: getMachineId(),
-      plusApiKey,
     };
   }
 
@@ -122,29 +101,8 @@ export function createOpenAIClient(projectRoot: string = process.cwd()): {
     thinkingEnabled: settings.thinkingEnabled,
     reasoningEffort: settings.reasoningEffort,
     debugLogEnabled: settings.debugLogEnabled,
-    telemetryEnabled: settings.telemetryEnabled,
     notify: settings.notify,
     webSearchTool: settings.webSearchTool,
     env: settings.env,
-    machineId: getMachineId(),
-    plusApiKey,
   };
-}
-
-function getMachineId(): string | undefined {
-  try {
-    const idPath = path.join(os.homedir(), ".cropcode", "machine-id");
-    if (fs.existsSync(idPath)) {
-      const raw = fs.readFileSync(idPath, "utf8").trim();
-      if (raw) {
-        return raw;
-      }
-    }
-    const generated = `${os.hostname()}-${Math.random().toString(36).slice(2)}-${Date.now()}`;
-    fs.mkdirSync(path.dirname(idPath), { recursive: true });
-    fs.writeFileSync(idPath, generated, "utf8");
-    return generated;
-  } catch {
-    return undefined;
-  }
 }

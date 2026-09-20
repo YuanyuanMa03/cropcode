@@ -71,7 +71,7 @@ CropCode 可以帮助编写和运行农业分析代码，但不会内置或凭�
 - 图片读取、模型多模态配置及可选 DeepSeek Files API。
 - CLI 和 VSCode 扩展共享核心库。
 
-联网搜索、非多模态识图及部分内置媒体技能保留外部服务接入，相关服务有独立的可用性和额度限制。可在 `webSearchTool` 中配置自己的搜索脚本。匿名使用上报配置见[配置说明](docs/configuration.md#telemetryenabled--匿名使用数据上报)。
+联网搜索使用 `webSearchTool` 自定义脚本，或 DeepSeek 官方 API 连接下的内置搜索能力。图片理解使用当前配置的多模态模型。CropCode 不内置媒体生成服务，不发送使用上报，也不会读取其他产品的专属凭证。
 
 ## 开发
 
@@ -87,4 +87,4 @@ npm run package:cli # 打包 CLI 到 release/
 
 ## 许可与参考
 
-本项目采用 MIT 许可证。[DeepCode CLI](https://github.com/lessweb/deepcode-cli) 是 CropCode 的重要技术参考，项目包含其 MIT 许可代码；保留的版权声明见 [LICENSE](LICENSE)。同时感谢 Ink、OpenAI SDK 及其他开源依赖。
+本项目采用 MIT 许可证，包含第三方 MIT 许可代码。版权声明见 [LICENSE](LICENSE)，技术来源记录见 [docs/upstream.md](docs/upstream.md)。

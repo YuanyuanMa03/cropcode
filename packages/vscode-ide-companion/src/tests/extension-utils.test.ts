@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  PLUS_PACKAGES_URL,
+  SUPPORT_URL,
   VALID_PERMISSION_SCOPES,
   getNonce,
   isAllowedExternalUrl,
@@ -9,9 +9,9 @@ import {
   parseUserToolPermissions,
 } from "../utils.js";
 
-test("isAllowedExternalUrl accepts only the Plus packages URL", () => {
-  assert.equal(isAllowedExternalUrl(PLUS_PACKAGES_URL), true);
-  assert.equal(isAllowedExternalUrl("https://deepcode.vegamo.cn/plus/packages/other"), false);
+test("isAllowedExternalUrl accepts only the CropCode support URL", () => {
+  assert.equal(isAllowedExternalUrl(SUPPORT_URL), true);
+  assert.equal(isAllowedExternalUrl("https://github.com/YuanyuanMa03/cropcode/issues/other"), false);
   assert.equal(isAllowedExternalUrl("https://example.com"), false);
   assert.equal(isAllowedExternalUrl(undefined), false);
 });

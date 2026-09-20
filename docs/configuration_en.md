@@ -40,7 +40,6 @@ The following are all the top-level fields supported in `settings.json`, along w
 | `fileQuotaCleanupBatch` | number | Oldest CropCode files removed during quota recovery, default `100`    |
 | `maxRequestFilesBytes` | number | Raw image byte limit per request, default `134217728` (128 MiB)          |
 | `debugLogEnabled`  | boolean | Enable debug log output (default `false`)                                   |
-| `telemetryEnabled` | boolean | Enable anonymous usage reporting (default `true`)                           |
 | `notify`           | string  | Full path to a task-completion notification script (e.g., Slack notification script) |
 | `webSearchTool`    | string  | Full path to a custom web search script                                     |
 | `mcpServers`       | object  | MCP server configurations (keys are service names, values are McpServerConfig objects) |
@@ -61,7 +60,6 @@ The following are all the top-level fields supported in `settings.json`, along w
 | `REASONING_EFFORT`| string | Reasoning intensity                                             |
 | `MULTIMODAL`      | string | Multimodal (image) capability override: `"default"`, `"on"`, or `"off"` |
 | `DEBUG_LOG_ENABLED`| string| Enable debug log output                                         |
-| `TELEMETRY_ENABLED`| string| Enable anonymous usage reporting                                |
 | `<any other KEY>` | string | Custom environment variable                                     |
 
 #### Context Windows
@@ -102,7 +100,7 @@ Controls whether the current model is treated as a multimodal model that accepts
 | --------- | --------------------------------------------------------------------------- |
 | `default` | Inferred from the built-in known-model list (default)                       |
 | `on`      | Always treat the model as multimodal, images are sent inline as `image_url` |
-| `off`     | Always treat the model as non-multimodal, images are read on demand via UnderstandImage tool |
+| `off`     | Always treat the model as non-multimodal, image understanding requires switching to a multimodal model |
 
 Use this to override the default detection when your model is not in the known-model list, or when its actual capability differs from the default.
 
@@ -208,15 +206,6 @@ For detailed MCP usage instructions, refer to [mcp.md](mcp.md).
 
 Set to `true` to enable detailed debug logging (default `false`), useful for troubleshooting API calls and tool execution.
 
-#### `telemetryEnabled` — Anonymous Usage Reporting
-
-Set to `false` to disable anonymous usage reporting (default `true`). The report only includes an anonymous machine identifier and does not contain conversation content, code, or API keys.
-
-You can also disable it via environment variable:
-
-```bash
-CROPCODE_TELEMETRY_ENABLED=0 cropcode
-```
 
 ## Environment Variable Priority
 
@@ -271,3 +260,7 @@ Applied in the following priority order (lower-numbered overridden by higher-num
 3. Project-level settings.json: `{"mcpServers":{"github":{"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"..."}}}}`
 4. Project-level settings.json: `{"env": {"MCP_GITHUB_PERSONAL_ACCESS_TOKEN": "..."}}`
 5. System environment variable: `CROPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN=... cropcode`
+
+## External services
+
+CropCode uses only the configured model provider. Web search requires a `webSearchTool` script or a direct DeepSeek API connection. Other providers without a search script receive a configuration error. Image understanding requires a multimodal model. No bundled media-generation service, usage reporting, or other product credential fallback is enabled.

@@ -156,9 +156,5 @@ export function buildPluginRateLimitHintText(session: SessionEntry | null): stri
   if (!tool) {
     return null;
   }
-  return (
-    chalk.dim(`This conversation just exceeded the ${tool} tool rate limit. Visit `) +
-    chalk.hex("#229ac3")("https://deepcode.vegamo.cn/plus/packages") +
-    chalk.dim(" for more details.")
-  );
+  return chalk.dim(`This conversation exceeded the ${tool} tool rate limit. Check your configured service quota.`);
 }

@@ -8,13 +8,13 @@
 
 ## 注入的环境变量
 
-| 环境变量      | 说明                                  |
-| ------------- | ------------------------------------- |
-| `DURATION`    | 会话耗时，单位秒（整数）              |
-| `STATUS`      | 会话状态：`"completed"` 或 `"failed"` |
-| `FAIL_REASON` | 失败原因（仅失败时设置）              |
-| `BODY`        | 最后一条 AI 助手回复的文本内容        |
-| `TITLE`       | 会话标题（对应 resume 列表中的标题）  |
+| 环境变量 | 说明 |
+|----------|------|
+| `DURATION` | 会话耗时，单位秒（整数） |
+| `STATUS` | 会话状态：`"completed"` 或 `"failed"` |
+| `FAIL_REASON` | 失败原因（仅失败时设置） |
+| `BODY` | 最后一条 AI 助手回复的文本内容 |
+| `TITLE` | 会话标题（对应 resume 列表中的标题） |
 
 ## 配置方法
 
@@ -108,7 +108,7 @@ PAYLOAD=$(node -e "
 process.stdout.write(JSON.stringify({
   msg_type: 'interactive',
   card: {
-    header: { title: { tag: 'plain_text', content: 'DeepCode: ' + process.env.TITLE + ' ' + process.env.STATUS + ' [' + process.env.DURATION + 's]' } },
+    header: { title: { tag: 'plain_text', content: 'CropCode: ' + process.env.TITLE + ' ' + process.env.STATUS + ' [' + process.env.DURATION + 's]' } },
     elements: [{ tag: 'markdown', content: (process.env.BODY || '').slice(0, 2000) || '(no output)' }]
   }
 }))
@@ -139,7 +139,7 @@ curl -s -X POST "$WEBHOOK_URL" \
 ```bash
 #!/bin/bash
 # iTerm2 / Windows Terminal OSC 9 通知
-printf '\x1b]9;DeepCode: task %s (%ss)\x07' "${STATUS:-completed}" "${DURATION}"
+printf '\x1b]9;CropCode: task %s (%ss)\x07' "${STATUS:-completed}" "${DURATION}"
 ```
 
 ```json
@@ -153,7 +153,7 @@ Windows 用户如使用 Git Bash，上述脚本同样可用；也可创建 `.bat
 ```batch
 @echo off
 REM Windows Terminal OSC 9 通知
-echo \x1b]9;DeepCode: task %STATUS% (%DURATION%s)\x07
+echo \x1b]9;CropCode: task %STATUS% (%DURATION%s)\x07
 ```
 
 ## macOS 系统通知
@@ -161,7 +161,7 @@ echo \x1b]9;DeepCode: task %STATUS% (%DURATION%s)\x07
 ```bash
 #!/bin/bash
 # macOS 系统通知
-osascript -e "display notification \"任务已${STATUS:-完成}，耗时 ${DURATION}s\" with title \"DeepCode\""
+osascript -e "display notification \"任务已${STATUS:-完成}，耗时 ${DURATION}s\" with title \"CropCode\""
 ```
 
 ```json
@@ -183,7 +183,7 @@ sudo apt install libnotify-bin   # Debian/Ubuntu
 ```bash
 #!/bin/bash
 # Linux notify-send 通知
-notify-send "DeepCode" "任务已${STATUS:-完成}，耗时 ${DURATION}s"
+notify-send "CropCode" "任务已${STATUS:-完成}，耗时 ${DURATION}s"
 ```
 
 ```json
@@ -197,7 +197,7 @@ notify-send "DeepCode" "任务已${STATUS:-完成}，耗时 ${DURATION}s"
 ```batch
 @echo off
 REM Windows msg 弹窗通知
-msg %USERNAME% "DeepCode: task %STATUS% (%DURATION%s)"
+msg %USERNAME% "CropCode: task %STATUS% (%DURATION%s)"
 ```
 
 ```json

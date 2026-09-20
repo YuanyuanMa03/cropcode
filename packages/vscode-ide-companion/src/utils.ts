@@ -1,9 +1,9 @@
 import type { PermissionScope, UserToolPermission } from "@yuanyuanma03/cropcode-core";
 
-export const PLUS_PACKAGES_URL = "https://deepcode.vegamo.cn/plus/packages";
+export const SUPPORT_URL = "https://github.com/YuanyuanMa03/cropcode/issues";
 
 export function isAllowedExternalUrl(value: unknown): value is string {
-  return value === PLUS_PACKAGES_URL;
+  return value === SUPPORT_URL;
 }
 
 export const VALID_PERMISSION_SCOPES = new Set<PermissionScope>([

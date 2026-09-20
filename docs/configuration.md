@@ -40,7 +40,6 @@ CropCode 使用 `settings.json` 设置文件进行持久化配置，支持两个
 | `fileQuotaCleanupBatch` | number | 配额不足时清理的最旧 CropCode 文件数，默认 `100`                         |
 | `maxRequestFilesBytes` | number | 单次请求内图片原始字节总上限，默认 `134217728`（128 MiB）                    |
 | `debugLogEnabled`    | boolean   | 是否启用调试日志输出（默认 `false`）                                 |
-| `telemetryEnabled`   | boolean   | 是否启用匿名使用数据上报（默认 `true`）                              |
 | `notify`             | string    | 任务完成通知脚本的完整路径（如 Slack 通知脚本）                      |
 | `webSearchTool`      | string    | 自定义联网搜索脚本的完整路径                                         |
 | `mcpServers`         | object    | MCP 服务器配置（键为服务名，值为 McpServerConfig 对象）              |
@@ -61,7 +60,6 @@ CropCode 使用 `settings.json` 设置文件进行持久化配置，支持两个
 | `REASONING_EFFORT`  | string | 推理强度                                                |
 | `MULTIMODAL`  | string | 多模态（图片）能力开关，可选 `"default"`、`"on"` 或 `"off"`         |
 | `DEBUG_LOG_ENABLED`  | string | 是否启用调试日志输出                                     |
-| `TELEMETRY_ENABLED`  | string | 是否启用匿名使用数据上报                                   |
 | `<其他任意KEY>` | string | 自定义环境变量 |
 
 #### 上下文窗口
@@ -102,7 +100,7 @@ CropCode 使用 `settings.json` 设置文件进行持久化配置，支持两个
 | ---------- | ------------------------------------------------------------ |
 | `default`  | 按内置模型列表自动判定（默认值）                              |
 | `on`       | 强制视为多模态模型，图片以 `image_url` 形式直接内联发送        |
-| `off`      | 强制视为非多模态模型，由模型通过识图工具按需读取      |
+| `off`      | 强制视为非多模态模型，不提供图片理解；需要切换多模态模型      |
 
 当使用的模型未内置在已知模型列表中、或其实际能力与默认判定不符时，可通过该配置覆盖。
 
@@ -209,15 +207,6 @@ MCP（Model Context Protocol）服务器配置。值是键值对，键为服务�
 
 设为 `true` 可让程序输出详细的调试日志（默认 `false`），用于排查 API 调用和工具执行的问题。
 
-#### `telemetryEnabled` — 匿名使用数据上报
-
-设为 `false` 可关闭匿名使用数据上报（默认 `true`）。上报仅包含匿名的机器标识，不包含对话内容、代码或 API 密钥。
-
-也可以通过环境变量关闭：
-
-```bash
-CROPCODE_TELEMETRY_ENABLED=0 cropcode
-```
 
 ## 环境变量优先级
 
@@ -272,3 +261,7 @@ CROPCODE_TELEMETRY_ENABLED=0 cropcode
 3. 项目级settings.json: `{"mcpServers":{"github":{"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"..."}}}}`
 4. 项目级settings.json: `{"env": {"MCP_GITHUB_PERSONAL_ACCESS_TOKEN": "..."}}`
 5. 系统环境变量: `CROPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN=... cropcode`
+
+## 外部服务
+
+CropCode 只使用用户配置的模型供应商。联网搜索使用 `webSearchTool` 自定义脚本，或 DeepSeek 官方 API 连接下的内置搜索能力；其他供应商未配置搜索脚本时返回配置提示。图片理解通过支持图片输入的当前模型完成。没有内置媒体生成服务、使用上报或其他产品的凭证回退。

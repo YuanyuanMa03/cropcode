@@ -14,7 +14,6 @@ export {
   modelConfigKey,
   getUserSettingsPath,
   getProjectSettingsPath,
-  readCropcodePlusApiKey,
   getDefaultContextWindow,
   getDefaultAutoCompactWindow,
   DEFAULT_MODEL,
@@ -97,7 +96,6 @@ export { handleReadImageTool } from "./tools/read-image-handler";
 export { handleWriteTool } from "./tools/write-handler";
 export { handleEditTool } from "./tools/edit-handler";
 export { handleUpdatePlanTool } from "./tools/update-plan-handler";
-export { handleUnderstandImageTool } from "./tools/understand-image-handler";
 export { handleWebSearchTool } from "./tools/web-search-handler";
 export { handleAskUserQuestionTool } from "./tools/ask-user-question-handler";
 
@@ -107,7 +105,7 @@ export { McpClient } from "./mcp/mcp-client";
 export type { McpServerStatus } from "./mcp/mcp-manager";
 
 // Common utilities
-export { createOpenAIClient, resolveOpenAIConnection, CROPCODE_PLUS_BASE_URL } from "./common/openai-client";
+export { createOpenAIClient, resolveOpenAIConnection } from "./common/openai-client";
 export { buildThinkingRequestOptions, getReasoningEfforts } from "./common/openai-thinking";
 export { readTextFileWithMetadata, writeTextFile, buildDiffPreview, ensureParentDirectory } from "./common/file-utils";
 export { normalizeFilePath, getSnippet, clearSessionState, recordFileState, getFileState } from "./common/state";
@@ -115,7 +113,6 @@ export { GitFileHistory } from "./common/file-history";
 export { killProcessTree } from "./common/process-tree";
 export { TENCENT_MIRROR_REGISTRY } from "./common/npm-registry";
 export { launchNotifyScript } from "./common/notify";
-export { reportNewPrompt } from "./common/telemetry";
 export { DEEPSEEK_V4_MODELS, supportsMultimodal, defaultsToThinkingMode } from "./common/model-capabilities";
 export type { MultimodalMode } from "./common/model-capabilities";
 export { findGitBashPath, resolveShellPath, setShellIfWindows } from "./common/shell-utils";

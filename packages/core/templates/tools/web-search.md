@@ -20,6 +20,8 @@ JSON schema:
 
 Usage:
 
+- Requires a configured `webSearchTool` script or a direct DeepSeek API connection. If configuration is missing, report it instead of claiming search results.
+
 - Do not reduce `query` to space-separated keywords.
 
 Typical use cases:

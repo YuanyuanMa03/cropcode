@@ -1,4 +1,5 @@
 import { build } from "esbuild";
+import { rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,6 +8,9 @@ const root = join(__dirname, "..");
 
 const cliRoot = join(root, "packages", "cli");
 const entry = join(cliRoot, "src", "cli.tsx");
+
+// Removed modules must not survive as stale chunks in a packaged CLI.
+rmSync(join(cliRoot, "dist"), { recursive: true, force: true });
 
 await build({
   entryPoints: [entry],

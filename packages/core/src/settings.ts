@@ -17,7 +17,6 @@ export type CropcodeEnv = Record<string, string | undefined> & {
   THINKING_ENABLED?: string;
   REASONING_EFFORT?: string;
   DEBUG_LOG_ENABLED?: string;
-  TELEMETRY_ENABLED?: string;
   MULTIMODAL?: string;
 };
 
@@ -99,7 +98,6 @@ export type CropcodeSettings = {
   thinkingEnabled?: boolean;
   reasoningEffort?: ReasoningEffort;
   debugLogEnabled?: boolean;
-  telemetryEnabled?: boolean;
   notify?: string;
   webSearchTool?: string;
   multimodal?: MultimodalMode;
@@ -126,7 +124,6 @@ export type ResolvedCropcodeSettings = {
   thinkingEnabled: boolean;
   reasoningEffort: ReasoningEffort;
   debugLogEnabled: boolean;
-  telemetryEnabled: boolean;
   notify?: string;
   webSearchTool?: string;
   multimodal: MultimodalMode;
@@ -645,14 +642,6 @@ export function resolveSettingsSources(
     parseBoolean(userEnv.DEBUG_LOG_ENABLED) ??
     false;
 
-  const telemetryEnabled =
-    parseBoolean(systemEnv.TELEMETRY_ENABLED) ??
-    parseBoolean(projectSettings?.telemetryEnabled) ??
-    parseBoolean(projectEnv.TELEMETRY_ENABLED) ??
-    parseBoolean(userSettings?.telemetryEnabled) ??
-    parseBoolean(userEnv.TELEMETRY_ENABLED) ??
-    true;
-
   const notify =
     trimString(systemEnv.NOTIFY) || trimString(projectSettings?.notify) || trimString(userSettings?.notify) || "";
   const webSearchTool =
@@ -715,7 +704,6 @@ export function resolveSettingsSources(
     thinkingEnabled,
     reasoningEffort,
     debugLogEnabled,
-    telemetryEnabled,
     notify: notify || undefined,
     webSearchTool: webSearchTool || undefined,
     multimodal,
@@ -785,24 +773,8 @@ export function getUserSettingsPath(): string {
   return path.join(os.homedir(), ".cropcode", "settings.json");
 }
 
-export function getCropcodePlusSettingsPath(): string {
-  return path.join(os.homedir(), ".deepcode-plus", "settings.json");
-}
-
 export function getProjectSettingsPath(projectRoot: string): string {
   return path.join(projectRoot, ".cropcode", "settings.json");
-}
-
-export function readCropcodePlusApiKey(settingsPath: string = getCropcodePlusSettingsPath()): string | undefined {
-  try {
-    const raw = fs.readFileSync(settingsPath, "utf8");
-    const settings = JSON.parse(raw) as { env?: { PLUS_API_KEY?: unknown } } | null;
-    return typeof settings?.env?.PLUS_API_KEY === "string"
-      ? trimString(settings.env.PLUS_API_KEY) || undefined
-      : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 export function readSettingsFile(settingsPath: string): CropcodeSettings | null {

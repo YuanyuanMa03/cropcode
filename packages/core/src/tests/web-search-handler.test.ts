@@ -60,163 +60,6 @@ test(
   }
 );
 
-test("WebSearch uses the default API when no script is configured", async () => {
-  const workspace = createTempWorkspace();
-  const starts: Array<{ id: string | number; command: string }> = [];
-  const exits: Array<string | number> = [];
-  const fetchCalls: Array<{ input: string | URL; init?: RequestInit }> = [];
-
-  const fakeClient = {
-    chat: {
-      completions: {
-        create: async ({ messages }: { messages: Array<{ content: string }> }) => {
-          const prompt = messages[0]?.content ?? "";
-          if (prompt.includes("Return strict JSON:")) {
-            return {
-              choices: [
-                {
-                  message: {
-                    content:
-                      '{"dominant_language":"en","reason":"Most Node.js release notes are published in English."}',
-                  },
-                },
-              ],
-            };
-          }
-          throw new Error(`Unexpected chat prompt: ${prompt}`);
-        },
-      },
-    },
-  } as unknown as OpenAI;
-
-  globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
-    fetchCalls.push({ input, init });
-    return {
-      ok: true,
-      json: async () => ({
-        success: true,
-        result: JSON.stringify(
-          {
-            organic_results: [
-              {
-                title: "Node.js Releases",
-                link: "https://nodejs.org/en/about/previous-releases",
-              },
-            ],
-          },
-          null,
-          2
-        ),
-      }),
-    } as Response;
-  }) as typeof fetch;
-
-  const result = await handleWebSearchTool(
-    { query: "latest node release" },
-    createContext(workspace, {
-      baseURL: "https://example.com/v1",
-      client: fakeClient,
-      machineId: "machine-id-123",
-      plusApiKey: "sk-plus-test",
-      onProcessStart: (id, command) => starts.push({ id, command }),
-      onProcessExit: (id) => exits.push(id),
-    })
-  );
-
-  assert.equal(result.ok, true);
-  assert.match(result.output ?? "", /Node\.js Releases/);
-  assert.equal(result.metadata?.resolvedQuery, "latest node release");
-  assert.equal(starts.length, 1);
-  assert.equal(starts[0].id, exits[0]);
-  assert.equal(starts[0].command, "WebSearch: latest node release");
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(String(fetchCalls[0].input), "https://deepcode.vegamo.cn/api/plugin/web-search");
-  assert.equal(fetchCalls[0].init?.method, "POST");
-  assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), { query: "latest node release" });
-  assert.equal((fetchCalls[0].init?.headers as Record<string, string>).Token, "machine-id-123");
-  assert.equal((fetchCalls[0].init?.headers as Record<string, string>)["PLUS-API-KEY"], "sk-plus-test");
-});
-
-test("WebSearch reports and records a default API rate limit error", async () => {
-  const workspace = createTempWorkspace();
-  const rateLimitedTools: string[] = [];
-  let requestHeaders: RequestInit["headers"];
-  const fakeClient = {
-    chat: {
-      completions: {
-        create: async () => ({
-          choices: [
-            {
-              message: {
-                content: '{"dominant_language":"en","reason":"English sources are more useful."}',
-              },
-            },
-          ],
-        }),
-      },
-    },
-  } as unknown as OpenAI;
-  globalThis.fetch = (async (_input: string | URL, init?: RequestInit) => {
-    requestHeaders = init?.headers;
-    return new Response(JSON.stringify({ success: false, reason: "WebSearch rate limit exceeded." }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  }) as typeof fetch;
-
-  const result = await handleWebSearchTool(
-    { query: "latest node release" },
-    createContext(workspace, {
-      baseURL: "https://example.com/v1",
-      client: fakeClient,
-      machineId: "machine-id-123",
-      onPluginRateLimitExceeded: (tool) => rateLimitedTools.push(tool),
-    })
-  );
-
-  assert.equal(result.ok, false);
-  assert.equal(result.error, "WebSearch default mode failed: WebSearch API failed: WebSearch rate limit exceeded.");
-  assert.deepEqual(rateLimitedTools, ["WebSearch"]);
-  assert.equal((requestHeaders as Record<string, string>)["PLUS-API-KEY"], undefined);
-});
-
-test("WebSearch matches rate limit errors case-sensitively", async () => {
-  const workspace = createTempWorkspace();
-  const rateLimitedTools: string[] = [];
-  const fakeClient = {
-    chat: {
-      completions: {
-        create: async () => ({
-          choices: [
-            {
-              message: {
-                content: '{"dominant_language":"en","reason":"English sources are more useful."}',
-              },
-            },
-          ],
-        }),
-      },
-    },
-  } as unknown as OpenAI;
-  globalThis.fetch = (async () =>
-    new Response(JSON.stringify({ success: false, reason: "WebSearch Rate limit exceeded." }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    })) as typeof fetch;
-
-  await handleWebSearchTool(
-    { query: "latest node release" },
-    createContext(workspace, {
-      baseURL: "https://example.com/v1",
-      client: fakeClient,
-      machineId: "machine-id-123",
-      onPluginRateLimitExceeded: (tool) => rateLimitedTools.push(tool),
-    })
-  );
-
-  assert.deepEqual(rateLimitedTools, []);
-});
-
 test("WebSearch accepts a completed DeepSeek response with partial web search failures", async () => {
   const workspace = createTempWorkspace();
   const starts: Array<{ id: string | number; command: string }> = [];
@@ -414,8 +257,6 @@ function createContext(
     baseURL?: string;
     webSearchTool?: string;
     env?: Record<string, string>;
-    machineId?: string;
-    plusApiKey?: string;
     onProcessStart?: (processId: string | number, command: string) => void;
     onProcessExit?: (processId: string | number) => void;
     onPluginRateLimitExceeded?: ToolExecutionContext["onPluginRateLimitExceeded"];
@@ -439,8 +280,6 @@ function createContext(
       thinkingEnabled: false,
       webSearchTool: options.webSearchTool,
       env: options.env,
-      machineId: options.machineId,
-      plusApiKey: options.plusApiKey,
     }),
     onProcessStart: options.onProcessStart,
     onProcessExit: options.onProcessExit,
@@ -453,3 +292,29 @@ function createTempWorkspace(): string {
   tempDirs.push(dir);
   return dir;
 }
+
+test("WebSearch without a supported provider or custom script makes no network request", async () => {
+  const workspace = createTempWorkspace();
+  let networkCalls = 0;
+  globalThis.fetch = (async () => {
+    networkCalls++;
+    throw new Error("Unexpected network request");
+  }) as typeof fetch;
+  const client = {
+    chat: {
+      completions: {
+        create: async () => {
+          networkCalls++;
+          throw new Error("Unexpected model request");
+        },
+      },
+    },
+  } as unknown as OpenAI;
+  const result = await handleWebSearchTool(
+    { query: "crop yields" },
+    createContext(workspace, { client, baseURL: "https://configured.example/v1" })
+  );
+  assert.equal(result.ok, false);
+  assert.match(result.error ?? "", /Configure webSearchTool/);
+  assert.equal(networkCalls, 0);
+});

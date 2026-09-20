@@ -718,8 +718,6 @@ test("SessionManager excludes disabled skills by resolved skill name", async () 
         "skill-writer": false,
         "renamed-disabled": false,
         "cropcode-self-refer": false,
-        "image-generator": false,
-        "video-generator": false,
         "skill-digester": false,
         plan: false,
         "enabled-skill": true,
@@ -823,7 +821,7 @@ test("replySession appends the skill catalog only when content changes", async (
   setHomeDir(home);
   globalThis.fetch = (async () => ({ ok: true, text: async () => "" }) as Response) as typeof fetch;
 
-  const matchingNames: string[][] = [["skill-writer"], [], ["image-generator"]];
+  const matchingNames: string[][] = [["skill-writer"], [], ["skill-digester"]];
   const client = {
     chat: {
       completions: {
@@ -855,10 +853,10 @@ test("replySession appends the skill catalog only when content changes", async (
   assert.equal(catalogs.length, 2);
   assert.deepEqual(catalogs[1]?.meta?.skillCatalog?.map((entry) => entry.name) ?? [], [
     "skill-writer",
-    "image-generator",
+    "skill-digester",
   ]);
   assert.match(catalogs[1]?.content ?? "", /`skill-writer`/);
-  assert.match(catalogs[1]?.content ?? "", /`image-generator`/);
+  assert.match(catalogs[1]?.content ?? "", /`skill-digester`/);
 });
 
 test("skill tool stores the full document and metadata in its tool message", async () => {
@@ -1596,7 +1594,7 @@ test("createSession stores /init and sends generate prompt when no project AGENT
   assert.doesNotMatch(openAIUserMessage?.content ?? "", /Update \.\/AGENTS\.md/);
 });
 
-test("createSession reports a new prompt with the machineId token", async () => {
+test("createSession does not send usage reports", async () => {
   const workspace = createTempDir("cropcode-session-workspace-");
   const home = createTempDir("cropcode-session-home-");
   setHomeDir(home);
@@ -1621,15 +1619,10 @@ test("createSession reports a new prompt with the machineId token", async () => 
 
   assert.equal(activatedSessionIds.length, 1);
   assert.equal(activatedSessionIds[0], sessionId);
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(String(fetchCalls[0].input), "https://deepcode.vegamo.cn/api/plugin/new");
-  assert.equal(fetchCalls[0].init?.method, "POST");
-  assert.ok(fetchCalls[0].init?.signal instanceof AbortSignal);
-  assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), {});
-  assert.equal((fetchCalls[0].init?.headers as Record<string, string>).Token, "machine-id-123");
+  assert.equal(fetchCalls.length, 0);
 });
 
-test("replySession reports a new prompt with the machineId token", async () => {
+test("replySession does not send usage reports", async () => {
   const workspace = createTempDir("cropcode-reply-workspace-");
   const home = createTempDir("cropcode-reply-home-");
   setHomeDir(home);
@@ -1653,15 +1646,10 @@ test("replySession reports a new prompt with the machineId token", async () => {
   await manager.replySession(sessionId, { text: "second prompt" });
   await flushPromises();
 
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(String(fetchCalls[0].input), "https://deepcode.vegamo.cn/api/plugin/new");
-  assert.equal(fetchCalls[0].init?.method, "POST");
-  assert.ok(fetchCalls[0].init?.signal instanceof AbortSignal);
-  assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), {});
-  assert.equal((fetchCalls[0].init?.headers as Record<string, string>).Token, "machine-id-456");
+  assert.equal(fetchCalls.length, 0);
 });
 
-test("reporting a new prompt does not warn when the background request fails", async () => {
+test("creating a session does not depend on an external reporting service", async () => {
   const workspace = createTempDir("cropcode-report-failure-workspace-");
   const home = createTempDir("cropcode-report-failure-home-");
   setHomeDir(home);
@@ -5159,8 +5147,8 @@ test("interrupt settles an active prompt waiting for an internal tool request", 
     createOpenAIClient: () => ({
       client: enabled ? (client as any) : null,
       model: "test",
+      baseURL: "https://api.deepseek.com",
       thinkingEnabled: false,
-      telemetryEnabled: false,
     }),
     getResolvedSettings: () => ({ model: "test" }),
     renderMarkdown: (text) => text,

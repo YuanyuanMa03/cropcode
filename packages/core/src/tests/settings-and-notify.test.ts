@@ -18,33 +18,11 @@ import {
   DEFAULT_MAX_REQUEST_FILES_BYTES,
   DEFAULT_MODEL,
   applyModelConfigSelection,
-  readCropcodePlusApiKey,
   resolveSettings,
   resolveSettingsSources,
 } from "../settings";
 
 const TEST_PROCESS_ENV = {};
-
-test("readCropcodePlusApiKey reads only a non-empty env key", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cropcode-plus-settings-"));
-  const settingsPath = path.join(tempDir, "settings.json");
-
-  try {
-    fs.writeFileSync(settingsPath, JSON.stringify({ env: { PLUS_API_KEY: "  sk-plus-test  " } }));
-    assert.equal(readCropcodePlusApiKey(settingsPath), "sk-plus-test");
-
-    for (const settings of [{}, { env: {} }, { env: { PLUS_API_KEY: "   " } }, { env: { PLUS_API_KEY: 123 } }]) {
-      fs.writeFileSync(settingsPath, JSON.stringify(settings));
-      assert.equal(readCropcodePlusApiKey(settingsPath), undefined);
-    }
-
-    fs.writeFileSync(settingsPath, "not json");
-    assert.equal(readCropcodePlusApiKey(settingsPath), undefined);
-    assert.equal(readCropcodePlusApiKey(path.join(tempDir, "missing.json")), undefined);
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
 
 test("resolveSettings reads top-level thinkingEnabled, notify, and webSearchTool", () => {
   const resolved = resolveSettings(
@@ -345,36 +323,6 @@ test("resolveSettings reads TEMPERATURE, THINKING_ENABLED, REASONING_EFFORT, and
   assert.equal(resolved.baseURL, "https://default.example.com");
 });
 
-test("resolveSettings defaults telemetryEnabled to true", () => {
-  const resolved = resolveSettings(
-    {},
-    { model: "default-model", baseURL: "https://default.example.com" },
-    TEST_PROCESS_ENV
-  );
-  assert.equal(resolved.telemetryEnabled, true);
-});
-
-test("resolveSettings reads TELEMETRY_ENABLED from env", () => {
-  const resolved = resolveSettings(
-    { env: { TELEMETRY_ENABLED: "0" } },
-    { model: "default-model", baseURL: "https://default.example.com" },
-    TEST_PROCESS_ENV
-  );
-  assert.equal(resolved.telemetryEnabled, false);
-});
-
-test("resolveSettings gives top-level telemetryEnabled priority over env TELEMETRY_ENABLED", () => {
-  const resolved = resolveSettings(
-    {
-      telemetryEnabled: false,
-      env: { TELEMETRY_ENABLED: "true" },
-    },
-    { model: "default-model", baseURL: "https://default.example.com" },
-    TEST_PROCESS_ENV
-  );
-  assert.equal(resolved.telemetryEnabled, false);
-});
-
 test("resolveSettings ignores removed legacy env.THINKING", () => {
   const resolved = resolveSettings(
     {
@@ -409,7 +357,6 @@ test("resolveSettingsSources applies user, project, and CROPCODE environment pre
       reasoningEffort: "max",
       temperature: 0.4,
       debugLogEnabled: true,
-      telemetryEnabled: false,
     },
     {
       env: {
@@ -422,7 +369,6 @@ test("resolveSettingsSources applies user, project, and CROPCODE environment pre
       model: "project-top-model",
       thinkingEnabled: true,
       temperature: 0.8,
-      telemetryEnabled: true,
     },
     {
       model: "default-model",
@@ -435,7 +381,6 @@ test("resolveSettingsSources applies user, project, and CROPCODE environment pre
       CROPCODE_REASONING_EFFORT: "high",
       CROPCODE_TEMPERATURE: "1.2",
       CROPCODE_DEBUG_LOG_ENABLED: "true",
-      CROPCODE_TELEMETRY_ENABLED: "false",
       CROPCODE_WEBHOOK: "system-webhook",
     }
   );
@@ -446,7 +391,6 @@ test("resolveSettingsSources applies user, project, and CROPCODE environment pre
   assert.equal(resolved.reasoningEffort, "high");
   assert.equal(resolved.temperature, 1.2);
   assert.equal(resolved.debugLogEnabled, true);
-  assert.equal(resolved.telemetryEnabled, false);
   assert.equal(resolved.env.WEBHOOK, "system-webhook");
 });
 

@@ -9,7 +9,6 @@ import { handleReadTool } from "../tools/read-handler";
 import { handleEditTool } from "../tools/edit-handler";
 import { handleBashTool } from "../tools/bash-handler";
 import { handleWebSearchTool } from "../tools/web-search-handler";
-import { handleUnderstandImageTool } from "../tools/understand-image-handler";
 
 function setup(t: TestContext) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "tool-cancel-"));
@@ -24,7 +23,7 @@ function setup(t: TestContext) {
   return { root, controller, context };
 }
 
-for (const stage of ["diagnosis", "escape", "language", "translation", "search", "image", "responses"] as const) {
+for (const stage of ["diagnosis", "escape", "language", "translation", "responses"] as const) {
   test(`cancellation reaches pending ${stage} request`, { timeout: 3000 }, async (t) => {
     const { root, controller, context } = setup(t);
     let calls = 0;
@@ -42,7 +41,7 @@ for (const stage of ["diagnosis", "escape", "language", "translation", "search",
         completions: {
           create: (body: unknown, options: { signal?: AbortSignal }) => {
             chatCalls++;
-            if (["search", "image", "responses"].includes(stage) || (stage === "translation" && chatCalls === 1)) {
+            if (["responses"].includes(stage) || (stage === "translation" && chatCalls === 1)) {
               return Promise.resolve({ choices: [{ message: { content: '{"dominant_language":"en"}' } }] });
             }
             return pending(body, options);
@@ -54,9 +53,8 @@ for (const stage of ["diagnosis", "escape", "language", "translation", "search",
     context.createOpenAIClient = () => ({
       client,
       model: "test",
-      machineId: "test-machine",
       thinkingEnabled: false,
-      baseURL: stage === "responses" ? "https://api.deepseek.com" : "https://example.com",
+      baseURL: "https://api.deepseek.com",
     });
     const originalFetch = globalThis.fetch;
     t.after(() => {
@@ -79,11 +77,6 @@ for (const stage of ["diagnosis", "escape", "language", "translation", "search",
       );
       await assert.rejects(result, { name: "AbortError" });
       assert.equal(fs.readFileSync(file, "utf8"), content);
-    } else if (stage === "image") {
-      const file = path.join(root, "image.png");
-      fs.writeFileSync(file, "image");
-      result = handleUnderstandImageTool({ prompt: "describe", image_path: file }, context);
-      await assert.rejects(result, { name: "AbortError" });
     } else {
       result = handleWebSearchTool({ query: stage === "translation" ? "中文" : "query" }, context);
       await assert.rejects(result, { name: "AbortError" });

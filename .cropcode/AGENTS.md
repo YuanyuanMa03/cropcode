@@ -4,7 +4,7 @@
 
 npm workspaces monorepo under `packages/`.
 
-- `packages/core/src/` — `session.ts` (LLM loop, streaming, retry, compaction), `tools/` (10 handlers), `common/` (permissions, OpenAI client, capabilities, file history), `mcp/`, `templates/`.
+- `packages/core/src/` — `session.ts` (LLM loop, streaming, retry, compaction), `tools/`, `common/` (permissions, OpenAI client, capabilities, file history), `mcp/`, `templates/`.
 - `packages/cli/src/` — Ink/React TUI (`cli.tsx`, `cli-args.ts`, `ui/`); `packages/vscode-ide-companion/` — VSCode companion.
 - `docs/` — user docs; `scripts/` — build/release tooling; `dist/` — bundled output (gitignored).
 
@@ -13,7 +13,7 @@ npm workspaces monorepo under `packages/`.
 - `npm run check` — typecheck/lint/format; `npm test` — workspace tests.
 - `npm run build` — full build; `npm run bundle` — esbuild bundle; `npm run start` — run the CLI.
 - Single test: `node --import tsx --test packages/core/src/tests/session.test.ts`.
-- Release: `npm run release:version -- <bump>`, then `npm run prepare:package` / `prepare:vscode` (`RELEASE.md`; `v0.4.0`).
+- Release: `npm run release:version -- <bump>`, then `npm run prepare:package` / `prepare:vscode` (`RELEASE.md`).
 
 ## Coding Style & Naming Conventions
 
@@ -33,8 +33,8 @@ npm workspaces monorepo under `packages/`.
 
 ## Architecture Overview
 
-- `@yuanyuanma03/cropcode-cli` (Ink TUI) drives the LLM loop via `SessionManager` (`@yuanyuanma03/cropcode-core`) over a 180s keep-alive `createOpenAIClient()` with DeepCode Plus fallback.
-- Built-in tools: `bash`, `read`, `write`, `edit`, `skill`, `AskUserQuestion`, `UpdatePlan`, `WebSearch`, `ReadImage`, `UnderstandImage`; `read` returns a `snippet_id` for `edit`, and `supportsMultimodal()` picks the matching image tool.
+- `@yuanyuanma03/cropcode-cli` (Ink TUI) drives the LLM loop via `SessionManager` (`@yuanyuanma03/cropcode-core`) over a 180s keep-alive `createOpenAIClient()` using only the configured provider credentials.
+- Built-in tools: `bash`, `read`, `write`, `edit`, `skill`, `AskUserQuestion`, `UpdatePlan`, `WebSearch`, `ReadImage`; `read` returns a `snippet_id` for `edit`, and `supportsMultimodal()` picks the matching image tool.
 - `bash` bounds output draining after exit/timeout so a held pipe cannot hang a session, captures native cwd on Windows Git Bash; `run_in_background` handles detached work.
 - Permissions: 12 scopes including `read-in-tmp`/`write-in-tmp`; `addWorkingDirs` extends the workspace; `file-history.ts` provides undo.
 - Models: default `deepseek-flash`; `/model` offers `deepseek-v4-pro`, `deepseek-v4-flash`, `deepseek-v4-flash-vision-exp` (effort `low`/`high`/`max`).
@@ -44,5 +44,9 @@ npm workspaces monorepo under `packages/`.
 ## Agent-Specific Instructions
 
 - AGENTS.md loads from `./.cropcode/AGENTS.md`, `./AGENTS.md`, then `~/.cropcode/AGENTS.md` (first wins).
-- Skills load from `./.cropcode/skills`, `./.agents/skills`, or `~` equivalents via the `skill` tool. Bundled: `cropcode-self-refer`, `image-generator`, `video-generator` (+`references/`, `scripts/`), `skill-digester`, `skill-writer`.
+- Skills load from `./.cropcode/skills`, `./.agents/skills`, or `~` equivalents via the `skill` tool. Bundled: `cropcode-self-refer`, `skill-digester`, `skill-writer`.
 - File references: `@path/to/file`.
+
+## Persistent Product Requirements
+
+Read `AGENTS.md` at the repository root for the user-approved brand and commit rules. Use CropCode branding; describe concrete changes in commits without imitation language. No third-party product credentials, purchase links, default proxy services, or usage reporting. Retain required MIT attribution.

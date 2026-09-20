@@ -8,13 +8,13 @@ Configure the `notify` field in `settings.json` with the full path to an executa
 
 ## Injected Environment Variables
 
-| Variable      | Description                                     |
-| ------------- | ----------------------------------------------- |
-| `DURATION`    | Session duration in seconds (integer)           |
-| `STATUS`      | Session status: `"completed"` or `"failed"`     |
-| `FAIL_REASON` | Failure reason (only set on failure)            |
-| `BODY`        | The text content of the last AI assistant reply |
-| `TITLE`       | Session title (matches the resume list title)   |
+| Variable | Description |
+|----------|-------------|
+| `DURATION` | Session duration in seconds (integer) |
+| `STATUS` | Session status: `"completed"` or `"failed"` |
+| `FAIL_REASON` | Failure reason (only set on failure) |
+| `BODY` | The text content of the last AI assistant reply |
+| `TITLE` | Session title (matches the resume list title) |
 
 ## Configuration
 
@@ -108,7 +108,7 @@ PAYLOAD=$(node -e "
 process.stdout.write(JSON.stringify({
   msg_type: 'interactive',
   card: {
-    header: { title: { tag: 'plain_text', content: 'DeepCode: ' + process.env.TITLE + ' ' + process.env.STATUS + ' [' + process.env.DURATION + 's]' } },
+    header: { title: { tag: 'plain_text', content: 'CropCode: ' + process.env.TITLE + ' ' + process.env.STATUS + ' [' + process.env.DURATION + 's]' } },
     elements: [{ tag: 'markdown', content: (process.env.BODY || '').slice(0, 2000) || '(no output)' }]
   }
 }))
@@ -139,7 +139,7 @@ Create `~/.cropcode/notify.sh`:
 ```bash
 #!/bin/bash
 # iTerm2 / Windows Terminal OSC 9 notification
-printf '\x1b]9;DeepCode: task %s (%ss)\x07' "${STATUS:-completed}" "${DURATION}"
+printf '\x1b]9;CropCode: task %s (%ss)\x07' "${STATUS:-completed}" "${DURATION}"
 ```
 
 ```json
@@ -153,7 +153,7 @@ Windows users on Git Bash can use the same script; alternatively, create a `.bat
 ```batch
 @echo off
 REM Windows Terminal OSC 9 notification
-echo \x1b]9;DeepCode: task %STATUS% (%DURATION%s)\x07
+echo \x1b]9;CropCode: task %STATUS% (%DURATION%s)\x07
 ```
 
 ## macOS System Notification
@@ -161,7 +161,7 @@ echo \x1b]9;DeepCode: task %STATUS% (%DURATION%s)\x07
 ```bash
 #!/bin/bash
 # macOS system notification
-osascript -e "display notification \"Task ${STATUS:-completed}, took ${DURATION}s\" with title \"DeepCode\""
+osascript -e "display notification \"Task ${STATUS:-completed}, took ${DURATION}s\" with title \"CropCode\""
 ```
 
 ```json
@@ -183,7 +183,7 @@ Create `~/.cropcode/notify.sh`:
 ```bash
 #!/bin/bash
 # Linux notify-send notification
-notify-send "DeepCode" "Task ${STATUS:-completed}, took ${DURATION}s"
+notify-send "CropCode" "Task ${STATUS:-completed}, took ${DURATION}s"
 ```
 
 ```json
@@ -197,7 +197,7 @@ notify-send "DeepCode" "Task ${STATUS:-completed}, took ${DURATION}s"
 ```batch
 @echo off
 REM Windows msg popup notification
-msg %USERNAME% "DeepCode: task %STATUS% (%DURATION%s)"
+msg %USERNAME% "CropCode: task %STATUS% (%DURATION%s)"
 ```
 
 ```json

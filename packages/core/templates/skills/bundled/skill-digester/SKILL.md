@@ -1,13 +1,13 @@
 ---
 name: skill-digester
-description: Reviews and improves another DeepCode skill's SKILL.md description field, and guides Agent Skill installation into user or project .agents/skills roots. Use when the user asks to digest a skill, install an Agent Skill, install a skill to user/project scope, or says "消化技能" or "安装 agent skill".
+description: Reviews and improves another CropCode skill's SKILL.md description field, and guides Agent Skill installation into user or project .agents/skills roots. Use when the user asks to digest a skill, install an Agent Skill, install a skill to user/project scope, or says "消化技能" or "安装 agent skill".
 ---
 
 # Skill Digester
 
 Use this skill for two related tasks:
 
-- Review and optionally rewrite the `description` field of another DeepCode skill.
+- Review and optionally rewrite the `description` field of another CropCode skill.
 - Guide installation of an Agent Skill into an interoperable `.agents/skills` root.
 
 ## Interaction Rule
