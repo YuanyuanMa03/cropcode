@@ -160,6 +160,21 @@ export {
 } from "./common/provider-presets";
 export type { ProviderPreset, ProviderModel } from "./common/provider-presets";
 export {
+  BUILTIN_SLASH_COMMANDS,
+  buildSlashCommands,
+  filterSlashCommands,
+  findExactSlashCommand,
+  forSurface,
+  formatSlashCommandDescription,
+  formatSlashCommandLabel,
+} from "./common/slash-commands";
+export type {
+  SlashCommandItem,
+  SlashCommandKind,
+  SlashCommandSurface,
+  SlashCommandWebAction,
+} from "./common/slash-commands";
+export {
   getActiveCredential,
   getActiveProviderLabel,
   getActiveModelLabel,

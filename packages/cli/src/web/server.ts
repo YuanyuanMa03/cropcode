@@ -5,8 +5,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   SessionManager,
+  BUILTIN_SLASH_COMMANDS,
   createOpenAIClient,
   findProviderByBaseURL,
+  forSurface,
+  formatSlashCommandDescription,
   resolveCurrentSettings,
   type SessionEntry,
   type SessionManagerOptions,
@@ -325,6 +328,20 @@ export async function startWebServer(options: WebServerOptions) {
     if (!equalSecret(token, secret)) throw new HttpError(401, "连接已失效，请重新打开终端显示的完整地址。");
     if (url.pathname === "/api/state" && req.method === "GET") {
       json(res, 200, snapshot());
+      return;
+    }
+    if (url.pathname === "/api/commands" && req.method === "GET") {
+      // The web composer menu is built from the shared slash-command registry;
+      // only web-surface commands with a mapped action are exposed.
+      json(res, 200, {
+        commands: forSurface(BUILTIN_SLASH_COMMANDS, "web")
+          .filter((item) => item.webAction)
+          .map((item) => ({
+            name: item.name,
+            description: formatSlashCommandDescription(item.description),
+            action: item.webAction,
+          })),
+      });
       return;
     }
     if (url.pathname === "/api/events" && req.method === "GET") {
