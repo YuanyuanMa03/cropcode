@@ -1,0 +1,24 @@
+{
+  "name": "cropcode-desktop",
+  "version": "1.1.0",
+  "private": true,
+  "description": "CropCode 桌面端 — Electron 薄壳,复用 CLI web 主机与同一 Web 界面",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "typecheck": "tsc -p ./ --noEmit",
+    "build": "tsc -p ./",
+    "test": "node src/tests/run-tests.mjs",
+    "dev": "npm run build && electron .",
+    "smoke": "npm run build && CROPCODE_DESKTOP_SMOKE=1 electron .",
+    "prepare:runtime": "node scripts/prepare-runtime.mjs",
+    "package:dir": "npm run build && npm run prepare:runtime && electron-builder --dir",
+    "package:dist": "npm run build && npm run prepare:runtime && electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^39.2.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "^6.0.3"
+  }
+}

@@ -7,7 +7,8 @@
   "packageManager": "npm@10.9.4",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "repository": {
     "type": "git",
@@ -17,10 +18,10 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "generate": "node scripts/generate-git-commit-info.js",
     "bundle": "npm run generate && node scripts/esbuild.config.js && node scripts/copy-bundle-assets.js",
-    "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"packages/cli/resources/web/*.js\" \"scripts/*.js\"",
-    "lint:fix": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"packages/cli/resources/web/*.js\" \"scripts/*.js\" --fix",
-    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\" \"packages/cli/resources/web/*.{js,css,html}\" \"scripts/*.js\"",
-    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx}\" \"packages/cli/resources/web/*.{js,css,html}\" \"scripts/*.js\"",
+    "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx}\" \"packages/cli/resources/web/*.js\" \"scripts/*.js\"",
+    "lint:fix": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx}\" \"packages/cli/resources/web/*.js\" \"scripts/*.js\" --fix",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx}\" \"apps/*/scripts/*.{js,mjs}\" \"apps/*/*.yml\" \"packages/cli/resources/web/*.{js,css,html}\" \"scripts/*.js\"",
+    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx}\" \"apps/*/scripts/*.{js,mjs}\" \"apps/*/*.yml\" \"packages/cli/resources/web/*.{js,css,html}\" \"scripts/*.js\"",
     "check": "npm run typecheck && npm run lint && npm run format:check",
     "clean": "node scripts/clean.js",
     "build": "node scripts/build.js",
@@ -57,5 +58,8 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.2"
   },
-  "homepage": "https://github.com/YuanyuanMa03/cropcode"
+  "homepage": "https://github.com/YuanyuanMa03/cropcode",
+  "allowScripts": {
+    "electron@39.8.10": true
+  }
 }
