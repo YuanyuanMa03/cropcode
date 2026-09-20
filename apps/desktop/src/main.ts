@@ -1,4 +1,6 @@
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, powerSaveBlocker } from "electron";
+import { appendFile, createWriteStream } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -17,15 +19,25 @@ import {
 // navigation security — never a second UI implementation.
 
 const here = fileURLToPath(new URL(".", import.meta.url));
+const mark = (tag: string) => void appendFile("/tmp/cropcode-desktop-markers.log", tag + "\n", () => {});
+mark("MAIN");
 const repoRoot = resolveRepoRoot(here);
 const packagedEntry = app.isPackaged ? join(process.resourcesPath, "cropcode", "cli.js") : null;
 
 let mainWindow: BrowserWindow | null = null;
 let sidecar: SidecarHandle | null = null;
 
-if (!app.requestSingleInstanceLock()) {
+mark("BEFORE_LOCK");
+const locked = app.requestSingleInstanceLock();
+mark("AFTER_LOCK=" + locked);
+if (!locked) {
   app.quit();
 } else {
+  mark("REGISTERED");
+  if (process.env.CROPCODE_DESKTOP_SMOKE === "1") {
+    powerSaveBlocker.start("prevent-app-suspension");
+    mark("NAP_BLOCKED");
+  }
   app.on("second-instance", () => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
@@ -33,7 +45,7 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
-  void app.whenReady().then(start);
+  void app.whenReady().then(start, (error) => mark("READY_ERROR:" + String(error)));
 
   app.on("window-all-closed", () => {
     // A tool window: closing it ends the session on every platform.
@@ -56,14 +68,31 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 async function start(): Promise<void> {
+  mark("START");
+  try {
+    await startInner();
+  } catch (error) {
+    mark("START_ERROR:" + (error instanceof Error ? error.stack : String(error)));
+  }
+}
+
+async function startInner(): Promise<void> {
   const cliEntry = resolveCliEntry(repoRoot, packagedEntry);
   if (!cliEntry) {
     await fatal("找不到 CropCode 运行时", "开发模式请先在仓库根目录运行 npm run build;安装包损坏时请重新安装。");
     return;
   }
   const port = await findFreePort();
+  mark("PORT=" + port);
   const spec = buildSidecarSpec({ electronExecutable: process.execPath, cliEntry, port });
+  mark("ARGS=" + JSON.stringify(spec.args));
+  mark("EXECPATH=" + process.execPath);
   sidecar = startSidecar(spec);
+  mark("SPAWNED pid=" + sidecar.child.pid);
+  if (process.env.CROPCODE_DESKTOP_SIDECAR_LOG) {
+    sidecar.child.stderr?.pipe(createWriteStream(process.env.CROPCODE_DESKTOP_SIDECAR_LOG, { flags: "a" }));
+    sidecar.child.stdout?.pipe(createWriteStream(process.env.CROPCODE_DESKTOP_SIDECAR_LOG + ".out", { flags: "a" }));
+  }
   const { child } = sidecar;
 
   let output = "";
@@ -72,8 +101,9 @@ async function start(): Promise<void> {
     output += chunk;
     const url = parseWebHostUrl(output);
     if (url) {
+      mark("URL");
       child.stdout?.removeAllListeners("data");
-      void openWindow(url);
+      openWindow(url).catch((error) => mark("WINDOW_ERROR:" + (error instanceof Error ? error.stack : String(error))));
     }
   });
   let errorText = "";
@@ -81,6 +111,7 @@ async function start(): Promise<void> {
   child.stderr?.on("data", (chunk: string) => {
     errorText = (errorText + chunk).slice(-2000);
   });
+  child.once("error", (error) => mark("SPAWN_ERROR:" + String(error)));
 
   // Fail loudly if the host never comes up (misconfiguration fails loud).
   const timeout = setTimeout(() => {
@@ -91,6 +122,7 @@ async function start(): Promise<void> {
   }, 30_000);
 
   child.once("exit", (code) => {
+    mark("CHILD_EXIT=" + code + " STDERR:" + errorText.slice(-400));
     clearTimeout(timeout);
     if (!mainWindow) {
       void fatal("CropCode 服务异常退出", errorText || `退出码 ${code ?? "unknown"}。`);
@@ -128,15 +160,24 @@ async function openWindow(url: string): Promise<void> {
     mainWindow = null;
   });
   await mainWindow.loadURL(url);
+  mark("LOADED");
 
   if (process.env.CROPCODE_DESKTOP_SMOKE === "1") {
-    // Headless verification hook: the page is up, report and exit cleanly.
+    // Verification hook: the page is up — optionally capture the rendered
+    // window, report, and exit cleanly.
+    const shot = process.env.CROPCODE_DESKTOP_SMOKE_SHOT;
+    if (shot) {
+      await new Promise((done) => setTimeout(done, 1200));
+      const image = await mainWindow.webContents.capturePage();
+      await writeFile(shot, image.toPNG());
+    }
     process.stdout.write(`SMOKE_OK ${url}\n`);
     app.quit();
   }
 }
 
 async function fatal(title: string, message: string): Promise<void> {
+  mark("FATAL:" + title);
   if (app.isReady()) dialog.showErrorBox(title, message);
   else process.stderr.write(`${title}: ${message}\n`);
   app.quit();
