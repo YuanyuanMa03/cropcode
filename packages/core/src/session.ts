@@ -383,6 +383,7 @@ export type SessionManagerOptions = {
   onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   onSessionEntryUpdated?: (entry: SessionEntry) => void;
   onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
+  onLlmTextDelta?: (event: { requestId: string; sessionId?: string; delta: string }) => void;
   onLlmRetry?: (event: LlmRetryEvent) => void;
   onMcpStatusChanged?: () => void;
   onProcessStdout?: (pid: number, chunk: string) => void;
@@ -431,6 +432,7 @@ export class SessionManager {
   private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   private readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
   private readonly onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
+  private readonly onLlmTextDelta?: SessionManagerOptions["onLlmTextDelta"];
   private readonly onLlmRetry?: (event: LlmRetryEvent) => void;
   private readonly onMcpStatusChanged?: () => void;
   private readonly onProcessStdout?: (pid: number, chunk: string) => void;
@@ -454,6 +456,7 @@ export class SessionManager {
     this.onAssistantMessage = options.onAssistantMessage;
     this.onSessionEntryUpdated = options.onSessionEntryUpdated;
     this.onLlmStreamProgress = options.onLlmStreamProgress;
+    this.onLlmTextDelta = options.onLlmTextDelta;
     this.onLlmRetry = options.onLlmRetry;
     this.onMcpStatusChanged = options.onMcpStatusChanged;
     this.onProcessStdout = options.onProcessStdout;
@@ -896,6 +899,7 @@ export class SessionManager {
           const contentDelta = delta.content;
           if (typeof contentDelta === "string") {
             content += contentDelta;
+            this.onLlmTextDelta?.({ requestId, sessionId, delta: contentDelta });
             trackText(contentDelta, true);
           }
 

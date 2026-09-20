@@ -22,7 +22,7 @@ writeFileSync(
       type: "module",
       main: "cli.js",
       bin: { cropcode: "cli.js" },
-      files: ["cli.js", "chunks/**", "templates/**", "bundled/**", "README.md", "LICENSE"],
+      files: ["cli.js", "chunks/**", "templates/**", "bundled/**", "web/**", "README.md", "LICENSE"],
       engines: cli.engines,
       repository: cli.repository,
       homepage: cli.homepage,

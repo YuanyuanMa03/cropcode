@@ -357,6 +357,9 @@ validatePacklist(
     { type: "prefix", value: "dist/chunks/", label: "dist/chunks/*.js" },
     { type: "prefix", value: "dist/templates/", label: "dist/templates/**" },
     { type: "prefix", value: "dist/bundled/", label: "dist/bundled/**" },
+    { type: "file", value: "dist/web/index.html" },
+    { type: "file", value: "dist/web/app.js" },
+    { type: "file", value: "dist/web/style.css" },
   ],
   { label: "cd packages/cli && npm pack --dry-run --json --ignore-scripts" }
 );
@@ -386,7 +389,7 @@ const distPackageJson = {
   bin: {
     cropcode: "cli.js",
   },
-  files: ["cli.js", "chunks/**", "templates/**", "bundled/**", "README.md", "LICENSE"],
+  files: ["cli.js", "chunks/**", "templates/**", "bundled/**", "web/**", "README.md", "LICENSE"],
   engines: cliPkg.engines,
   dependencies: {
     sharp: corePkg.dependencies.sharp,
@@ -406,6 +409,9 @@ if (!dryRun) {
       { type: "prefix", value: "chunks/", label: "chunks/*.js" },
       { type: "prefix", value: "templates/", label: "templates/**" },
       { type: "prefix", value: "bundled/", label: "bundled/**" },
+      { type: "file", value: "web/index.html" },
+      { type: "file", value: "web/app.js" },
+      { type: "file", value: "web/style.css" },
     ],
     { label: "cd dist && npm pack --dry-run --json --ignore-scripts" }
   );

@@ -20,6 +20,9 @@ export function isValidSessionId(value: string): boolean {
 }
 
 export interface ParsedCliArgs {
+  /** Start the local browser interface instead of the TUI. */
+  web: boolean;
+  port: number;
   /** Prompt text from -p / --prompt */
   prompt: string | undefined;
   /** Run one prompt without starting the interactive TUI. */
@@ -83,6 +86,16 @@ async function configureYargs(argv?: string[]) {
     .locale("en")
     .scriptName("cropcode")
     .usage("Usage: $0 [options] [command]\n\nCropCode - Launch the interactive CLI or run one prompt with --exec")
+    .command("web", "Open the local browser interface", (args: Argv) =>
+      args
+        .option("port", { type: "number", default: 8787, describe: "Local HTTP port (127.0.0.1 only)" })
+        .check((args) => {
+          if (!Number.isInteger(args.port) || args.port < 1 || args.port > 65535) {
+            return "--port must be an integer between 1 and 65535.";
+          }
+          return true;
+        })
+    )
     .command("$0 [query..]", "Launch CropCode CLI", (yargsInstance: Argv) =>
       yargsInstance
         .option("prompt", {
@@ -156,6 +169,7 @@ async function configureYargs(argv?: string[]) {
         })
     )
     .example("cropcode", "Launch the interactive TUI in the current directory")
+    .example("cropcode web --port 8787", "Start the local browser interface")
     .example("cropcode -p <prompt>", "Launch the TUI and submit a prompt")
     .example("cropcode -x -p <prompt>", "Run one prompt without launching the TUI")
     .example("cropcode -r, --resume [sessionId]", "Resume a session or show session picker")
@@ -211,6 +225,8 @@ export async function parseArguments(argv?: string[]): Promise<ParsedCliArgs> {
   }
 
   return {
+    web: Array.isArray(parsed._) && parsed._[0] === "web",
+    port: typeof parsed.port === "number" ? parsed.port : 8787,
     prompt: parsed.prompt as string | undefined,
     exec: parsed.exec === true,
     resume,

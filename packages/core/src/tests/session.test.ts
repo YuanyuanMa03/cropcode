@@ -3566,6 +3566,7 @@ test("SessionManager streams chat completions and counts reasoning progress", as
     estimatedTokens: number;
     formattedTokens: string;
   }> = [];
+  const textEvents: Array<{ requestId: string; sessionId?: string; delta: string }> = [];
   const client = {
     chat: {
       completions: {
@@ -3603,6 +3604,7 @@ test("SessionManager streams chat completions and counts reasoning progress", as
     getResolvedSettings: () => ({ model: "test-model" }),
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {},
+    onLlmTextDelta: (event) => textEvents.push(event),
     onLlmStreamProgress: (progress) => {
       progressEvents.push({
         phase: progress.phase,
@@ -3616,6 +3618,10 @@ test("SessionManager streams chat completions and counts reasoning progress", as
   const assistantMessage = manager.listSessionMessages(sessionId).find((message) => message.role === "assistant");
 
   assert.equal(assistantMessage?.content, "hello");
+  assert.equal(textEvents.length, 1);
+  assert.equal(textEvents[0].sessionId, sessionId);
+  assert.equal(textEvents[0].delta, "hello");
+  assert.ok(textEvents[0].requestId);
   assert.equal((assistantMessage?.messageParams as any)?.reasoning_content, "思考");
   assert.equal(manager.getSession(sessionId)?.activeTokens, 5);
   assert.deepEqual(

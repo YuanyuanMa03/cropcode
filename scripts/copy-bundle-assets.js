@@ -47,4 +47,5 @@ if (existsSync(bundledSkillsSrc)) {
   console.log("✅  Copied bundled skills → dist/bundled/");
 }
 
-console.log("\n✅  All bundle assets copied.\n");
+cpSync(join(cliRoot, "resources", "web"), join(distDir, "web"), { recursive: true });
+console.log("\n✅  All bundle assets copied (including local Web UI).\n");

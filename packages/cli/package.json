@@ -18,6 +18,7 @@
     "dist/chunks/**",
     "dist/templates/**",
     "dist/bundled/**",
+    "dist/web/**",
     "README.md",
     "LICENSE"
   ],

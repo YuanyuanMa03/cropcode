@@ -28,6 +28,12 @@ async function main(): Promise<void> {
   // If called before argument parsing, --help and --version would fail on those machines.
   configureWindowsShell();
 
+  if (parsed.web) {
+    const { runWebMode } = await import("./web/server");
+    await runWebMode({ projectRoot: process.cwd(), port: parsed.port });
+    return;
+  }
+
   let initialPrompt = parsed.prompt;
   let resumeSessionId = parsed.resume;
   let forkSessionId = parsed.fork;

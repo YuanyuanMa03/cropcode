@@ -34,3 +34,7 @@ packages/vscode-ide-companion/templates/
 # Local distribution artifacts
 release/
 dist-portable/
+
+# Local browser verification artifacts
+.playwright-cli/
+output/playwright/

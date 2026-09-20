@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>CropCode · 本地工作台</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="CropCode 首页"
+        ><span class="brand-mark">✳</span> CropCode <small>WEB</small></a
+      >
+      <button id="new-session" class="new-session" disabled><span>＋</span> 新建对话</button>
+      <button id="toggle-sessions" class="mobile-sessions" aria-label="显示或隐藏历史会话" aria-expanded="false">
+        ☰
+      </button>
+      <div class="section-label">最近的研究与任务</div>
+      <nav id="sessions" aria-label="历史会话"><p class="muted">连接后显示历史会话</p></nav>
+      <div class="sidebar-footer">
+        <span class="local-dot"></span> 本地工作台 <span class="muted">· 会话保存在本机</span>
+      </div>
+    </aside>
+    <main>
+      <header class="topbar">
+        <div>
+          <span class="eyebrow">WORKSPACE</span>
+          <h1 id="project-name">当前项目</h1>
+        </div>
+        <div class="connection">
+          <span id="connection-dot" class="local-dot offline"></span><span id="connection-label">正在连接</span>
+        </div>
+      </header>
+      <div id="notice" class="notice" role="alert" hidden></div>
+      <section id="conversation" class="conversation" aria-label="对话记录">
+        <div id="welcome" class="welcome">
+          <div class="welcome-mark">✳</div>
+          <p class="eyebrow">FROM FIELD TO FINDING</p>
+          <h2>把研究问题，<br />带进对话。</h2>
+          <p class="intro">一起理解数据、编写代码，让每一步都有迹可循。</p>
+          <div class="suggestions">
+            <button data-prompt="先查看当前项目的目录结构，说明主要文件和工作流程，不修改文件。">
+              <span>01 / 理解项目</span><strong>从现有代码开始</strong>
+              <p>梳理结构，找到下一步。</p>
+              <b>↗</b>
+            </button>
+            <button
+              data-prompt="检查当前项目中的数据文件，列出字段、缺失值和待确认的单位。先给出检查计划，不修改原始数据。"
+            >
+              <span>02 / 检查数据</span><strong>让分析有据可依</strong>
+              <p>核对字段、单位与数据质量。</p>
+              <b>↗</b>
+            </button>
+            <button
+              data-prompt="根据当前项目的内容，规划一套可复现的分析与科研绘图流程。说明需要的数据、脚本和验证步骤。"
+            >
+              <span>03 / 规划研究</span><strong>把问题变成步骤</strong>
+              <p>从分析方案到可复现产物。</p>
+              <b>↗</b>
+            </button>
+          </div>
+        </div>
+        <div id="messages"></div>
+        <article id="live" class="message assistant" hidden>
+          <div class="message-label">CropCode <span>正在生成</span></div>
+          <div id="live-content" class="prose"></div>
+        </article>
+        <details id="process-output" class="tool-card" hidden>
+          <summary>查看命令输出（最近 50,000 字符）</summary>
+          <pre id="output-content"></pre>
+        </details>
+        <section id="permissions" class="action-card" aria-label="权限确认" hidden></section>
+        <section id="questions" class="action-card" aria-label="补充信息" hidden></section>
+        <section id="plan-ready" class="action-card" hidden>
+          <h3>方案已准备好</h3>
+          <p>可以继续讨论，也可以开始执行。</p>
+          <button id="implement-plan" class="primary">执行此方案</button>
+        </section>
+      </section>
+      <footer class="composer-area">
+        <div class="activity">
+          <span id="activity-dot" class="local-dot"></span><span id="activity" role="status">等待连接本地服务</span
+          ><span id="usage" class="muted"></span>
+        </div>
+        <form id="composer" class="composer">
+          <label class="sr-only" for="prompt">消息</label>
+          <textarea
+            id="prompt"
+            rows="3"
+            maxlength="32000"
+            placeholder="描述你的问题，或引用项目中的文件路径…"
+            disabled
+          ></textarea>
+          <div class="composer-toolbar">
+            <label class="mode-switch"><input id="plan-mode" type="checkbox" /> Plan · 先规划</label>
+            <div class="composer-buttons">
+              <button id="stop" class="stop" type="button" hidden>■ 停止</button
+              ><button id="send" class="primary" type="submit" disabled>发送 <span>↑</span></button>
+            </div>
+          </div>
+        </form>
+        <div class="composer-meta">
+          <span id="model">读取本地模型配置</span><span>Enter 发送 · Shift+Enter 换行</span>
+        </div>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -2,6 +2,27 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseArguments, isValidSessionId } from "../cli-args";
 
+test("web command selects a local server and validates its port", async () => {
+  const defaults = await parseArguments(["web"]);
+  assert.equal(defaults.web, true);
+  assert.equal(defaults.port, 8787);
+  assert.equal((await parseArguments(["web", "--port", "9021"])).port, 9021);
+  assert.equal((await parseArguments([])).web, false);
+  for (const args of [
+    ["web", "--port", "0"],
+    ["web", "--port", "65536"],
+    ["web", "--port", "1.5"],
+    ["web", "--host", "0.0.0.0"],
+    ["web", "--exec"],
+    ["--port", "8787"],
+  ]) {
+    await withMockedExit(async (exitSpy) => {
+      await assert.rejects(() => parseArguments(args));
+      assert.ok(exitSpy.calls.includes(1));
+    });
+  }
+});
+
 // ── isValidSessionId ─────────────────────────────────────────────────────────
 
 test("isValidSessionId accepts valid UUID", () => {
