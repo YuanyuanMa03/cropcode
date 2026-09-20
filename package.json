@@ -36,7 +36,8 @@
     "prepare": "husky && npm run build && npm run bundle",
     "package:cli": "npm run build && node scripts/package-cli.js",
     "package:standalone": "node scripts/package-standalone.js",
-    "test:standalone": "node scripts/test-standalone.js"
+    "test:standalone": "node scripts/test-standalone.js",
+    "smoke": "node packages/cli/dist/cli.js --version"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

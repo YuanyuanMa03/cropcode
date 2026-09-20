@@ -47,6 +47,9 @@ jobs:
       - name: Bundle CLI
         run: npm run bundle
 
+      - name: Smoke bundled CLI
+        run: npm run smoke
+
       - name: Build VSCode Extension
         run: npm run build:vscode
 
