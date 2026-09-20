@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Box, Text, useInput } from "ink";
+import { Box, Text, useInput, useApp } from "ink";
 import DropdownMenu from "./components/DropdownMenu";
 import { BUILTIN_PROVIDERS, type ProviderPreset, type ProviderModel } from "@yuanyuanma03/cropcode-core";
 import { activateProvider } from "@yuanyuanma03/cropcode-core";
@@ -21,6 +21,11 @@ export function LoginScreen({ width, onComplete, onCancel }: LoginScreenProps): 
   const [selectedModel, setSelectedModel] = useState<ProviderModel | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const { exit } = useApp();
+  useInput((input, key) => {
+    if (key.ctrl && (input === "c" || input === "d")) exit();
+  });
 
   const provider = selectedProvider;
   const needsModeChoice = provider?.codingPlan != null;
