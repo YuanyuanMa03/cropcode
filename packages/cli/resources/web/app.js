@@ -50,6 +50,175 @@
     void action("/api/prompt", { text, planMode: $("plan-mode").checked });
   }
 
+  // ---- Model settings plane: providers, write-only key, model discovery ----
+  let settingsOpened = false;
+
+  function closeSettings() {
+    $("settings").hidden = true;
+  }
+  async function openSettings() {
+    settingsOpened = true;
+    $("settings").hidden = false;
+    $("settings-body").replaceChildren(node("p", "正在读取配置…", "muted"));
+    try {
+      const [summary, providers] = await Promise.all([request("/api/settings"), request("/api/settings/providers")]);
+      if (!$("settings").hidden) renderSettings(summary, (providers.providers || []).slice());
+    } catch (error) {
+      $("settings-body").replaceChildren(node("p", error.message, "muted"));
+    }
+  }
+  function renderSettings(summary, providers) {
+    const body = $("settings-body");
+    body.replaceChildren();
+    const form = node("form");
+    const selected = { providerId: summary.providerId, model: summary.model };
+    const field = (text, control) => {
+      const label = node("label", undefined, "settings-field");
+      label.append(node("span", text), control);
+      return label;
+    };
+
+    form.append(
+      node(
+        "p",
+        "当前:" + summary.providerLabel + " · " + summary.model + (summary.configured ? "" : "(尚未配置密钥)"),
+        "muted"
+      )
+    );
+
+    const modelSelect = node("select");
+    const keyInput = node("input");
+    const keyHint = node("small", "", "muted");
+    keyInput.type = "password";
+    keyInput.autocomplete = "new-password";
+    keyInput.placeholder = "API Key";
+    const think = node("input");
+    think.type = "checkbox";
+    think.checked = summary.thinkingEnabled === true;
+    const effort = node("select");
+    for (const [value, label] of [
+      ["low", "低"],
+      ["high", "高"],
+      ["max", "最高"],
+    ]) {
+      const option = node("option", label);
+      option.value = value;
+      effort.append(option);
+    }
+    effort.value = ["low", "high", "max"].includes(summary.reasoningEffort) ? summary.reasoningEffort : "high";
+
+    function fillModels(models, preferred) {
+      modelSelect.replaceChildren();
+      const seen = new Set();
+      const list = [...models];
+      if (preferred && !list.some((model) => model.id === preferred)) list.unshift({ id: preferred });
+      for (const model of list) {
+        if (seen.has(model.id)) continue;
+        seen.add(model.id);
+        const option = node("option", model.label || model.id + (model.unknown ? "(接口发现)" : ""));
+        option.value = model.id;
+        modelSelect.append(option);
+      }
+      if (preferred && seen.has(preferred)) modelSelect.value = preferred;
+      else if (modelSelect.firstChild) modelSelect.value = modelSelect.firstChild.value;
+    }
+    function updateKeyHint() {
+      if (selected.providerId === summary.providerId && summary.configured)
+        keyHint.textContent = "留空保持当前密钥不变。";
+      else keyHint.textContent = "必填:获取地址见供应商说明。";
+    }
+
+    const cards = node("div", undefined, "provider-cards");
+    for (const provider of providers) {
+      const card = node(
+        "button",
+        undefined,
+        "provider-card" + (provider.id === selected.providerId ? " selected" : "")
+      );
+      card.type = "button";
+      card.append(node("strong", provider.label), node("small", provider.models.length + " 个预设模型"));
+      card.onclick = () => {
+        selected.providerId = provider.id;
+        // Re-picking the current provider keeps the active model; switching picks its default.
+        selected.model =
+          provider.id === summary.providerId && provider.models.some((model) => model.id === summary.model)
+            ? summary.model
+            : provider.models[0]?.id || "";
+        for (const other of Array.from(cards.children)) other.classList.remove("selected");
+        card.classList.add("selected");
+        fillModels(provider.models, selected.model);
+        updateKeyHint();
+      };
+      cards.append(card);
+    }
+
+    const currentProvider = providers.find((provider) => provider.id === summary.providerId);
+    fillModels(currentProvider?.models || [], summary.model);
+    updateKeyHint();
+
+    const discover = node("button", "拉取模型列表");
+    discover.type = "button";
+    discover.onclick = async () => {
+      discover.disabled = true;
+      discover.textContent = "正在拉取…";
+      try {
+        const data = await request("/api/settings/models");
+        if (data.models?.length) fillModels(data.models, modelSelect.value);
+        else notice("供应商未返回模型列表。", true);
+      } catch (error) {
+        notice(error.message, true);
+      }
+      discover.disabled = false;
+      discover.textContent = "拉取模型列表";
+    };
+
+    const modelRow = node("div", undefined, "settings-row");
+    modelRow.append(modelSelect, discover);
+    const thinkRow = node("div", undefined, "settings-row settings-inline");
+    thinkRow.append(think, document.createTextNode("启用思考(reasoning)"));
+    const actions = node("div", undefined, "settings-actions");
+    const save = node("button", "保存并启用", "primary");
+    save.type = "submit";
+    actions.append(save);
+    const keyWrap = node("div", undefined, "settings-key");
+    keyWrap.append(keyInput, keyHint);
+
+    form.append(
+      cards,
+      field("模型", modelRow),
+      field("API Key(只写,不回显)", keyWrap),
+      thinkRow,
+      field("思考力度", effort),
+      actions
+    );
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      if (!selected.providerId || !modelSelect.value) {
+        notice("请选择供应商与模型。", true);
+        return;
+      }
+      save.disabled = true;
+      try {
+        const result = await request("/api/settings/provider", {
+          providerId: selected.providerId,
+          apiKey: keyInput.value,
+          model: modelSelect.value,
+          thinkingEnabled: think.checked,
+          reasoningEffort: effort.value,
+          sessionId: state?.sessionId ?? null,
+        });
+        notice("模型配置已更新。");
+        closeSettings();
+        render(await request("/api/state"));
+        $("model").textContent = result.providerLabel + " · " + result.model;
+      } catch (error) {
+        notice(error.message, true);
+      }
+      save.disabled = false;
+    };
+    body.append(form);
+  }
+
   function node(tag, text, className) {
     const element = document.createElement(tag);
     if (text !== undefined) element.textContent = text;
@@ -371,9 +540,10 @@
     $("activity").textContent = data.busy ? data.progress?.label || "正在处理任务" : labels[data.status] || "准备就绪";
     $("activity-dot").classList.toggle("offline", data.busy);
     if (data.error || data.failReason) notice(data.error || data.failReason, true);
-    else if (!data.configured)
-      notice("尚未配置模型。请在终端运行 cropcode，使用 /login 配置供应商和 API Key，然后刷新此页。");
-    else if (data.earlierMessages) notice("当前显示最近 200 条消息，完整历史保存在本地会话记录。");
+    else if (!data.configured) {
+      notice("尚未配置模型:点击下方供应商信息或自动弹出的面板完成配置。");
+      if (!settingsOpened && $("settings").hidden) void openSettings();
+    } else if (data.earlierMessages) notice("当前显示最近 200 条消息，完整历史保存在本地会话记录。");
     else notice("");
     renderSessions(data);
     renderMessages(data);
@@ -700,6 +870,17 @@
       notice(error.message, true);
     }
   }
+  $("model").onclick = () => void openSettings();
+  $("settings-close").onclick = closeSettings;
+  $("settings").onclick = (event) => {
+    if (event.target === $("settings")) closeSettings();
+  };
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !$("settings").hidden) {
+      event.preventDefault();
+      closeSettings();
+    }
+  });
   $("toggle-sessions").onclick = () => {
     const expanded = document.body.classList.toggle("show-sessions");
     $("toggle-sessions").setAttribute("aria-expanded", String(expanded));

@@ -106,9 +106,19 @@
           </form>
         </div>
         <div class="composer-meta">
-          <span id="model">读取本地模型配置</span><span>Enter 发送 · Shift+Enter 换行 · / 命令 · @ 引用文件</span>
+          <button id="model" class="model-chip" type="button" title="配置模型供应商">读取本地模型配置</button
+          ><span>Enter 发送 · Shift+Enter 换行 · / 命令 · @ 引用文件</span>
         </div>
       </footer>
+      <section id="settings" class="settings-overlay" role="dialog" aria-modal="true" aria-label="模型配置" hidden>
+        <div class="settings-card">
+          <header class="settings-head">
+            <h3>模型配置</h3>
+            <button id="settings-close" type="button" aria-label="关闭设置">✕</button>
+          </header>
+          <div id="settings-body" class="settings-body"><p class="muted">正在读取配置…</p></div>
+        </div>
+      </section>
     </main>
   </body>
 </html>

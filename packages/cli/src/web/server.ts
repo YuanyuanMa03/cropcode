@@ -5,12 +5,16 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   SessionManager,
+  BUILTIN_PROVIDERS,
   BUILTIN_SLASH_COMMANDS,
   createOpenAIClient,
+  activateProvider as defaultActivateProvider,
+  discoverModels as defaultDiscoverModels,
   findProviderByBaseURL,
   forSurface,
   formatSlashCommandDescription,
   resolveCurrentSettings,
+  type ProviderCredential,
   type SessionEntry,
   type SessionManagerOptions,
   type SessionMessage,
@@ -41,6 +45,10 @@ export type WebServerOptions = {
   port?: number;
   createManager?: (options: SessionManagerOptions) => WebSessionManager;
   getSettings?: typeof resolveCurrentSettings;
+  /** Injectable so tests never write the real ~/.cropcode credentials. */
+  activateProvider?: (credential: ProviderCredential) => void;
+  /** Injectable so tests avoid real provider network calls. */
+  discoverModels?: typeof defaultDiscoverModels;
 };
 
 class HttpError extends Error {
@@ -158,6 +166,19 @@ export async function startWebServer(options: WebServerOptions) {
   function reloadMessages() {
     const id = manager.getActiveSessionId();
     messages = id ? manager.listSessionMessages(id).filter((message) => message.visible) : [];
+  }
+  /** Sanitized model configuration for the web settings plane; never the key. */
+  function settingsSummary() {
+    const settings = getSettings();
+    const preset = findProviderByBaseURL(settings.baseURL);
+    return {
+      providerId: preset?.id ?? null,
+      providerLabel: preset?.label ?? "自定义服务",
+      model: settings.model,
+      thinkingEnabled: settings.thinkingEnabled ?? false,
+      reasoningEffort: settings.reasoningEffort ?? "high",
+      configured: Boolean(settings.apiKey),
+    };
   }
   function snapshot() {
     const settings = getSettings();
@@ -330,6 +351,35 @@ export async function startWebServer(options: WebServerOptions) {
       json(res, 200, snapshot());
       return;
     }
+    if (url.pathname === "/api/settings" && req.method === "GET") {
+      json(res, 200, settingsSummary());
+      return;
+    }
+    if (url.pathname === "/api/settings/providers" && req.method === "GET") {
+      json(res, 200, {
+        providers: BUILTIN_PROVIDERS.map((preset) => ({
+          id: preset.id,
+          label: preset.label,
+          description: preset.description,
+          baseURL: preset.baseURL,
+          apiKeyPage: preset.apiKeyPage,
+          keyFormat: preset.keyFormat,
+          hasCodingPlan: Boolean(preset.codingPlan),
+          models: preset.models.map((model) => ({
+            id: model.id,
+            label: model.label,
+            multimodal: Boolean(model.multimodal),
+            supportsThinking: Boolean(model.supportsThinking),
+          })),
+        })),
+      });
+      return;
+    }
+    if (url.pathname === "/api/settings/models" && req.method === "GET") {
+      const models = await (options.discoverModels ?? defaultDiscoverModels)(getSettings());
+      json(res, 200, { models });
+      return;
+    }
     if (url.pathname === "/api/commands" && req.method === "GET") {
       // The web composer menu is built from the shared slash-command registry;
       // only web-surface commands with a mapped action are exposed.
@@ -377,6 +427,40 @@ export async function startWebServer(options: WebServerOptions) {
       return;
     }
     assertIdle();
+    if (url.pathname === "/api/settings/provider") {
+      const preset = BUILTIN_PROVIDERS.find((item) => item.id === body.providerId);
+      if (typeof body.providerId !== "string" || !preset) throw new HttpError(400, "未知供应商,请从内置列表选择。");
+      if (typeof body.model !== "string" || !body.model.trim() || body.model.length > 100)
+        throw new HttpError(400, "请提供 1–100 字符的模型 ID。");
+      if (body.mode !== undefined && body.mode !== "api" && body.mode !== "coding-plan")
+        throw new HttpError(400, "Invalid provider mode.");
+      if (body.thinkingEnabled !== undefined && typeof body.thinkingEnabled !== "boolean")
+        throw new HttpError(400, "Invalid thinking toggle.");
+      if (body.reasoningEffort !== undefined && !["low", "high", "max"].includes(String(body.reasoningEffort)))
+        throw new HttpError(400, "Invalid reasoning effort.");
+      const mode = body.mode === "coding-plan" && preset.codingPlan ? "coding-plan" : "api";
+      const effort = body.reasoningEffort === "low" || body.reasoningEffort === "max" ? body.reasoningEffort : "high";
+      // The key is write-only: a blank field keeps the existing key, but only
+      // when staying on the same provider — keys never cross providers.
+      let apiKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
+      if (!apiKey) {
+        const current = getSettings();
+        if (findProviderByBaseURL(current.baseURL)?.id !== preset.id)
+          throw new HttpError(400, "切换供应商需要填写新的 API Key。");
+        apiKey = current.apiKey ?? "";
+      }
+      if (!apiKey) throw new HttpError(400, "尚未填写 API Key。");
+      (options.activateProvider ?? defaultActivateProvider)({
+        providerId: preset.id,
+        apiKey,
+        activeModel: body.model.trim(),
+        mode,
+        thinkingEnabled: body.thinkingEnabled === true,
+        reasoningEffort: effort,
+      });
+      json(res, 200, settingsSummary());
+      return;
+    }
     if (url.pathname === "/api/session") {
       if (body.target !== null && (typeof body.target !== "string" || !manager.getSession(body.target)))
         throw new HttpError(404, "会话不存在。");
