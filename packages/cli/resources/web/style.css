@@ -1,18 +1,43 @@
+/* Visual language follows the DeepSeek Harness design platform:
+   hairline strokes drawn inside box-shadow (no layout borders), capsule
+   controls, layered low-alpha hover fills, 100–200ms eased transitions and
+   quiet custom scrollbars. The agricultural green stays as the accent. */
 :root {
   color-scheme: light;
-  --bg: #fafbf8;
-  --surface: #fff;
-  --sidebar: #f0f3ec;
-  --text: #22392c;
-  --muted: #6f7c72;
-  --line: #dce4d8;
-  --green: #286b46;
-  --soft: #e7f0e4;
-  --gold: #876519;
-  --error: #a23636;
-  --shadow: 0 12px 36px #243b2810;
-  font-family: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --bg: #f7f8f4;
+  --surface: #ffffff;
+  --sidebar: #f1f4ec;
+  --text: #1c2a21;
+  --muted: #68786d;
+  --faint: #9aa89d;
+  --green: #2e6c45;
+  --green-strong: #255a39;
+  --green-fill: #35774d;
+  --soft: #e9f1e5;
+  --gold: #8a6a1c;
+  --error: #b04343;
+  /* Hairlines: alpha inks, one stroke family for both themes. */
+  --line-1: rgba(28, 42, 33, 0.05);
+  --line-2: rgba(28, 42, 33, 0.09);
+  --line-3: rgba(28, 42, 33, 0.15);
+  /* Interactive fills. */
+  --hover: rgba(28, 42, 33, 0.05);
+  --active: rgba(28, 42, 33, 0.1);
+  /* Elevation: 0.5px stroke + soft double glow. */
+  --elev-soft: 0 0 0 0.5px var(--line-2), 0 4px 16px rgba(28, 42, 33, 0.04), 0 0 24px rgba(28, 42, 33, 0.03);
+  --elev-soft-focus: 0 0 0 0.5px var(--line-3), 0 6px 24px rgba(28, 42, 33, 0.07), 0 0 32px rgba(28, 42, 33, 0.05);
+  --elev-menu: 0 0 0 0.5px var(--line-1), 0 3px 8px rgba(28, 42, 33, 0.05), 0 12px 32px rgba(28, 42, 33, 0.08);
+  /* Motion. */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast: 100ms;
+  --t-med: 160ms;
+  --font-code: "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, "PingFang SC", "Microsoft YaHei", monospace;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 14px;
+  --scrollbar: rgba(28, 42, 33, 0.16);
+  --scrollbar-hover: rgba(28, 42, 33, 0.28);
 }
 * {
   box-sizing: border-box;
@@ -23,6 +48,36 @@ body {
   color: var(--text);
   display: flex;
   height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+/* Thin themed scrollbars: the standard path only where the WebKit
+   pseudo-element does not exist — declaring both would silence the
+   WebKit hover rules entirely (measured in Chromium). */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+  }
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 99px;
+  background: var(--scrollbar);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 button,
 input,
@@ -32,27 +87,25 @@ textarea {
 button {
   cursor: pointer;
   color: inherit;
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  transition:
+    background-color var(--t-fast) ease,
+    box-shadow var(--t-med) var(--ease),
+    color var(--t-fast) ease,
+    opacity var(--t-fast) ease;
 }
 button:disabled {
   cursor: default;
-  opacity: 0.45;
+  opacity: 0.4;
 }
 button:focus-visible,
 a:focus-visible,
 textarea:focus-visible,
 input:focus-visible {
-  outline: 2px solid var(--green);
-  outline-offset: 4px;
-}
-button {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  border-radius: 9px;
-  padding: 9px 14px;
-  transition: background 0.15s;
-}
-button:hover:not(:disabled) {
-  background: var(--soft);
+  outline: 2px solid rgba(46, 108, 69, 0.4);
+  outline-offset: 2px;
 }
 a {
   color: var(--green);
@@ -64,8 +117,8 @@ a {
   width: 260px;
   flex-shrink: 0;
   background: var(--sidebar);
-  border-right: 1px solid var(--line);
-  padding: 30px 18px 18px;
+  border-right: 0.5px solid var(--line-1);
+  padding: 30px 14px 18px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -83,11 +136,11 @@ a {
 .brand small {
   font-size: 9px;
   letter-spacing: 1.5px;
-  border: 1px solid var(--line);
   padding: 4px;
-  border-radius: 4px;
+  border-radius: 5px;
   font-weight: 500;
   color: var(--muted);
+  box-shadow: 0 0 0 0.5px var(--line-2);
 }
 .brand-mark {
   font-size: 32px;
@@ -95,18 +148,23 @@ a {
 }
 .new-session {
   text-align: left;
-  background: transparent;
   display: flex;
   gap: 12px;
   align-items: center;
-  padding: 12px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+.new-session:hover:not(:disabled) {
+  background: var(--hover);
 }
 .new-session span {
   font-size: 19px;
+  color: var(--green);
 }
 .section-label {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--faint);
   letter-spacing: 0.7px;
   padding: 0 10px;
   margin-bottom: -12px;
@@ -117,20 +175,35 @@ a {
   min-height: 0;
 }
 #sessions button {
-  display: block;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   width: 100%;
   text-align: left;
-  background: transparent;
-  border-color: transparent;
-  margin: 4px 0;
-  padding: 11px 10px;
+  margin: 2px 0;
+  padding: 10px 11px;
+  border-radius: 10px;
+  min-width: 0;
+}
+#sessions button:hover:not(:disabled) {
+  background: var(--hover);
+}
+#sessions button.selected {
+  background: var(--surface);
+  box-shadow: var(--elev-soft);
+  font-weight: 500;
+}
+.session-summary {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#sessions button.selected {
-  background: var(--surface);
-  border-color: var(--line);
+.session-time {
+  color: var(--faint);
+  font-size: 10px;
+  flex-shrink: 0;
 }
 #sessions p {
   font-size: 12px;
@@ -142,7 +215,7 @@ a {
   gap: 6px;
   align-items: center;
   flex-wrap: wrap;
-  border-top: 1px solid var(--line);
+  border-top: 0.5px solid var(--line-1);
   padding-top: 18px;
 }
 .local-dot {
@@ -164,7 +237,7 @@ main {
 }
 .topbar {
   padding: 21px 34px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 0.5px solid var(--line-1);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -174,7 +247,7 @@ main {
   font-size: 10px;
   letter-spacing: 2px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--faint);
 }
 h1 {
   font-size: 15px;
@@ -230,17 +303,28 @@ h1 {
 .suggestions button {
   text-align: left;
   position: relative;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 20px 17px;
   min-height: 140px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  background: var(--surface);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 3px rgba(28, 42, 33, 0.03);
+}
+.suggestions button:hover:not(:disabled) {
+  background: var(--surface);
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 0.5px var(--line-3),
+    0 10px 28px rgba(28, 42, 33, 0.09);
 }
 .suggestions span {
   font-size: 10px;
   letter-spacing: 0.5px;
-  color: var(--muted);
+  color: var(--faint);
 }
 .suggestions strong {
   font-size: 14px;
@@ -259,9 +343,30 @@ h1 {
   top: 16px;
   color: var(--green);
   font-weight: 400;
+  transition: transform var(--t-med) var(--ease);
+}
+.suggestions button:hover:not(:disabled) b {
+  transform: translate(2px, -2px);
 }
 .composer-area {
+  position: relative;
   padding: 10px max(28px, calc((100% - 850px) / 2)) 18px;
+}
+.jump-latest {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  z-index: 4;
+  border-radius: 999px;
+  padding: 7px 15px;
+  font-size: 11px;
+  background: var(--surface);
+  box-shadow: var(--elev-menu);
+  white-space: nowrap;
+}
+.jump-latest:hover:not(:disabled) {
+  background: var(--surface);
 }
 .activity {
   display: flex;
@@ -280,37 +385,126 @@ h1 {
 .activity #usage {
   white-space: nowrap;
 }
-.composer {
-  border: 1px solid var(--line);
+.activity #activity-dot:not(.offline) {
+  animation: breathe 1.6s ease-in-out infinite alternate;
+}
+.composer-stack {
+  position: relative;
+}
+/* Trigger menu: DSH MenuView card — 4px inset padding, stroke in shadow,
+   shared row highlight, right-aligned description, pinned keycap footer. */
+.trigger-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   border-radius: 16px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-menu);
+  max-height: min(340px, 44vh);
   overflow: hidden;
+  padding: 5px;
+  animation: menu-in 130ms var(--ease);
+}
+.trigger-scroll {
+  overflow-y: auto;
+  min-height: 0;
+}
+/* Scroll affordance: content fades under the card's bottom edge (DSH
+   data-overflow-below), only while there is actually something below. */
+.trigger-menu[data-overflow="1"] .trigger-scroll {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+}
+.trigger-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  font-size: 13px;
+  min-width: 0;
+  cursor: pointer;
+}
+.trigger-option.static {
+  cursor: default;
+}
+.trigger-option.highlighted {
+  background: var(--hover);
+}
+.option-label {
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+  font-family: var(--font-code);
+  font-size: 12.5px;
+}
+.option-desc {
+  color: var(--faint);
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-family: var(--font-code);
+  font-size: 11px;
+}
+.trigger-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 11px 4px;
+  border-top: 0.5px solid var(--line-1);
+  margin-top: 4px;
+  color: var(--faint);
+  font-size: 10px;
+}
+.key {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--hover);
+  font-family: var(--font-code);
+  font-size: 10px;
+  color: var(--muted);
+  box-shadow: 0 0 0 0.5px var(--line-1);
+}
+.composer {
+  background: var(--surface);
+  border-radius: 22px;
+  box-shadow: var(--elev-soft);
+  overflow: hidden;
+  transition: box-shadow var(--t-med) var(--ease);
 }
 .composer:focus-within {
-  border-color: var(--green);
+  box-shadow: var(--elev-soft-focus);
 }
 textarea {
-  resize: vertical;
-  min-height: 65px;
+  resize: none;
+  min-height: 60px;
   max-height: 200px;
   color: var(--text);
   background: transparent;
   border: 0;
   display: block;
   width: 100%;
-  padding: 17px 19px;
-  line-height: 1.6;
+  padding: 16px 19px 8px;
+  line-height: 1.65;
   outline: none !important;
+  caret-color: var(--green);
 }
 textarea::placeholder {
-  color: var(--muted);
+  color: var(--faint);
 }
 .composer-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 12px 11px;
+  padding: 4px 10px 9px;
   gap: 10px;
 }
 .mode-switch {
@@ -318,36 +512,70 @@ textarea::placeholder {
   color: var(--muted);
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition:
+    background-color var(--t-fast) ease,
+    color var(--t-fast) ease;
+  user-select: none;
+}
+.mode-switch:hover {
+  background: var(--hover);
+}
+.mode-switch:has(input:checked) {
+  background: var(--soft);
+  color: var(--green-strong);
+  font-weight: 500;
 }
 .mode-switch input {
   accent-color: var(--green);
-}
-.primary {
-  background: var(--green);
-  color: #fff;
-  border-color: var(--green);
-}
-.primary:hover:not(:disabled) {
-  background: #205939;
-}
-.primary span {
-  margin-left: 8px;
+  margin: 0;
 }
 .composer-buttons {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+/* Circular send (DSH IconButton): business-accent fill, white glyph. */
+.send {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--green-fill);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+}
+.send:hover:not(:disabled) {
+  background: var(--green);
+}
+.send:active:not(:disabled) {
+  transform: scale(0.94);
 }
 .stop {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
   color: var(--error);
+  font-size: 12px;
+}
+.stop:hover:not(:disabled) {
+  background: rgba(176, 67, 67, 0.08);
 }
 .composer-meta {
   display: flex;
   justify-content: space-between;
   gap: 14px;
   font-size: 10px;
-  color: var(--muted);
-  padding: 11px 2px 0;
+  color: var(--faint);
+  padding: 11px 4px 0;
 }
 .composer-meta span:first-child {
   overflow: hidden;
@@ -357,31 +585,74 @@ textarea::placeholder {
 .composer-meta span:last-child {
   white-space: nowrap;
 }
+.notice {
+  background: var(--soft);
+  border-bottom: 0.5px solid var(--line-1);
+  padding: 12px 32px;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.notice.error {
+  color: var(--error);
+}
 .message {
+  position: relative;
   margin: 0 0 28px;
   overflow-wrap: anywhere;
+  animation: rise-in var(--t-med) var(--ease);
 }
 .message-label {
   font-size: 12px;
   font-weight: 600;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   color: var(--green);
 }
 .message-label span {
   font-weight: 400;
-  color: var(--muted);
+  color: var(--faint);
   font-size: 10px;
   margin-left: 8px;
 }
 .message.user {
   background: var(--soft);
-  border-radius: 12px;
-  padding: 17px 19px;
-  margin-left: 40px;
+  border-radius: 16px;
+  padding: 15px 18px 13px;
+  margin-left: 44px;
 }
 .message.user .message-label {
   color: var(--muted);
   font-size: 10px;
+  margin-bottom: 8px;
+}
+.copy-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 10px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  opacity: 0;
+  transition:
+    opacity var(--t-fast) ease,
+    background-color var(--t-fast) ease;
+}
+.message:hover .copy-button,
+.message:focus-within .copy-button,
+.copy-button:focus-visible {
+  opacity: 1;
+}
+.copy-button:hover:not(:disabled) {
+  background: var(--surface);
+  box-shadow: 0 0 0 0.5px var(--line-3);
+}
+@media (hover: none) {
+  .copy-button {
+    opacity: 1;
+  }
 }
 .prose {
   line-height: 1.85;
@@ -399,27 +670,18 @@ textarea::placeholder {
 }
 .prose code {
   background: var(--soft);
-  border-radius: 4px;
+  border-radius: 5px;
   padding: 2px 5px;
-  font:
-    12px ui-monospace,
-    SFMono-Regular,
-    Consolas,
-    monospace;
+  font: 12px/1.6 var(--font-code);
 }
 .prose pre {
   white-space: pre;
   overflow: auto;
   background: var(--sidebar);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 15px;
   line-height: 1.65;
-  font:
-    12px ui-monospace,
-    SFMono-Regular,
-    Consolas,
-    monospace;
+  font: 12px/1.65 var(--font-code);
 }
 .prose pre code {
   padding: 0;
@@ -427,52 +689,75 @@ textarea::placeholder {
   line-height: 1.65;
 }
 .tool-card {
-  border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 9px;
-  margin: 0 0 16px;
+  border-radius: 12px;
+  margin: 0 0 12px;
   font-size: 12px;
   overflow: hidden;
+  box-shadow:
+    0 0 0 0.5px var(--line-1),
+    0 1px 2px rgba(28, 42, 33, 0.03);
+  animation: rise-in var(--t-med) var(--ease);
+}
+/* Consecutive tool runs read as one grouped block. */
+.tool-card + .tool-card {
+  margin-top: -12px;
+  box-shadow: 0 0 0 0.5px var(--line-1);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.tool-card:has(+ .tool-card) {
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 .tool-card summary {
-  padding: 12px 14px;
+  padding: 11px 14px;
   cursor: pointer;
   color: var(--muted);
   overflow-wrap: anywhere;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transition: background-color var(--t-fast) ease;
+}
+.tool-card summary::-webkit-details-marker {
+  display: none;
+}
+.tool-card summary::before {
+  content: "›";
+  color: var(--faint);
+  font-size: 13px;
+  transition: transform var(--t-fast) ease;
+  display: inline-block;
+}
+.tool-card[open] summary::before {
+  transform: rotate(90deg);
+}
+.tool-card summary:hover {
+  color: var(--text);
 }
 .tool-card pre {
   margin: 0;
-  padding: 14px;
-  border-top: 1px solid var(--line);
+  padding: 13px 14px;
+  border-top: 0.5px solid var(--line-1);
   max-height: 360px;
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font:
-    11px/1.7 ui-monospace,
-    SFMono-Regular,
-    Consolas,
-    monospace;
-}
-.notice {
-  background: var(--soft);
-  border-bottom: 1px solid var(--line);
-  padding: 12px 32px;
-  font-size: 12px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.notice.error {
-  color: var(--error);
+  font: 11px/1.7 var(--font-code);
 }
 .action-card {
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--gold);
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 20px;
   margin: 20px 0;
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 0 0 3px rgba(138, 106, 28, 0.07),
+    0 4px 16px rgba(28, 42, 33, 0.04);
+  animation: rise-in var(--t-med) var(--ease);
 }
 .action-card h3 {
   margin: 0 0 12px;
@@ -488,9 +773,22 @@ textarea::placeholder {
   white-space: pre-wrap;
   font-size: 12px;
   line-height: 1.7;
+  font-family: var(--font-code);
 }
 .action-card button {
   margin: 8px 8px 0 0;
+  padding: 8px 16px;
+  font-weight: 500;
+}
+.action-card button.primary {
+  background: var(--green-fill);
+  color: #fff;
+}
+.action-card button.primary:hover:not(:disabled) {
+  background: var(--green);
+}
+.action-card button:not(.primary):hover:not(:disabled) {
+  background: var(--hover);
 }
 .action-card fieldset {
   border: 0;
@@ -513,10 +811,14 @@ textarea::placeholder {
   margin-right: 8px;
 }
 .action-card textarea {
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 10px;
   margin-top: 10px;
   font-size: 12px;
+  min-height: 40px;
+  padding: 9px 12px;
+  background: var(--bg);
+  box-shadow: 0 0 0 0.5px var(--line-2);
 }
 .sr-only {
   position: absolute;
@@ -529,31 +831,102 @@ textarea::placeholder {
   white-space: nowrap;
   border: 0;
 }
+/* Streaming state: a highlight band sweeps the label instead of dimming it. */
+#live .message-label span {
+  display: inline-block;
+  background: linear-gradient(100deg, var(--muted) 35%, var(--green) 50%, var(--muted) 65%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: live-shimmer 2.4s linear infinite;
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.985);
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes breathe {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes live-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 [hidden] {
   display: none !important;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg: #151d18;
-    --surface: #1b2720;
-    --sidebar: #111a14;
-    --text: #e2eadf;
-    --muted: #9aaa9a;
-    --line: #304034;
-    --green: #87b794;
-    --soft: #263b2b;
-    --gold: #d1ad63;
-    --error: #f0a3a3;
-    --shadow: none;
+    --bg: #10160f;
+    --surface: #18211a;
+    --sidebar: #0d130c;
+    --text: #e0e9de;
+    --muted: #a6b6a9;
+    --faint: #85958a;
+    --green: #8ec29c;
+    --green-strong: #a4d4b0;
+    --green-fill: #3c7a52;
+    --soft: #243528;
+    --gold: #d3b169;
+    --error: #eda1a1;
+    --line-1: rgba(224, 233, 222, 0.06);
+    --line-2: rgba(224, 233, 222, 0.1);
+    --line-3: rgba(224, 233, 222, 0.18);
+    --hover: rgba(224, 233, 222, 0.07);
+    --active: rgba(224, 233, 222, 0.12);
+    /* Dark: the glow barely reads; the stroke carries separation. */
+    --elev-soft: 0 0 0 0.5px var(--line-2), 0 4px 16px rgba(0, 0, 0, 0.2);
+    --elev-soft-focus: 0 0 0 0.5px var(--line-3), 0 6px 24px rgba(0, 0, 0, 0.28);
+    --elev-menu: 0 0 0 0.5px var(--line-2), 0 3px 8px rgba(0, 0, 0, 0.24), 0 12px 32px rgba(0, 0, 0, 0.32);
+    --scrollbar: rgba(224, 233, 222, 0.16);
+    --scrollbar-hover: rgba(224, 233, 222, 0.28);
   }
-  .primary {
-    background: #376b49;
+  .send,
+  .action-card button.primary {
+    background: #3c7a52;
     color: #fff;
-    border-color: #467d59;
   }
-  .primary:hover:not(:disabled) {
-    background: #417d55;
+  .send:hover:not(:disabled),
+  .action-card button.primary:hover:not(:disabled) {
+    background: #46885c;
+  }
+  .copy-button {
+    background: var(--surface);
+  }
+  .copy-button:hover:not(:disabled) {
+    background: var(--surface);
+  }
+  .suggestions button:hover:not(:disabled) {
+    box-shadow:
+      0 0 0 0.5px var(--line-3),
+      0 10px 28px rgba(0, 0, 0, 0.3);
   }
 }
 @media (max-width: 900px) {

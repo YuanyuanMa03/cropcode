@@ -154,6 +154,10 @@ export function toNativeCwd(shellCwd: string): string {
   return posixPathToWindowsPath(shellCwd);
 }
 
+// Spawned shells run model-chosen commands; credential-shaped variables from
+// our own process and settings must not leak into their environment.
+const CREDENTIAL_ENV_PATTERN = /(^|_)(API_)?(KEY|SECRET|TOKEN|PASSWORD)(_|$)/i;
+
 export function buildShellEnv(shellPath: string, extraEnv: Record<string, string> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -161,6 +165,10 @@ export function buildShellEnv(shellPath: string, extraEnv: Record<string, string
     SHELL: shellPath,
     GIT_EDITOR: "true",
   };
+
+  for (const key of Object.keys(env)) {
+    if (CREDENTIAL_ENV_PATTERN.test(key)) delete env[key];
+  }
 
   if (process.platform === "win32") {
     const tmpdir = windowsPathToPosixPath(os.tmpdir());

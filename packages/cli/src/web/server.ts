@@ -14,6 +14,11 @@ import {
   type UserPromptContent,
 } from "@yuanyuanma03/cropcode-core";
 import { findPendingAskUserQuestion } from "../ui/core/ask-user-question";
+import { filterFileMentionItems, scanFileMentionItems, type FileMentionItem } from "../ui/core/file-mentions";
+
+/** Reuse the terminal file-mention scan for the web composer, with a short cache. */
+const FILE_INDEX_TTL_MS = 30_000;
+const FILE_LOOKUP_LIMIT = 12;
 
 export type WebSessionManager = Pick<
   SessionManager,
@@ -101,6 +106,7 @@ export async function startWebServer(options: WebServerOptions) {
   let broadcastTimer: ReturnType<typeof setTimeout> | undefined;
   let running: Promise<void> | null = null;
   let initializing: Promise<void> | null = null;
+  let fileIndex: { items: FileMentionItem[]; at: number } | null = null;
   const manager = (options.createManager ?? ((config) => new SessionManager(config)))({
     projectRoot,
     createOpenAIClient: () => createOpenAIClient(projectRoot),
@@ -337,6 +343,16 @@ export async function startWebServer(options: WebServerOptions) {
     if (req.method !== "POST") throw new HttpError(404, "Not found.");
     const body = await readBody(req);
     assertSession(body);
+    if (url.pathname === "/api/files") {
+      // Read-only lookup for the composer reference menu; safe to serve while a task runs.
+      if (typeof body.query !== "string" || body.query.length > 200) throw new HttpError(400, "Invalid file query.");
+      const now = Date.now();
+      if (!fileIndex || now - fileIndex.at > FILE_INDEX_TTL_MS) {
+        fileIndex = { items: scanFileMentionItems(projectRoot), at: now };
+      }
+      json(res, 200, { items: filterFileMentionItems(fileIndex.items, body.query, FILE_LOOKUP_LIMIT) });
+      return;
+    }
     if (url.pathname === "/api/interrupt") {
       cancelled = true;
       manager.interruptActiveSession();

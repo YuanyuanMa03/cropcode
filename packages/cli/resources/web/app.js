@@ -11,6 +11,58 @@
   let forceScroll = false;
   const messageNodes = new Map();
 
+  // Composer trigger pipeline: "/" opens commands, "@" opens project file references.
+  // Keyboard arbitration follows the combobox pattern: focus stays in the editor and
+  // arrow/enter/tab/escape are intercepted while the menu is open, always IME-guarded.
+  const slashCommands = [
+    {
+      name: "plan",
+      description: "切换 Plan 规划模式（先规划，确认后执行）",
+      run: () => {
+        $("plan-mode").checked = !$("plan-mode").checked;
+        notice($("plan-mode").checked ? "已开启 Plan 规划模式。" : "已关闭 Plan 规划模式。");
+      },
+    },
+    {
+      name: "new",
+      description: "开始一个新的对话",
+      run: () => {
+        forceScroll = true;
+        void action("/api/session", { target: null });
+      },
+    },
+    {
+      name: "continue",
+      description: "让 CropCode 继续当前任务",
+      run: () => submitCommandText("/continue"),
+    },
+    {
+      name: "stop",
+      description: "停止正在执行的任务",
+      run: () => {
+        if (state?.busy) void action("/api/interrupt", {});
+        else notice("当前没有正在执行的任务。", true);
+      },
+    },
+  ];
+  const menu = { open: false, mode: null, token: null, items: [], highlighted: 0 };
+  let filesGeneration = 0;
+  let filesTimer = 0;
+
+  function submitCommandText(text) {
+    if (!connected || !state) return;
+    if (state.busy) {
+      notice("当前任务正在执行，请先停止或等待完成。", true);
+      return;
+    }
+    if (!state.configured) {
+      notice("尚未配置模型。请在终端运行 cropcode，通过 /login 配置后刷新此页。", true);
+      return;
+    }
+    forceScroll = true;
+    void action("/api/prompt", { text, planMode: $("plan-mode").checked });
+  }
+
   function node(tag, text, className) {
     const element = document.createElement(tag);
     if (text !== undefined) element.textContent = text;
@@ -66,6 +118,7 @@
   function controls() {
     const ready = connected && state;
     $("prompt").disabled = !ready || !state.configured;
+    if ($("prompt").disabled) closeMenu();
     $("send").disabled = !ready || !state.configured || state.busy || submitting || state.status === "ask_permission";
     $("stop").hidden = !state?.busy;
     $("stop").disabled = !ready || submitting;
@@ -131,6 +184,26 @@
     if (message.role === "user") content.textContent = message.content;
     else content.append(markdown(message.content));
     article.append(content);
+    const copy = node("button", "复制", "copy-button");
+    copy.type = "button";
+    copy.title = "复制这条消息";
+    copy.onclick = () => {
+      const clipboard = window.navigator.clipboard;
+      if (!clipboard) {
+        notice("当前浏览器不支持一键复制，请手动选择文本。", true);
+        return;
+      }
+      clipboard.writeText(message.content || "").then(
+        () => {
+          copy.textContent = "已复制";
+          window.setTimeout(() => {
+            copy.textContent = "复制";
+          }, 1600);
+        },
+        () => notice("复制失败，请手动选择文本复制。", true)
+      );
+    };
+    article.append(copy);
     if (message.truncated) article.append(node("p", "显示内容已截断，完整结果保存在本地会话记录。", "muted"));
     return article;
   }
@@ -168,14 +241,30 @@
     $("process-output").hidden = !data.output;
     $("output-content").textContent = data.output || "";
   }
+  function relativeTime(value) {
+    const time = Date.parse(value);
+    if (!Number.isFinite(time)) return "";
+    const minutes = Math.round((Date.now() - time) / 60000);
+    if (minutes < 1) return "刚刚";
+    if (minutes < 60) return minutes + " 分钟前";
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return hours + " 小时前";
+    const days = Math.round(hours / 24);
+    if (days < 7) return days + " 天前";
+    return new Date(time).toLocaleDateString();
+  }
   function renderSessions(data) {
     const signature = JSON.stringify([data.sessions, data.sessionId, data.busy]);
     if (signature === sessionSignature) return;
     sessionSignature = signature;
     const list = document.createDocumentFragment();
     for (const session of data.sessions) {
-      const button = node("button", session.summary || "未命名会话", session.id === data.sessionId ? "selected" : "");
+      const button = node("button", undefined, session.id === data.sessionId ? "selected" : "");
       button.title = session.summary || "未命名会话";
+      button.append(
+        node("span", session.summary || "未命名会话", "session-summary"),
+        node("span", relativeTime(session.updateTime), "session-time")
+      );
       button.disabled = data.busy;
       button.onclick = () => {
         forceScroll = true;
@@ -309,25 +398,255 @@
       conversation.scrollTop = conversation.scrollHeight;
       forceScroll = false;
     }
+    $("jump-latest").hidden = conversation.scrollHeight - conversation.scrollTop - conversation.clientHeight < 100;
+  }
+  function tokenAtCaret() {
+    const input = $("prompt");
+    const caret = input.selectionStart;
+    if (caret === null || caret !== input.selectionEnd) return null;
+    const text = input.value;
+    const leading = text.slice(0, caret).match(/\S*$/)[0];
+    const start = caret - leading.length;
+    const token = leading + text.slice(caret).match(/^\S*/)[0];
+    // A trigger must start a word: "user@host" and pasted URLs never open a menu.
+    if (!token || (start > 0 && !/\s/.test(text[start - 1]))) return null;
+    if (token.startsWith("/")) return { mode: "slash", query: token.slice(1), start, end: start + token.length };
+    if (token.startsWith("@") && !token.startsWith('@"'))
+      return { mode: "mention", query: token.slice(1), start, end: start + token.length };
+    return null;
+  }
+  function closeMenu() {
+    if (!menu.open && menuList().hidden) return;
+    if (filesTimer) window.clearTimeout(filesTimer);
+    filesGeneration++;
+    menu.open = false;
+    menu.mode = null;
+    menu.token = null;
+    menu.items = [];
+    menu.highlighted = 0;
+    const list = menuList();
+    list.hidden = true;
+    list.replaceChildren();
+    $("prompt").removeAttribute("aria-expanded");
+  }
+  function menuList() {
+    return $("trigger-menu");
+  }
+  function pickable(item) {
+    return item && (item.kind === "command" || item.kind === "file");
+  }
+  function renderMenuItems(items) {
+    menu.items = items;
+    menu.highlighted = Math.min(menu.highlighted, Math.max(items.length - 1, 0));
+    const list = menuList();
+    const rows = items.map((item, index) => {
+      const row = node("div", undefined, "trigger-option" + (index === menu.highlighted ? " highlighted" : ""));
+      row.setAttribute("role", "option");
+      if (index === menu.highlighted) row.setAttribute("aria-selected", "true");
+      if (item.kind === "command") {
+        row.append(node("span", "/" + item.name, "option-label"), node("span", item.description, "option-desc"));
+      } else if (item.kind === "file") {
+        const clean = item.path.endsWith("/") ? item.path.slice(0, -1) : item.path;
+        const slash = clean.lastIndexOf("/");
+        const base = (clean.slice(slash + 1) || clean) + (item.type === "directory" ? "/" : "");
+        row.append(node("span", base, "option-label"), node("span", clean.slice(0, slash + 1), "option-desc"));
+      } else {
+        row.classList.add("static");
+        row.append(
+          node(
+            "span",
+            item.kind === "pending" ? "正在搜索文件…" : item.kind === "empty" ? "没有匹配的文件" : "文件搜索暂不可用",
+            "option-desc"
+          )
+        );
+      }
+      if (pickable(item)) {
+        row.onclick = () => pickMenuItem(index);
+        row.onmouseenter = () => {
+          if (menu.highlighted !== index) {
+            menu.highlighted = index;
+            highlightMenu();
+          }
+        };
+      }
+      return row;
+    });
+    // The card owns a non-scrolling footer; only the option list scrolls.
+    let viewport = list.querySelector(".trigger-scroll");
+    if (!viewport) {
+      viewport = node("div", undefined, "trigger-scroll");
+      // The fade hint disappears once the viewport reaches the final row.
+      viewport.onscroll = () => {
+        list.dataset.overflow = viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight ? "1" : "0";
+      };
+      const footer = node("div", undefined, "trigger-footer");
+      footer.setAttribute("aria-hidden", "true");
+      for (const [keys, label] of [
+        [["↑", "↓"], "选择"],
+        [["↵"], "确认"],
+        [["esc"], "关闭"],
+      ]) {
+        const group = node("span");
+        for (const key of keys) group.append(node("span", key, "key"));
+        group.append(document.createTextNode(" " + label));
+        footer.append(group);
+      }
+      list.replaceChildren(viewport, footer);
+    }
+    viewport.replaceChildren(...rows);
+    list.hidden = false;
+    list.dataset.overflow = viewport.scrollHeight > viewport.clientHeight ? "1" : "0";
+    $("prompt").setAttribute("aria-expanded", "true");
+  }
+  function highlightMenu() {
+    menuList()
+      .querySelectorAll(".trigger-option")
+      .forEach((row, index) => {
+        const on = index === menu.highlighted;
+        row.classList.toggle("highlighted", on);
+        if (on) row.setAttribute("aria-selected", "true");
+        else row.removeAttribute("aria-selected");
+      });
+    menuList().querySelectorAll(".trigger-option")[menu.highlighted]?.scrollIntoView({ block: "nearest" });
+  }
+  function consumeMenuToken() {
+    const input = $("prompt");
+    if (!menu.token) return;
+    const text = input.value;
+    let end = menu.token.end;
+    if (text[end] === " ") end++;
+    input.value = text.slice(0, menu.token.start) + text.slice(end);
+    input.setSelectionRange(menu.token.start, menu.token.start);
+    saveDraft();
+    autosize();
+  }
+  function insertMention(path) {
+    const input = $("prompt");
+    const mention = /[\s"]/.test(path) ? '@"' + path.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"' : "@" + path;
+    const text = input.value;
+    const start = menu.token ? menu.token.start : (input.selectionStart ?? text.length);
+    let end = menu.token ? menu.token.end : start;
+    if (text[end] === " ") end++;
+    input.value = text.slice(0, start) + mention + " " + text.slice(end);
+    const caret = start + mention.length + 1;
+    input.setSelectionRange(caret, caret);
+    saveDraft();
+    autosize();
+    closeMenu();
+    input.focus();
+  }
+  function pickMenuItem(index) {
+    const item = menu.items[index];
+    if (!pickable(item)) return;
+    if (item.kind === "command") {
+      consumeMenuToken();
+      closeMenu();
+      $("prompt").focus();
+      item.run();
+    } else {
+      insertMention(item.path);
+    }
+  }
+  function refreshMenu() {
+    const input = $("prompt");
+    if (input.disabled) {
+      closeMenu();
+      return;
+    }
+    const found = tokenAtCaret();
+    if (!found) {
+      closeMenu();
+      return;
+    }
+    const modeChanged = menu.mode !== found.mode;
+    menu.token = found;
+    menu.open = true;
+    menu.mode = found.mode;
+    if (modeChanged) menu.highlighted = 0;
+    if (found.mode === "slash") {
+      const query = found.query.toLowerCase();
+      const items = slashCommands
+        .filter((command) => command.name.includes(query))
+        .map((command) => ({
+          kind: "command",
+          name: command.name,
+          description: command.description,
+          run: command.run,
+        }));
+      if (!items.length) {
+        closeMenu();
+        return;
+      }
+      renderMenuItems(items);
+      return;
+    }
+    if (modeChanged) renderMenuItems([{ kind: "pending" }]);
+    if (filesTimer) window.clearTimeout(filesTimer);
+    const generation = ++filesGeneration;
+    const query = found.query;
+    filesTimer = window.setTimeout(async () => {
+      try {
+        const data = await request("/api/files", { query, sessionId: state?.sessionId });
+        if (generation !== filesGeneration || !menu.open || menu.mode !== "mention") return;
+        const items = (data.items || []).map((entry) => ({ kind: "file", path: entry.path, type: entry.type }));
+        renderMenuItems(items.length ? items : [{ kind: "empty" }]);
+      } catch {
+        if (generation === filesGeneration && menu.open && menu.mode === "mention")
+          renderMenuItems([{ kind: "error" }]);
+      }
+    }, 120);
   }
   $("composer").onsubmit = async (event) => {
     event.preventDefault();
     const text = $("prompt").value.trim();
     if (!text || $("send").disabled) return;
+    closeMenu();
     const draft = $("prompt").value;
     forceScroll = true;
     if (await action("/api/prompt", { text, planMode: $("plan-mode").checked })) {
       if ($("prompt").value === draft) $("prompt").value = "";
       saveDraft();
+      autosize();
       $("prompt").focus();
     }
   };
   $("prompt").onkeydown = (event) => {
+    if (menu.open && menu.items.length && !event.isComposing) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const count = menu.items.length;
+        const delta = event.key === "ArrowDown" ? 1 : -1;
+        menu.highlighted = (menu.highlighted + delta + count) % count;
+        highlightMenu();
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMenu();
+        return;
+      }
+      if (event.key === "Tab") {
+        event.preventDefault();
+        if (pickable(menu.items[menu.highlighted])) pickMenuItem(menu.highlighted);
+        else closeMenu();
+        return;
+      }
+      if (event.key === "Enter" && pickable(menu.items[menu.highlighted])) {
+        event.preventDefault();
+        pickMenuItem(menu.highlighted);
+        return;
+      }
+    }
     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       if (!$("send").disabled) $("composer").requestSubmit();
     }
   };
+  function autosize() {
+    const input = $("prompt");
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 200) + "px";
+  }
   function saveDraft() {
     try {
       window.sessionStorage.setItem("cropcode-web-draft", $("prompt").value);
@@ -335,12 +654,20 @@
       /* Storage can be disabled. */
     }
   }
-  $("prompt").oninput = saveDraft;
+  $("prompt").oninput = () => {
+    saveDraft();
+    autosize();
+    refreshMenu();
+  };
   try {
     $("prompt").value = window.sessionStorage.getItem("cropcode-web-draft") || "";
   } catch {
     /* Optional. */
   }
+  autosize();
+  document.addEventListener("pointerdown", (event) => {
+    if (menu.open && event.target !== $("prompt") && !menuList().contains(event.target)) closeMenu();
+  });
   $("new-session").onclick = () => {
     forceScroll = true;
     void action("/api/session", { target: null });
@@ -388,6 +715,14 @@
   $("toggle-sessions").onclick = () => {
     const expanded = document.body.classList.toggle("show-sessions");
     $("toggle-sessions").setAttribute("aria-expanded", String(expanded));
+  };
+  $("conversation").addEventListener("scroll", () => {
+    const el = $("conversation");
+    $("jump-latest").hidden = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+  });
+  $("jump-latest").onclick = () => {
+    forceScroll = true;
+    $("conversation").scrollTo({ top: $("conversation").scrollHeight, behavior: "smooth" });
   };
   window.addEventListener("hashchange", () => {
     if (!new window.URLSearchParams(window.location.hash.slice(1)).has("token")) return;

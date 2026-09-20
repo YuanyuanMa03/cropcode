@@ -237,6 +237,24 @@ test("Permission replies match pending tool IDs and preserve both allow and deny
   }
 });
 
+test("File lookup serves composer references, stays available while busy and validates input", async (t) => {
+  const web = await fixture(t);
+  const response = await web.post("/api/files", { query: "" });
+  assert.equal(response.status, 200);
+  const data = (await response.json()) as { items: Array<{ path: string; type: string }> };
+  assert.ok(Array.isArray(data.items) && data.items.length > 0);
+  assert.ok(data.items.length <= 12);
+  // The fixture server roots the scan at the test working directory (src/tests).
+  const hit = (await (await web.post("/api/files", { query: "web-server" })).json()) as typeof data;
+  assert.ok(hit.items.some((item) => item.path === "web-server.test.ts"));
+  assert.equal((await web.post("/api/files", { query: 5 })).status, 400);
+  assert.equal((await web.post("/api/files", { query: "x".repeat(201) })).status, 400);
+  await web.post("/api/prompt", { text: "wait" });
+  assert.equal((await web.post("/api/files", { query: "test" })).status, 200);
+  await web.post("/api/interrupt", {});
+  await web.settled();
+});
+
 test("SSE reconnect sends a current snapshot without replaying work, and shutdown releases the listener", async (t) => {
   const web = await fixture(t);
   await web.post("/api/prompt", { text: "hello" });

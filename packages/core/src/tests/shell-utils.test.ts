@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildDisableExtglobCommand,
+  buildShellEnv,
   buildShellInitCommand,
   getShellKind,
   posixPathToWindowsPath,
@@ -10,6 +11,28 @@ import {
   windowsPathToPosixPath,
 } from "../common/shell-utils";
 import { isAbsoluteFilePath, normalizeFilePath } from "../common/state";
+
+test("buildShellEnv scrubs credential-shaped variables before spawning shells", () => {
+  const env = buildShellEnv("/bin/zsh", {
+    API_KEY: "provider-secret",
+    MY_TOKEN: "token-value",
+    DEPLOY_PASSWORD: "pw",
+    BASE_URL: "http://provider.invalid/v1",
+  });
+  // Credential-shaped keys from settings must not reach model-chosen commands.
+  assert.equal(env.API_KEY, undefined);
+  assert.equal(env.MY_TOKEN, undefined);
+  assert.equal(env.DEPLOY_PASSWORD, undefined);
+  // Shell plumbing and non-credential settings survive.
+  assert.equal(env.SHELL, "/bin/zsh");
+  assert.equal(env.GIT_EDITOR, "true");
+  assert.equal(env.BASE_URL, "http://provider.invalid/v1");
+});
+
+test("buildShellEnv keeps unrelated keys that merely contain key-like letters", () => {
+  const env = buildShellEnv("/bin/zsh", { KEYBOARD_LAYOUT: "colemak" });
+  assert.equal(env.KEYBOARD_LAYOUT, "colemak");
+});
 
 test("Windows paths convert to Git Bash POSIX paths", () => {
   assert.equal(windowsPathToPosixPath("C:\\Users\\foo"), "/c/Users/foo");
