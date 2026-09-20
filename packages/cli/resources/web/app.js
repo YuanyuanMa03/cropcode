@@ -471,8 +471,31 @@
       }
       return row;
     });
-    list.replaceChildren(...rows);
+    // The card owns a non-scrolling footer; only the option list scrolls.
+    let viewport = list.querySelector(".trigger-scroll");
+    if (!viewport) {
+      viewport = node("div", undefined, "trigger-scroll");
+      // The fade hint disappears once the viewport reaches the final row.
+      viewport.onscroll = () => {
+        list.dataset.overflow = viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight ? "1" : "0";
+      };
+      const footer = node("div", undefined, "trigger-footer");
+      footer.setAttribute("aria-hidden", "true");
+      for (const [keys, label] of [
+        [["↑", "↓"], "选择"],
+        [["↵"], "确认"],
+        [["esc"], "关闭"],
+      ]) {
+        const group = node("span");
+        for (const key of keys) group.append(node("span", key, "key"));
+        group.append(document.createTextNode(" " + label));
+        footer.append(group);
+      }
+      list.replaceChildren(viewport, footer);
+    }
+    viewport.replaceChildren(...rows);
     list.hidden = false;
+    list.dataset.overflow = viewport.scrollHeight > viewport.clientHeight ? "1" : "0";
     $("prompt").setAttribute("aria-expanded", "true");
   }
   function highlightMenu() {
