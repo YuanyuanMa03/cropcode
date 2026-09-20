@@ -1,198 +1,149 @@
-# 快速开始
+# 从第一次启动，到完成一项任务
 
-CropCode 是一款开源的终端 AI 编程助手，专为 DeepSeek-V4 系列模型适配，支持深度思考、推理强度控制，并通过 Skills 和 MCP 扩展更多能力。
+[返回首页](../README.md) · [English](quickstart_en.md)
 
-## 前置要求
+本指南介绍当前源码的交互流程。已发布版本与当前源码的差异见[更新记录](../CHANGELOG.md)。示例中的文件名和任务需替换为你自己的项目内容。
 
-使用前请确认本机已安装：
+## 1. 安装并进入项目
 
-- Node.js `22` 或更高版本
-- 一个可用的 DeepSeek API Key
-
-## 安装
-
-使用 npm 全局安装：
+准备 Node.js 22+ 和所选供应商的 API Key，安装发布包：
 
 ```bash
-npm install -g @yuanyuanma03/cropcode-cli
-```
-
-安装后检查版本：
-
-```bash
+npm install -g https://github.com/YuanyuanMa03/cropcode/releases/download/v2.2.0/cropcode-cli-2.2.0.tgz
 cropcode --version
-```
-
-## 配置 DeepSeek-V4
-
-CropCode 推荐使用 `deepseek-v4-pro`，也支持 `deepseek-v4-flash`。创建 `~/.cropcode/settings.json`，写入你的 DeepSeek 模型配置：
-
-```json
-{
-  "env": {
-    "MODEL": "deepseek-v4-pro",
-    "BASE_URL": "https://api.deepseek.com",
-    "API_KEY": "sk-..."
-  },
-  "thinkingEnabled": true,
-  "reasoningEffort": "max"
-}
-```
-
-把 `API_KEY` 替换成你的 DeepSeek API Key。
-
-常用字段：
-
-| 字段 | 说明 |
-| ---- | ---- |
-| `env.MODEL` | DeepSeek 模型名称，推荐 `deepseek-v4-pro` |
-| `env.BASE_URL` | DeepSeek API 地址，默认 `https://api.deepseek.com` |
-| `env.API_KEY` | DeepSeek API Key |
-| `thinkingEnabled` | 是否启用思考模式 |
-| `reasoningEffort` | 推理强度，可选 `"low"`、`"high"` 或 `"max"` |
-
-也可以在项目目录中创建 `.cropcode/settings.json`，为当前项目单独设置模型、权限或 MCP。
-
-更多 DeepSeek 官方配置说明可参考 [CropCode 集成指南](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/cropcode)。
-
-更多配置项请参考 [configuration.md](configuration.md)。
-
-## 启动
-
-进入你的项目目录：
-
-```bash
 cd path/to/your/project
 cropcode
 ```
 
-CropCode 会在当前目录中启动交互式界面。你可以直接输入任务，然后按 `Enter` 发送。
+想运行最新源码，请使用[首页的源码安装步骤](../README.md#快速开始)。
 
-如果想带着初始问题启动：
+## 2. 连接模型
+
+未配置 API Key 时，启动后会进入登录向导；已有配置时会直接进入会话，输入 `/login` 可重新打开向导。
+
+| 界面步骤 | 你需要做什么 |
+| --- | --- |
+| 选择供应商 | 用 `↑` / `↓` 选择 DeepSeek、智谱 GLM、通义千问、MiMo 或 LongCat，按 `Enter` 确认 |
+| 选择接入方式 | 对提供多种接入方式的供应商，选择与你的密钥对应的 API 或套餐地址；只有一种时跳过此步 |
+| 选择模型 | 从供应商预设中选择初始模型 |
+| 输入 API Key | 粘贴密钥并按 `Enter` 保存；输入显示为掩码 |
+
+进入会话后，查看欢迎面板上的**服务商、模型、思考设置与目录**。可通过 `/model` 再选择模型、开关思考及调整支持的推理强度。保存密钥不等于服务端验证成功；是否能调用由实际请求和供应商账户权限决定。
+
+模型菜单尝试读取当前连接的 `/models`；接口不支持或请求失败时，会保留预设与当前模型。接口、套餐地址和协议说明见[模型供应商](providers.md)。
+
+如果切换后仍显示旧配置，检查 `CROPCODE_*` 环境变量和项目内 `.cropcode/settings.json`，它们的优先级高于用户配置与登录凭证。详见[配置说明](configuration.md)。
+
+## 3. 先让它了解项目
+
+直接输入任务，按 `Enter` 发送。输入 `@` 可以选择项目文件引用，例如：
+
+```text
+阅读 @README.md，说明这个项目的用途、目录结构和运行方式。
+先不要修改文件；不确定的地方请注明。
+```
+
+或者从科研数据入手：
+
+```text
+检查 data/field_trial.csv 的字段、缺失值、重复观测和单位。
+列出需要我确认的试验设计信息，不要补造数据，不要修改原始文件。
+```
+
+你会看到流式回答和实际发生的工具调用。CSV 可以按文本检查；Excel、栅格等文件通常需要通过项目中的 Python/R 库或其他工具解析。
+
+![CropCode 欢迎界面和自我介绍过程](assets/cropcode-terminal.png)
+
+*实机截图展示自我介绍过程中加载技能、读取文档并开始回答；背景来自用户的终端配置。*
+
+## 4. 先规划，再实施
+
+输入 `/plan` 或按 `Shift+Tab` 进入规划模式，然后提出任务：
+
+```text
+基于已确认的试验设计，规划一套 R 分析流程。
+列出模型选择依据、输入检查、结果图表和验证方式，暂不实施。
+```
+
+模型输出完整方案后，会出现 `Plan ready` 菜单：
+
+| 选择 | 下一步 |
+| --- | --- |
+| `1. implement this plan` | 退出规划模式，按方案开始实施 |
+| `2. clear context and implement` | 创建仅携带方案的新会话并实施；原会话可恢复 |
+| `3. stay in Plan mode` | 继续讨论或修改方案 |
+| `4. switch to Default mode` | 返回默认模式，不自动开始实施 |
+
+用数字键 `1–4`，或 `↑` / `↓` 加 `Enter` 选择。`Esc` 表示继续留在规划模式。如果模型还在提问或未输出完整方案，先继续对话。
+
+实施时会调用文件和 Shell 工具。需要确认哪些操作由[权限配置](permission.md)决定；默认模式为 `allowAll`，并非每次读写都会弹窗。Plan Mode 的具体规则见[规划模式说明](plan-mode.md)。
+
+## 5. 检查交付物
+
+可以明确要求：
+
+```text
+运行脚本，检查输出文件是否存在，并说明检查方法。
+汇总本次修改的文件、实际执行的命令与结果。
+把运行失败、缺少依赖、仍未验证的部分单独列出。
+```
+
+查看实际文件、命令输出与图表，并核对单位、试验设计和统计方法。提示词中的要求不等于分析已正确执行；最终应以实际产物与检查结果为依据。
+
+## 6. 中断、继续或撤销
+
+| 需求 | 操作 | 注意事项 |
+| --- | --- | --- |
+| 中断当前生成 | `Esc` | 中断不会自动撤销已完成的文件修改 |
+| 下次接着做 | `/resume` | 从当前项目的历史会话列表选择 |
+| 继续当前任务 | `/continue` | 无活动会话时进入历史会话选择 |
+| 分叉讨论另一方案 | `/fork` | 复制会话上下文；仍使用同一项目目录，不是独立工作区 |
+| 恢复某个检查点 | `/undo` | 可选代码、对话或两者；文件恢复只覆盖已跟踪的快照，不撤销外部服务操作 |
+| 开始新话题 | `/new` | 创建新会话 |
+
+[会话保存与检查点详情 →](session-persistence.md)
+
+## 快捷键与命令速查
+
+| 按键 | 操作 |
+| --- | --- |
+| `Enter` | 发送消息或确认菜单选项 |
+| `Shift+Enter` / `Ctrl+J` | 换行（终端需正确传递按键） |
+| `@` | 引用文件 |
+| `/` | 打开命令与技能菜单 |
+| `Shift+Tab` | 切换规划模式 |
+| `Esc` | 中断当前生成；菜单中通常用于关闭或返回 |
+| `Ctrl+V` | 粘贴剪贴板图片，需要终端/系统支持及多模态配置 |
+| `Ctrl+R` | 切换显示模式 |
+| 连续两次 `Ctrl+D` | 退出 |
+
+| 命令 | 用途 |
+| --- | --- |
+| `/login` | 选择模型供应商和接入方式 |
+| `/model` | 选择模型、思考开关及支持的推理强度 |
+| `/plan` | 进入规划模式 |
+| `/init` | 生成项目 `AGENTS.md` 指令文件 |
+| `/new` | 开始新会话 |
+| `/resume` | 选择历史会话 |
+| `/fork` | 分叉当前会话 |
+| `/continue` | 继续当前会话或选择历史会话 |
+| `/undo` | 恢复文件和/或对话检查点 |
+| `/skills` | 查看可用技能 |
+| `/mcp` | 查看 MCP 服务状态和工具 |
+| `/raw` | 切换 Normal / Lite / Raw 显示 |
+| `/exit` | 退出 |
+
+## 非交互执行
 
 ```bash
-cropcode -p "总结这个项目"
+cropcode --exec --prompt "总结当前项目的目录结构与测试入口，不修改文件。"
 ```
 
-## 第一次可以这样问
+`--exec` 执行一次任务；单独使用 `-p` / `--prompt` 则是带着初始问题打开交互界面。非交互模式无法回答追问或权限确认，需要这些操作时应在交互会话中处理。完整选项见 `cropcode --help`。
 
-可以先从只读任务开始：
+## 把工作习惯留在项目中
 
-```text
-总结这个仓库，并说明如何运行它。
-```
-
-```text
-找出主要入口文件，并解释请求流程。
-```
-
-然后尝试让 CropCode 修改代码：
-
-```text
-为登录校验逻辑添加一个单元测试。
-```
-
-```text
-运行测试用例，并修复失败的测试。
-```
-
-也可以让它先给出计划：
-
-```text
-在修改文件前，先给出一个为用户列表添加分页的计划。
-```
-
-## 常用操作
-
-| 操作 | 用法 |
-| ---- | ---- |
-| 发送消息 | `Enter` |
-| 输入多行 | `Shift+Enter` 或 `Ctrl+J` |
-| 中断当前回复 | `Esc` |
-| 粘贴图片 | `Ctrl+V` |
-| 退出 | 连续按两次 `Ctrl+D`，或使用 `/exit` |
-
-## 斜杠命令
-
-在输入框中输入 `/` 可以打开命令菜单。
-
-| 命令 | 作用 |
-| ---- | ---- |
-| `/new` | 开始新对话 |
-| `/resume` | 选择历史对话继续 |
-| `/fork` | 从当前对话创建独立的新会话 |
-| `/continue` | 继续当前对话，或恢复最近的对话 |
-| `/model` | 切换模型、思考模式和推理强度 |
-| `/init` | 为当前项目生成 `AGENTS.md` 指令文件 |
-| `/skills` | 查看可用 Agent Skills |
-| `/mcp` | 查看 MCP 服务状态和可用工具 |
-| `/undo` | 将代码和/或对话恢复到之前的状态 |
-| `/raw` | 切换显示模式 |
-| `/exit` | 退出 CropCode |
-
-## 为项目添加说明
-
-在项目中运行：
-
-```text
-/init
-```
-
-CropCode 会帮助你创建 `AGENTS.md`。这个文件适合记录项目约定，例如：
-
-- 项目如何安装依赖和运行测试
-- 代码风格和提交要求
-- 重要目录说明
-- 修改代码前后需要执行的检查
-
-之后 CropCode 在该项目中工作时会自动参考这些说明。
-
-## 使用 Skills
-
-Agent Skills 适合保存可复用工作流，例如代码审查、发布检查、文档生成或某个框架的固定开发流程。
-
-查看可用 skills：
-
-```text
-/skills
-```
-
-也可以输入 `/`，在菜单中选择某个 skill。
-
-更多说明请参考 [agent-skills.md](agent-skills.md)。
-
-## 连接外部工具
-
-如果你想让 CropCode 连接 GitHub、浏览器、数据库或其他服务，可以配置 MCP。
-
-配置后，在 CropCode 中运行：
-
-```text
-/mcp
-```
-
-即可查看已连接的 MCP 服务和可用工具。
-
-更多说明请参考 [mcp.md](mcp.md)。
-
-## 权限与安全
-
-CropCode 可能会读取文件、修改代码或运行命令。你可以通过权限配置控制哪些操作自动允许、哪些操作需要确认、哪些操作直接拒绝。
-
-CropCode 默认支持 YOLO 模式，可以更流畅地执行读写文件、运行命令等操作。如果你希望更谨慎，可以使用严格模式，让 CropCode 在执行较高风险操作前询问你。
-
-更多说明请参考 [permission.md](permission.md)。
-
-## 任务完成通知
-
-如果希望 CropCode 完成任务后通知你，可以配置通知脚本，例如发送 Slack、飞书、系统通知或终端提示。
-
-更多说明请参考 [notify.md](notify.md)。
-
-## 下一步
-
-- 阅读完整配置说明：[configuration.md](configuration.md)
-- 配置权限策略：[permission.md](permission.md)
-- 编写 Agent Skills：[agent-skills.md](agent-skills.md)
-- 配置 MCP 外部工具：[mcp.md](mcp.md)
-- 配置任务完成通知：[notify.md](notify.md)
+- **项目说明：** 用 `/init` 生成指令文件，记录原始数据位置、单位约定、输出目录和检查命令。[AGENTS.md 指南](agents-md.md)
+- **可复用流程：** 将绘图规范、数据检查流程等写成 Skills，用 `/skills` 查看是否可用。[Skills 指南](agent-skills.md)
+- **外部工具：** 配置所需 MCP 服务，用 `/mcp` 查看连接和工具状态。[MCP 指南](mcp.md)
+- **完成通知：** 配置自己的通知脚本。[通知指南](notify.md)
