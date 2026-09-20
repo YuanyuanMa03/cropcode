@@ -1,0 +1,36 @@
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Dependency directory
+node_modules/
+# Ignore built ts files
+dist/
+out/
+
+
+# Editors
+.idea/
+.vscode/
+*.tgz
+*.log
+*.vsix
+
+# Project-local CropCode state and extensions
+.cropcode/
+
+# TypeScript build info files
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+
+# Generated files
+packages/cli/src/generated/
+packages/core/src/generated/
+packages/vscode-ide-companion/*.vsix
+packages/vscode-ide-companion/templates/
+# Local distribution artifacts
+release/
+dist-portable/

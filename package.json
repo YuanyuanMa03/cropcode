@@ -1,0 +1,60 @@
+{
+  "name": "@yuanyuanma03/cropcode-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CropCode — agricultural research coding assistant, CLI, core library and VSCode companion",
+  "license": "MIT",
+  "packageManager": "npm@10.9.4",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YuanyuanMa03/cropcode.git"
+  },
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "generate": "node scripts/generate-git-commit-info.js",
+    "bundle": "npm run generate && node scripts/esbuild.config.js && node scripts/copy-bundle-assets.js",
+    "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\"",
+    "lint:fix": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\" --fix",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\"",
+    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx}\" \"scripts/*.js\"",
+    "check": "npm run typecheck && npm run lint && npm run format:check",
+    "clean": "node scripts/clean.js",
+    "build": "node scripts/build.js",
+    "build:vscode": "node scripts/build-vscode-companion.js",
+    "start": "node scripts/start.js",
+    "build-and-start": "npm run build && npm run start",
+    "link:local": "npm run build && npm link --workspace=@yuanyuanma03/cropcode-cli",
+    "test:install": "node --test scripts/tests/install.test.mjs",
+    "test": "npm run test:install && npm run test --workspaces --if-present",
+    "release:version": "node scripts/version.js",
+    "prepare:package": "node scripts/prepare-package.js",
+    "prepare:vscode": "node scripts/prepare-vscode.js",
+    "prepare": "husky && npm run build && npm run bundle",
+    "package:cli": "npm run build && node scripts/package-cli.js",
+    "package:standalone": "node scripts/package-standalone.js",
+    "test:standalone": "node scripts/test-standalone.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/ejs": "^3.1.5",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "esbuild": "^0.28.0",
+    "eslint": "^10.7.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "glob": "^13.0.6",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.4",
+    "prettier": "^3.8.3",
+    "react-devtools-core": "^7.0.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.2"
+  },
+  "homepage": "https://github.com/YuanyuanMa03/cropcode"
+}
