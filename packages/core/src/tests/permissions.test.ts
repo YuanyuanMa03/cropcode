@@ -6,10 +6,14 @@ import * as path from "path";
 import {
   appendProjectPermissionAllows,
   computeToolCallPermissions,
+  classifyFilePermissionScope,
   evaluatePermissionScopes,
+  getPermissionScopesRequiringAsk,
   hasUserPermissionReplies,
+  isPathInAnyDirectory,
   parseBashSideEffects,
 } from "../common/permissions";
+import type { PermissionScope, PermissionSettings } from "../settings";
 
 const tempDirs: string[] = [];
 
@@ -23,25 +27,22 @@ afterEach(() => {
 });
 
 test("parseBashSideEffects accepts valid scopes and normalizes unsafe values to unknown", () => {
-  assert.deepEqual(parseBashSideEffects(["read-in-cwd", "network", "read-in-cwd"]), ["read-in-cwd", "network"]);
+  assert.deepEqual(parseBashSideEffects(["read-in-tmp", "write-in-tmp", "read-in-tmp"]), [
+    "read-in-tmp",
+    "write-in-tmp",
+  ]);
   assert.deepEqual(parseBashSideEffects(undefined), ["unknown"]);
   assert.deepEqual(parseBashSideEffects(["read-in-cwd", "unknown"]), ["unknown"]);
   assert.deepEqual(parseBashSideEffects(["mcp"]), ["unknown"]);
 });
 
-test("parseBashSideEffects accepts a single string (backward compat with old schema)", () => {
-  assert.deepEqual(parseBashSideEffects("network"), ["network"]);
-  assert.deepEqual(parseBashSideEffects("read-in-cwd"), ["read-in-cwd"]);
-  assert.deepEqual(parseBashSideEffects("mcp"), ["unknown"]);
-  assert.deepEqual(parseBashSideEffects("invalid-scope"), ["unknown"]);
-});
-
 test("evaluatePermissionScopes applies deny, ask, allow, and default mode precedence", () => {
-  const settings = {
-    allow: ["read-in-cwd" as const],
-    deny: ["write-out-cwd" as const],
-    ask: ["network" as const],
-    defaultMode: "plan" as const,
+  const settings: Required<PermissionSettings> = {
+    allow: ["read-in-cwd"] as PermissionScope[],
+    deny: ["write-out-cwd"] as PermissionScope[],
+    ask: ["network"] as PermissionScope[],
+    defaultMode: "askAll",
+    addWorkingDirs: [],
   };
 
   assert.equal(evaluatePermissionScopes(["write-out-cwd"], settings), "deny");
@@ -52,68 +53,73 @@ test("evaluatePermissionScopes applies deny, ask, allow, and default mode preced
   assert.equal(evaluatePermissionScopes(["unknown"], settings), "ask");
 });
 
-test("evaluatePermissionScopes bypassPermissions allows everything including unknown and deny", () => {
-  const bypassSettings = {
-    allow: [],
-    deny: ["write-out-cwd" as const],
-    ask: ["network" as const],
-    defaultMode: "bypassPermissions" as const,
+test("evaluatePermissionScopes allows unknown when defaultMode is allowAll", () => {
+  const allowAllSettings: Required<PermissionSettings> = {
+    allow: [] as PermissionScope[],
+    deny: [] as PermissionScope[],
+    ask: [] as PermissionScope[],
+    defaultMode: "allowAll",
+    addWorkingDirs: [],
   };
+  assert.equal(evaluatePermissionScopes(["unknown"], allowAllSettings), "allow");
 
-  // unknown scope — previously always asked, now bypassed
-  assert.equal(evaluatePermissionScopes(["unknown"], bypassSettings), "allow");
-  // deny scope — UI promises "绕过所有限制（含deny）"
-  assert.equal(evaluatePermissionScopes(["write-out-cwd"], bypassSettings), "allow");
-  // ask scope — also bypassed
-  assert.equal(evaluatePermissionScopes(["network"], bypassSettings), "allow");
-  // mixed scopes including unknown
-  assert.equal(evaluatePermissionScopes(["unknown", "write-in-cwd"], bypassSettings), "allow");
-  // empty scopes still allow
-  assert.equal(evaluatePermissionScopes([], bypassSettings), "allow");
+  // unknown + other scopes that would otherwise trigger ask should still ask for those scopes
+  const askNetworkSettings: Required<PermissionSettings> = {
+    allow: [] as PermissionScope[],
+    deny: [] as PermissionScope[],
+    ask: ["network"] as PermissionScope[],
+    defaultMode: "allowAll",
+    addWorkingDirs: [],
+  };
+  assert.equal(evaluatePermissionScopes(["unknown", "network"], askNetworkSettings), "ask");
 });
 
-test("evaluatePermissionScopes acceptEdits auto-allows file ops, asks for network/mcp/bash", () => {
-  const acceptEditsSettings = {
-    allow: [],
-    deny: [],
-    ask: [],
-    defaultMode: "acceptEdits" as const,
-  };
-
-  // read-only auto-allowed
-  assert.equal(evaluatePermissionScopes(["read-in-cwd"], acceptEditsSettings), "allow");
-  assert.equal(evaluatePermissionScopes(["read-out-cwd"], acceptEditsSettings), "allow");
-  assert.equal(evaluatePermissionScopes(["query-git-log"], acceptEditsSettings), "allow");
-  // file writes/deletes auto-allowed
-  assert.equal(evaluatePermissionScopes(["write-in-cwd"], acceptEditsSettings), "allow");
-  assert.equal(evaluatePermissionScopes(["write-out-cwd"], acceptEditsSettings), "allow");
-  assert.equal(evaluatePermissionScopes(["delete-in-cwd"], acceptEditsSettings), "allow");
-  // network / mcp / unknown still ask
-  assert.equal(evaluatePermissionScopes(["network"], acceptEditsSettings), "ask");
-  assert.equal(evaluatePermissionScopes(["mcp"], acceptEditsSettings), "ask");
-  assert.equal(evaluatePermissionScopes(["unknown"], acceptEditsSettings), "ask");
-  // mixed file + network asks (network triggers ask)
-  assert.equal(evaluatePermissionScopes(["write-in-cwd", "network"], acceptEditsSettings), "ask");
+test("evaluatePermissionScopes applies configured policies to temporary directory scopes", () => {
+  assert.equal(evaluatePermissionScopes(["read-in-tmp"]), "allow");
+  assert.equal(
+    evaluatePermissionScopes(["write-in-tmp"], {
+      allow: [],
+      deny: [],
+      ask: [],
+      defaultMode: "askAll",
+      addWorkingDirs: [],
+    }),
+    "ask"
+  );
+  assert.equal(
+    evaluatePermissionScopes(["write-in-tmp"], {
+      allow: [],
+      deny: ["write-in-tmp"],
+      ask: [],
+      defaultMode: "allowAll",
+      addWorkingDirs: [],
+    }),
+    "deny"
+  );
 });
 
-test("evaluatePermissionScopes ask allows reads, asks for writes/network (same as plan in evaluation layer)", () => {
-  const askSettings = {
-    allow: [],
-    deny: [],
-    ask: [],
-    defaultMode: "ask" as const,
+test("getPermissionScopesRequiringAsk excludes unknown when defaultMode is allowAll", () => {
+  const allowAllSettings: Required<PermissionSettings> = {
+    allow: [] as PermissionScope[],
+    deny: [] as PermissionScope[],
+    ask: ["network"] as PermissionScope[],
+    defaultMode: "allowAll",
+    addWorkingDirs: [],
   };
+  const result = getPermissionScopesRequiringAsk(["unknown", "network"], allowAllSettings);
+  assert.deepEqual(result, ["network"]);
+});
 
-  // read-only auto-allowed
-  assert.equal(evaluatePermissionScopes(["read-in-cwd"], askSettings), "allow");
-  assert.equal(evaluatePermissionScopes(["read-out-cwd"], askSettings), "allow");
-  assert.equal(evaluatePermissionScopes(["query-git-log"], askSettings), "allow");
-  // writes/deletes/network/mcp all ask
-  assert.equal(evaluatePermissionScopes(["write-in-cwd"], askSettings), "ask");
-  assert.equal(evaluatePermissionScopes(["delete-in-cwd"], askSettings), "ask");
-  assert.equal(evaluatePermissionScopes(["network"], askSettings), "ask");
-  assert.equal(evaluatePermissionScopes(["mcp"], askSettings), "ask");
-  assert.equal(evaluatePermissionScopes(["unknown"], askSettings), "ask");
+test("getPermissionScopesRequiringAsk includes unknown when defaultMode is askAll", () => {
+  const askAllSettings: Required<PermissionSettings> = {
+    allow: [] as PermissionScope[],
+    deny: [] as PermissionScope[],
+    ask: ["network"] as PermissionScope[],
+    defaultMode: "askAll",
+    addWorkingDirs: [],
+  };
+  const result = getPermissionScopesRequiringAsk(["unknown", "network"], askAllSettings);
+  assert.deepEqual(result, ["unknown", "network"]);
 });
 
 test("computeToolCallPermissions maps tool calls to permission requests", () => {
@@ -122,10 +128,10 @@ test("computeToolCallPermissions maps tool calls to permission requests", () => 
     sessionId: "session-1",
     projectRoot,
     settings: {
-      allow: ["write-in-cwd"],
-      deny: [],
-      ask: ["write-out-cwd", "network"],
-      defaultMode: "plan",
+      allow: [] as PermissionScope[],
+      deny: [] as PermissionScope[],
+      ask: ["write-in-tmp", "network"] as PermissionScope[],
+      defaultMode: "allowAll" as const,
     },
     resolveSnippetPath: () => path.join(projectRoot, "src", "file.ts"),
     toolCalls: [
@@ -158,7 +164,7 @@ test("computeToolCallPermissions maps tool calls to permission requests", () => 
   assert.deepEqual(
     plan.askPermissions.map((item) => ({ id: item.toolCallId, scopes: item.scopes })),
     [
-      { id: "call-write", scopes: ["write-out-cwd"] },
+      { id: "call-write", scopes: ["write-in-tmp"] },
       { id: "call-bash", scopes: ["network"] },
     ]
   );
@@ -170,10 +176,10 @@ test("computeToolCallPermissions only asks for scopes not already allowed", () =
     sessionId: "session-1",
     projectRoot,
     settings: {
-      allow: ["read-in-cwd"],
-      deny: [],
-      ask: [],
-      defaultMode: "plan",
+      allow: ["read-in-cwd"] as PermissionScope[],
+      deny: [] as PermissionScope[],
+      ask: [] as PermissionScope[],
+      defaultMode: "askAll" as const,
     },
     toolCalls: [
       {
@@ -194,6 +200,327 @@ test("computeToolCallPermissions only asks for scopes not already allowed", () =
   assert.deepEqual(
     plan.askPermissions.map((item) => ({ id: item.toolCallId, scopes: item.scopes })),
     [{ id: "call-bash", scopes: ["network"] }]
+  );
+});
+
+test("computeToolCallPermissions temporarily upgrades allowed forced scopes to ask", () => {
+  const projectRoot = createTempDir("cropcode-permissions-force-ask-workspace-");
+  const forcedScopes: PermissionScope[] = [
+    "write-in-cwd",
+    "write-out-cwd",
+    "delete-in-cwd",
+    "delete-out-cwd",
+    "mutate-git-log",
+  ];
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    forceAskScopes: forcedScopes,
+    settings: {
+      allow: ["write-in-cwd", "write-out-cwd", "delete-out-cwd", "mutate-git-log"] as PermissionScope[],
+      deny: ["delete-in-cwd"] as PermissionScope[],
+      ask: [] as PermissionScope[],
+      defaultMode: "allowAll" as const,
+    },
+    toolCalls: [
+      {
+        id: "call-write-in",
+        type: "function",
+        function: { name: "write", arguments: JSON.stringify({ file_path: path.join(projectRoot, "file.txt") }) },
+      },
+      {
+        id: "call-write-out",
+        type: "function",
+        function: { name: "write", arguments: JSON.stringify({ file_path: "/var/tmp/file.txt" }) },
+      },
+      {
+        id: "call-delete-out",
+        type: "function",
+        function: {
+          name: "bash",
+          arguments: JSON.stringify({
+            command: "rm /tmp/file.txt",
+            sideEffects: ["delete-out-cwd"],
+          }),
+        },
+      },
+      {
+        id: "call-mutate-git",
+        type: "function",
+        function: {
+          name: "bash",
+          arguments: JSON.stringify({ command: "git commit --allow-empty -m test", sideEffects: ["mutate-git-log"] }),
+        },
+      },
+      {
+        id: "call-delete-in",
+        type: "function",
+        function: {
+          name: "bash",
+          arguments: JSON.stringify({ command: "rm file.txt", sideEffects: ["delete-in-cwd"] }),
+        },
+      },
+    ],
+  });
+
+  assert.deepEqual(plan.permissions, [
+    { toolCallId: "call-write-in", permission: "ask" },
+    { toolCallId: "call-write-out", permission: "ask" },
+    { toolCallId: "call-delete-out", permission: "ask" },
+    { toolCallId: "call-mutate-git", permission: "ask" },
+    { toolCallId: "call-delete-in", permission: "deny" },
+  ]);
+  assert.deepEqual(
+    plan.askPermissions.map((item) => ({ id: item.toolCallId, scopes: item.scopes })),
+    [
+      { id: "call-write-in", scopes: ["write-in-cwd"] },
+      { id: "call-write-out", scopes: ["write-out-cwd"] },
+      { id: "call-delete-out", scopes: ["delete-out-cwd"] },
+      { id: "call-mutate-git", scopes: ["mutate-git-log"] },
+    ]
+  );
+
+  const defaultPlan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: {
+      allow: ["write-in-cwd"] as PermissionScope[],
+      deny: [] as PermissionScope[],
+      ask: [] as PermissionScope[],
+      defaultMode: "allowAll" as const,
+    },
+    toolCalls: [
+      {
+        id: "call-default",
+        type: "function",
+        function: { name: "write", arguments: JSON.stringify({ file_path: path.join(projectRoot, "file.txt") }) },
+      },
+    ],
+  });
+  assert.deepEqual(defaultPlan.permissions, [{ toolCallId: "call-default", permission: "allow" }]);
+});
+
+test("computeToolCallPermissions allows read tool calls under skill scan paths", () => {
+  const projectRoot = createTempDir("cropcode-permissions-skill-read-workspace-");
+  const home = createTempDir("cropcode-permissions-skill-read-home-", process.cwd());
+  const skillRoot = path.join(home, ".agents", "skills");
+  const skillResourcePath = path.join(skillRoot, "pdf", "scripts", "extract.py");
+  const outsidePath = path.join(home, "notes.txt");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    readPermissionExemptPaths: [skillRoot],
+    settings: {
+      allow: [] as PermissionScope[],
+      deny: [] as PermissionScope[],
+      ask: [] as PermissionScope[],
+      defaultMode: "askAll" as const,
+    },
+    toolCalls: [
+      {
+        id: "call-skill-read",
+        type: "function",
+        function: { name: "read", arguments: JSON.stringify({ file_path: skillResourcePath }) },
+      },
+      {
+        id: "call-outside-read",
+        type: "function",
+        function: { name: "read", arguments: JSON.stringify({ file_path: outsidePath }) },
+      },
+    ],
+  });
+
+  assert.deepEqual(plan.permissions, [
+    { toolCallId: "call-skill-read", permission: "allow" },
+    { toolCallId: "call-outside-read", permission: "ask" },
+  ]);
+  assert.deepEqual(
+    plan.askPermissions.map((item) => ({ id: item.toolCallId, scopes: item.scopes })),
+    [{ id: "call-outside-read", scopes: ["read-out-cwd"] }]
+  );
+});
+
+test("UnderstandImage requires network and exempts only configured image directories from read scope", () => {
+  const projectRoot = createTempDir("cropcode-permissions-image-workspace-");
+  const home = createTempDir("cropcode-permissions-image-home-", process.cwd());
+  const sessionImages = path.join(home, ".cropcode", "projects", "project", "images", "session-1");
+  const currentImage = path.join(sessionImages, "current.png");
+  const projectImage = path.join(projectRoot, "project.png");
+  const outsideImage = path.join(home, "outside.png");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    readPermissionExemptPaths: [sessionImages],
+    settings: {
+      allow: [] as PermissionScope[],
+      deny: [] as PermissionScope[],
+      ask: [] as PermissionScope[],
+      defaultMode: "askAll" as const,
+    },
+    toolCalls: [
+      {
+        id: "call-current",
+        type: "function",
+        function: { name: "UnderstandImage", arguments: JSON.stringify({ image_path: currentImage }) },
+      },
+      {
+        id: "call-project",
+        type: "function",
+        function: { name: "UnderstandImage", arguments: JSON.stringify({ image_path: projectImage }) },
+      },
+      {
+        id: "call-outside",
+        type: "function",
+        function: { name: "UnderstandImage", arguments: JSON.stringify({ image_path: outsideImage }) },
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    plan.askPermissions.map((item) => ({ id: item.toolCallId, scopes: item.scopes })),
+    [
+      { id: "call-current", scopes: ["network"] },
+      { id: "call-project", scopes: ["read-in-cwd", "network"] },
+      { id: "call-outside", scopes: ["read-out-cwd", "network"] },
+    ]
+  );
+});
+
+test("ReadImage uses filesystem read permissions without network access", () => {
+  const projectRoot = createTempDir("cropcode-permissions-read-image-workspace-");
+  const home = createTempDir("cropcode-permissions-read-image-home-", process.cwd());
+  const projectImage = path.join(projectRoot, "project.png");
+  const outsideImage = path.join(home, "outside.png");
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: {
+      allow: [] as PermissionScope[],
+      deny: [] as PermissionScope[],
+      ask: [] as PermissionScope[],
+      defaultMode: "askAll" as const,
+    },
+    toolCalls: [
+      {
+        id: "call-project",
+        type: "function",
+        function: { name: "ReadImage", arguments: JSON.stringify({ file_path: projectImage }) },
+      },
+      {
+        id: "call-outside",
+        type: "function",
+        function: { name: "ReadImage", arguments: JSON.stringify({ file_path: outsideImage }) },
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    plan.askPermissions.map((item) => ({ id: item.toolCallId, scopes: item.scopes })),
+    [
+      { id: "call-project", scopes: ["read-in-cwd"] },
+      { id: "call-outside", scopes: ["read-out-cwd"] },
+    ]
+  );
+});
+
+test("isPathInAnyDirectory matches absolute and project-relative directories without sibling leaks", () => {
+  const projectRoot = createTempDir("cropcode-permissions-directory-match-workspace-");
+  const home = createTempDir("cropcode-permissions-directory-match-home-");
+  const absoluteSkillRoot = path.join(home, ".agents", "skills");
+  const relativeSkillRoot = path.join(".cropcode", "skills");
+
+  assert.equal(
+    isPathInAnyDirectory(projectRoot, path.join(absoluteSkillRoot, "pdf", "scripts", "extract.py"), [
+      absoluteSkillRoot,
+    ]),
+    true
+  );
+  assert.equal(
+    isPathInAnyDirectory(projectRoot, path.join(projectRoot, relativeSkillRoot, "local", "SKILL.md"), [
+      relativeSkillRoot,
+    ]),
+    true
+  );
+  assert.equal(
+    isPathInAnyDirectory(projectRoot, path.join(`${absoluteSkillRoot}-backup`, "extract.py"), [absoluteSkillRoot]),
+    false
+  );
+  assert.equal(
+    isPathInAnyDirectory(projectRoot, path.join(projectRoot, ".cropcode", "skills-extra", "file.md"), [
+      relativeSkillRoot,
+    ]),
+    false
+  );
+  assert.equal(isPathInAnyDirectory(projectRoot, path.join(home, "notes.txt"), undefined), false);
+});
+
+test("classifyFilePermissionScope prioritizes working directories over temporary directories", () => {
+  const projectRoot = createTempDir("cropcode-permissions-classify-workspace-");
+  const siblingRoot = path.join(path.dirname(projectRoot), "shared-workspace");
+
+  assert.equal(classifyFilePermissionScope(projectRoot, path.join(projectRoot, "file.txt"), "write"), "write-in-cwd");
+  assert.equal(
+    classifyFilePermissionScope(projectRoot, path.join(siblingRoot, "file.txt"), "read", [siblingRoot]),
+    "read-in-cwd"
+  );
+  assert.equal(classifyFilePermissionScope(projectRoot, "/tmp/shared/file.txt", "read"), "read-in-tmp");
+  assert.equal(classifyFilePermissionScope(projectRoot, "/private/tmp/shared/file.txt", "write"), "write-in-tmp");
+  assert.equal(classifyFilePermissionScope(projectRoot, "/tmp-backup/file.txt", "read"), "read-out-cwd");
+  assert.equal(classifyFilePermissionScope(projectRoot, "/opt/project/file.txt", "write"), "write-out-cwd");
+});
+
+test("computeToolCallPermissions applies temporary and additional working directory scopes to file tools", () => {
+  const projectRoot = createTempDir("cropcode-permissions-file-scopes-");
+  const additionalRoot = "../shared-project";
+  const plan = computeToolCallPermissions({
+    sessionId: "session-1",
+    projectRoot,
+    settings: {
+      allow: [],
+      deny: [],
+      ask: [],
+      defaultMode: "askAll",
+      addWorkingDirs: [additionalRoot],
+    },
+    resolveSnippetPath: () => path.resolve(projectRoot, additionalRoot, "edited.ts"),
+    toolCalls: [
+      {
+        id: "call-read",
+        type: "function",
+        function: { name: "read", arguments: JSON.stringify({ file_path: "/tmp/input.txt" }) },
+      },
+      {
+        id: "call-write",
+        type: "function",
+        function: { name: "write", arguments: JSON.stringify({ file_path: "/private/tmp/output.txt" }) },
+      },
+      {
+        id: "call-edit",
+        type: "function",
+        function: { name: "edit", arguments: JSON.stringify({ snippet_id: "snippet-1" }) },
+      },
+      {
+        id: "call-read-image",
+        type: "function",
+        function: { name: "ReadImage", arguments: JSON.stringify({ file_path: "/tmp/image.png" }) },
+      },
+      {
+        id: "call-understand-image",
+        type: "function",
+        function: { name: "UnderstandImage", arguments: JSON.stringify({ image_path: "/tmp/image.png" }) },
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    plan.askPermissions.map((item) => ({ id: item.toolCallId, scopes: item.scopes })),
+    [
+      { id: "call-read", scopes: ["read-in-tmp"] },
+      { id: "call-write", scopes: ["write-in-tmp"] },
+      { id: "call-edit", scopes: ["write-in-cwd"] },
+      { id: "call-read-image", scopes: ["read-in-tmp"] },
+      { id: "call-understand-image", scopes: ["read-in-tmp", "network"] },
+    ]
   );
 });
 
@@ -218,7 +545,8 @@ test("appendProjectPermissionAllows seeds inherited permissions before adding al
       allow: ["read-in-cwd"],
       deny: ["write-out-cwd"],
       ask: ["network"],
-      defaultMode: "plan",
+      defaultMode: "askAll",
+      addWorkingDirs: ["../shared-project"],
     },
   });
 
@@ -228,7 +556,8 @@ test("appendProjectPermissionAllows seeds inherited permissions before adding al
     allow: ["read-in-cwd", "query-git-log"],
     deny: ["write-out-cwd"],
     ask: ["network"],
-    defaultMode: "plan",
+    defaultMode: "askAll",
+    addWorkingDirs: ["../shared-project"],
   });
 });
 
@@ -240,7 +569,7 @@ test("appendProjectPermissionAllows moves inherited ask and deny scopes into all
       allow: ["read-in-cwd"],
       deny: ["write-out-cwd"],
       ask: ["network", "mcp"],
-      defaultMode: "plan",
+      defaultMode: "askAll",
     },
   });
 
@@ -250,7 +579,7 @@ test("appendProjectPermissionAllows moves inherited ask and deny scopes into all
     allow: ["read-in-cwd", "network", "write-out-cwd"],
     deny: [],
     ask: ["mcp"],
-    defaultMode: "plan",
+    defaultMode: "askAll",
   });
 });
 
@@ -262,7 +591,7 @@ test("appendProjectPermissionAllows writes inherited permissions even when scope
       allow: ["read-in-cwd"],
       deny: [],
       ask: ["network"],
-      defaultMode: "plan",
+      defaultMode: "askAll",
     },
   });
 
@@ -272,7 +601,7 @@ test("appendProjectPermissionAllows writes inherited permissions even when scope
     allow: ["read-in-cwd"],
     deny: [],
     ask: ["network"],
-    defaultMode: "plan",
+    defaultMode: "askAll",
   });
 });
 
@@ -282,7 +611,7 @@ test("appendProjectPermissionAllows preserves existing project permissions", () 
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   fs.writeFileSync(
     settingsPath,
-    JSON.stringify({ permissions: { allow: ["read-in-cwd"], defaultMode: "plan" } }),
+    JSON.stringify({ permissions: { allow: ["read-in-cwd"], defaultMode: "allowAll" } }),
     "utf8"
   );
 
@@ -291,14 +620,14 @@ test("appendProjectPermissionAllows preserves existing project permissions", () 
       allow: ["write-in-cwd"],
       deny: ["write-out-cwd"],
       ask: ["network"],
-      defaultMode: "plan",
+      defaultMode: "askAll",
     },
   });
 
   const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
   assert.deepEqual(settings.permissions, {
     allow: ["read-in-cwd", "query-git-log"],
-    defaultMode: "plan",
+    defaultMode: "allowAll",
   });
 });
 
@@ -313,7 +642,7 @@ test("appendProjectPermissionAllows removes existing ask and deny conflicts", ()
         allow: ["read-in-cwd"],
         deny: ["network", "write-out-cwd"],
         ask: ["network", "mcp"],
-        defaultMode: "plan",
+        defaultMode: "askAll",
       },
     }),
     "utf8"
@@ -326,7 +655,7 @@ test("appendProjectPermissionAllows removes existing ask and deny conflicts", ()
     allow: ["read-in-cwd", "network"],
     deny: ["write-out-cwd"],
     ask: ["mcp"],
-    defaultMode: "plan",
+    defaultMode: "askAll",
   });
 });
 
@@ -337,8 +666,8 @@ test("hasUserPermissionReplies detects permission reply payloads", () => {
   assert.equal(hasUserPermissionReplies({ alwaysAllows: ["network"] }), true);
 });
 
-function createTempDir(prefix: string): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+function createTempDir(prefix: string, parentDir = os.tmpdir()): string {
+  const dir = fs.mkdtempSync(path.join(parentDir, prefix));
   tempDirs.push(dir);
   return dir;
 }

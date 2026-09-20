@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Box, Text, useApp, useStdout } from "ink";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Box, Text, useStdout } from "ink";
+import type { DOMElement } from "ink";
 import chalk from "chalk";
 import { ARGS_SEPARATOR } from "../constants";
 import {
@@ -43,26 +44,27 @@ import {
 } from "../core/file-mentions";
 import type { FileMentionItem } from "../core/file-mentions";
 import { readClipboardImageAsync } from "../core/clipboard";
-import { useHistoryNavigation, usePasteHandling } from "../hooks";
-import type { SessionEntry, SkillInfo } from "@YuanyuanMa03/cropcode-core";
-import type { UserToolPermission } from "@YuanyuanMa03/cropcode-core";
-import type { PermissionScope } from "@YuanyuanMa03/cropcode-core";
-
-// Re-exported from prompt modules for backward compatibility
-export { useTerminalInput, parseTerminalInput, dispatchTerminalInput } from "../hooks/useTerminalInput";
-export type { InputKey } from "../hooks/useTerminalInput";
-
-import { useTerminalInput } from "../hooks/useTerminalInput";
-import type { InputKey } from "../hooks/useTerminalInput";
+import {
+  useTerminalInput,
+  usePasteHandling,
+  useHistoryNavigation,
+  getPromptCursorPlacement,
+  isPromptCursorAtWrapBoundary,
+  usePromptTerminalCursor,
+} from "../hooks";
+import type { InputKey } from "../hooks";
 import {
   useHiddenTerminalCursor,
   useTerminalExtendedKeys,
   useBracketedPaste,
   useTerminalFocusReporting,
-} from "../hooks/cursor";
+} from "../hooks";
 import SlashCommandMenu, { isSkillSelected } from "./SlashCommandMenu";
-import type { ModelConfigSelection, PermissionDefaultMode } from "@YuanyuanMa03/cropcode-core";
-import { FileMentionMenu, ModelsDropdown, PermissionsDropdown, RawModelDropdown, SkillsDropdown } from "../components";
+import type { ModelConfigSelection, PermissionScope } from "@yuanyuanma03/cropcode-core";
+import { FileMentionMenu, ModelsDropdown, RawModelDropdown, SkillsDropdown } from "../components";
+import type { SessionEntry, SkillInfo } from "@yuanyuanma03/cropcode-core";
+import type { UserToolPermission } from "@yuanyuanma03/cropcode-core";
+import type { StatusSegment } from "../statusline";
 
 export type PromptSubmission = {
   text: string;
@@ -70,7 +72,9 @@ export type PromptSubmission = {
   selectedSkills?: SkillInfo[];
   permissions?: UserToolPermission[];
   alwaysAllows?: PermissionScope[];
-  command?: "new" | "resume" | "continue" | "undo" | "mcp" | "marketplace" | "plugin" | "login" | "exit";
+  planMode?: boolean;
+  isAnswers?: boolean;
+  command?: "login" | "new" | "resume" | "fork" | "continue" | "undo" | "mcp" | "exit";
 };
 
 export type PromptDraft = {
@@ -86,39 +90,32 @@ type Props = {
   screenWidth: number;
   promptHistory: string[];
   busy: boolean;
+  cursorLayoutKey?: string;
   loadingText?: string | null;
   disabled?: boolean;
   placeholder?: string;
   runningProcesses?: SessionEntry["processes"];
   promptDraft?: PromptDraft | null;
+  statusLineSegments?: StatusSegment[];
+  statusLineSeparator?: string;
+  planMode: boolean;
   onSubmit: (submission: PromptSubmission) => void;
   onModelConfigChange: (selection: ModelConfigSelection) => string | Promise<string>;
-  onPermissionsChange: (mode: PermissionDefaultMode, saveTarget: "user" | "project") => string | Promise<string>;
-  currentPermissionMode: PermissionDefaultMode;
-  hasProjectSettings: boolean;
   onRawModeChange?: (mode: string) => void;
+  onPlanModeChange: (enabled: boolean) => void;
   onInterrupt: () => void;
   onToggleProcessStdout?: () => void;
+  onExitShortcut?: () => void;
 };
 
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const PROMPT_PREFIX_WIDTH = 2;
 
-const PromptPrefixLine = React.memo(function PromptPrefixLine({ busy }: { busy: boolean }): React.ReactElement {
-  const [spinnerIndex, setSpinnerIndex] = useState(0);
-
-  useEffect(() => {
-    if (!busy) {
-      setSpinnerIndex(0);
-      return;
-    }
-    const timer = setInterval(() => {
-      setSpinnerIndex((index) => (index + 1) % SPINNER_FRAMES.length);
-    }, 80);
-    return () => clearInterval(timer);
-  }, [busy]);
-
-  const prefix = busy ? `${SPINNER_FRAMES[spinnerIndex]} ` : "> ";
-  return <Text color={busy ? "yellow" : "#229ac3"}>{prefix}</Text>;
+const PromptPrefixLine = React.memo(function PromptPrefixLine(): React.ReactElement {
+  return (
+    <Box width={PROMPT_PREFIX_WIDTH}>
+      <Text color="#229ac3">{"> "}</Text>
+    </Box>
+  );
 });
 
 export const PromptInput = React.memo(function PromptInput({
@@ -128,50 +125,51 @@ export const PromptInput = React.memo(function PromptInput({
   screenWidth,
   promptHistory,
   busy,
+  cursorLayoutKey,
   loadingText,
   disabled,
   placeholder,
   runningProcesses,
   promptDraft,
+  statusLineSegments,
+  statusLineSeparator,
+  planMode,
   onSubmit,
   onModelConfigChange,
-  onPermissionsChange,
-  currentPermissionMode,
-  hasProjectSettings,
   onInterrupt,
   onToggleProcessStdout,
+  onExitShortcut,
   onRawModeChange,
+  onPlanModeChange,
 }: Props): React.ReactElement {
-  const { exit } = useApp();
   const { stdout } = useStdout();
+  const inputTextRef = useRef<DOMElement | null>(null);
   const [buffer, setBuffer] = useState<PromptBufferState>(EMPTY_BUFFER);
-
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<SkillInfo[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-
-  const { historyCursor, navigateHistory, exitHistoryBrowsing } = useHistoryNavigation(
-    buffer,
-    setBuffer,
-    promptHistory
-  );
-  const { pastesRef, handlePaste, expandPasteMarkerAtCursor, resetPastes, hasCollapsedMarkers, hasExpandedRegions } =
-    usePasteHandling(buffer, updateBuffer, setStatusMessage);
   const [pendingExit, setPendingExit] = useState(false);
   const [menuIndex, setMenuIndex] = useState(0);
   const [showSkillsDropdown, setShowSkillsDropdown] = useState(false);
   const [openRawModelDropdown, setOpenRawModelDropdown] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
-  const [showPermissionsDropdown, setShowPermissionsDropdown] = useState(false);
   const [fileMentionItems, setFileMentionItems] = useState<FileMentionItem[]>(() => scanFileMentionItems(projectRoot));
   const [dismissedFileMentionKey, setDismissedFileMentionKey] = useState<string | null>(null);
-
   const [hasTerminalFocus, setHasTerminalFocus] = useState(true);
   const lastCtrlDAt = React.useRef<number>(0);
   const undoRedoRef = React.useRef(createPromptUndoRedoState());
   const wasBusyRef = React.useRef(busy);
   const hadFileMentionTokenRef = React.useRef(false);
   const appliedDraftNonceRef = React.useRef<number | null>(null);
+
+  const { historyCursor, navigateHistory, exitHistoryBrowsing } = useHistoryNavigation(
+    buffer,
+    setBuffer,
+    promptHistory
+  );
+
+  const { pastesRef, handlePaste, expandPasteMarkerAtCursor, resetPastes, hasCollapsedMarkers, hasExpandedRegions } =
+    usePasteHandling(buffer, updateBuffer, setStatusMessage);
 
   const fileMentionToken = getCurrentFileMentionToken(buffer);
   const hasFileMentionToken = fileMentionToken !== null;
@@ -183,24 +181,23 @@ export const PromptInput = React.memo(function PromptInput({
   const showFileMentionMenu =
     !showSkillsDropdown &&
     !showModelDropdown &&
-    !showPermissionsDropdown &&
+    !openRawModelDropdown &&
     fileMentionToken !== null &&
     fileMentionKey !== dismissedFileMentionKey;
   const slashItems = React.useMemo(() => buildSlashCommands(skills), [skills]);
   const slashToken = getCurrentSlashToken(buffer);
   const slashMenu = React.useMemo(
     () =>
-      showSkillsDropdown || showModelDropdown || showPermissionsDropdown || showFileMentionMenu
+      showSkillsDropdown || showModelDropdown || openRawModelDropdown || showFileMentionMenu
         ? []
         : slashToken
           ? filterSlashCommands(slashItems, slashToken)
           : [],
-    [showSkillsDropdown, showModelDropdown, showPermissionsDropdown, showFileMentionMenu, slashToken, slashItems]
+    [showSkillsDropdown, showModelDropdown, openRawModelDropdown, showFileMentionMenu, slashToken, slashItems]
   );
   const showMenu = slashMenu.length > 0;
   const promptHistoryKey = React.useMemo(() => promptHistory.join("\0"), [promptHistory]);
   const hasRunningProcess = runningProcesses && runningProcesses.size > 0;
-
   const processOrPasteHint = hasRunningProcess
     ? " · ctrl+o view output"
     : hasCollapsedMarkers
@@ -208,17 +205,48 @@ export const PromptInput = React.memo(function PromptInput({
       : hasExpandedRegions
         ? " · ctrl+o collapse"
         : "";
+  const busyStatusText =
+    loadingText && loadingText.trim()
+      ? `${loadingText}${processOrPasteHint}`
+      : `esc to interrupt · ctrl+c to cancel input${processOrPasteHint}`;
   const footerText = statusMessage
     ? statusMessage
     : busy
-      ? loadingText && loadingText.trim()
-        ? `${loadingText}${processOrPasteHint}`
-        : `esc to interrupt · ctrl+c to cancel input${processOrPasteHint}`
+      ? busyStatusText
       : `enter send · shift+enter newline · @ files · ctrl+v image · / commands · ctrl+d exit${processOrPasteHint}`;
+  const showFooterText = useMemo(
+    () => showMenu || showSkillsDropdown || openRawModelDropdown || showModelDropdown || showFileMentionMenu,
+    [showMenu, showSkillsDropdown, showModelDropdown, openRawModelDropdown, showFileMentionMenu]
+  );
+  const inputContentWidth = Math.max(1, screenWidth - PROMPT_PREFIX_WIDTH);
+
+  const cursorPlacement = useMemo(
+    () => getPromptCursorPlacement(buffer, inputContentWidth),
+    [buffer, inputContentWidth]
+  );
+  const useInlineCursor = isPromptCursorAtWrapBoundary(buffer, inputContentWidth);
+  const usePositionedCursor = !disabled && hasTerminalFocus && !showFooterText && stdout.isTTY && !useInlineCursor;
+  const promptCursorLayoutKey = useMemo(
+    () =>
+      [
+        screenWidth,
+        cursorLayoutKey ?? "default",
+        imageUrls.length,
+        planMode ? "plan-mode" : "default-mode",
+        selectedSkills.map((skill) => skill.name).join("\u001F"),
+      ].join("\u001E"),
+    [cursorLayoutKey, imageUrls.length, planMode, screenWidth, selectedSkills]
+  );
   useTerminalFocusReporting(stdout, !disabled);
   useTerminalExtendedKeys(stdout, !disabled);
   useBracketedPaste(stdout, !disabled);
-  useHiddenTerminalCursor(stdout, !disabled);
+  const terminalCursorActive = usePromptTerminalCursor(
+    inputTextRef,
+    cursorPlacement,
+    !busy && usePositionedCursor,
+    promptCursorLayoutKey
+  );
+  useHiddenTerminalCursor(stdout, !disabled && (busy || !terminalCursorActive));
 
   const refreshFileMentionItems = React.useCallback(() => {
     setFileMentionItems(scanFileMentionItems(projectRoot));
@@ -301,6 +329,9 @@ export const PromptInput = React.memo(function PromptInput({
       }
 
       if (key.escape) {
+        if (openRawModelDropdown) {
+          return;
+        }
         if (showFileMentionMenu) {
           return;
         }
@@ -308,6 +339,13 @@ export const PromptInput = React.memo(function PromptInput({
           onInterrupt();
           setStatusMessage("Interrupting…");
         }
+        return;
+      }
+
+      if (isRawModeShortcut(input, key)) {
+        setShowSkillsDropdown(false);
+        setShowModelDropdown(false);
+        setOpenRawModelDropdown(true);
         return;
       }
 
@@ -327,7 +365,7 @@ export const PromptInput = React.memo(function PromptInput({
         }
         const now = Date.now();
         if (pendingExit && now - lastCtrlDAt.current < 2000) {
-          exit();
+          onExitShortcut?.();
           return;
         }
         lastCtrlDAt.current = now;
@@ -343,7 +381,6 @@ export const PromptInput = React.memo(function PromptInput({
         } else if (!isEmpty(buffer)) {
           setBuffer(EMPTY_BUFFER);
           clearUndoRedoStacks();
-          pastesRef.current.clear();
           resetPastes();
         } else {
           setStatusMessage("press ctrl+d to exit");
@@ -355,7 +392,7 @@ export const PromptInput = React.memo(function PromptInput({
         setPendingExit(false);
       }
 
-      if (openRawModelDropdown || showSkillsDropdown || showModelDropdown || showPermissionsDropdown) {
+      if (openRawModelDropdown || showSkillsDropdown || showModelDropdown) {
         return;
       }
 
@@ -398,6 +435,11 @@ export const PromptInput = React.memo(function PromptInput({
       const noModifier = !key.shift && !key.ctrl && !key.meta;
       const returnAction = getPromptReturnKeyAction(key);
       const isPlainReturn = returnAction === "submit";
+
+      if (key.shift && key.tab) {
+        onPlanModeChange(!planMode);
+        return;
+      }
 
       if (showFileMentionMenu) {
         if (key.upArrow || key.downArrow || key.tab || returnAction === "submit") {
@@ -534,7 +576,6 @@ export const PromptInput = React.memo(function PromptInput({
       }
       if (key.ctrl && (input === "u" || input === "U")) {
         updateBuffer(() => EMPTY_BUFFER);
-        pastesRef.current.clear();
         resetPastes();
         return;
       }
@@ -622,22 +663,22 @@ export const PromptInput = React.memo(function PromptInput({
     setImageUrls([]);
     setSelectedSkills([]);
     setShowSkillsDropdown(false);
-    resetPastes();
+    exitHistoryBrowsing();
     resetPastes();
   }
 
   function handleSlashSelection(item: SlashCommandItem): void {
+    if (item.kind === "login") {
+      onSubmit({ text: "/login", imageUrls: [], command: "login" });
+      resetPromptInput();
+      return;
+    }
     if (busy && item.kind !== "exit") {
       setStatusMessage("wait for the current response or press esc to interrupt");
       return;
     }
 
     if (item.kind === "skill" && item.skill) {
-      if (item.skill.disabled) {
-        setStatusMessage(`Skill "${item.skill.name}" is disabled`);
-        clearSlashToken();
-        return;
-      }
       addSelectedSkill(item.skill);
       clearSlashToken();
       setShowSkillsDropdown(false);
@@ -654,10 +695,9 @@ export const PromptInput = React.memo(function PromptInput({
       setShowModelDropdown(true);
       return;
     }
-    if (item.kind === "permissions") {
+    if (item.kind === "plan") {
       clearSlashToken();
-      setShowSkillsDropdown(false);
-      setShowPermissionsDropdown(true);
+      onPlanModeChange(true);
       return;
     }
     if (item.kind === "raw") {
@@ -680,6 +720,11 @@ export const PromptInput = React.memo(function PromptInput({
       resetPromptInput();
       return;
     }
+    if (item.kind === "fork") {
+      onSubmit({ text: "", imageUrls: [], command: "fork" });
+      resetPromptInput();
+      return;
+    }
     if (item.kind === "continue") {
       onSubmit({ text: "/continue", imageUrls: [], command: "continue" });
       resetPromptInput();
@@ -692,21 +737,6 @@ export const PromptInput = React.memo(function PromptInput({
     }
     if (item.kind === "mcp") {
       onSubmit({ text: "/mcp", imageUrls: [], command: "mcp" });
-      resetPromptInput();
-      return;
-    }
-    if (item.kind === "marketplace") {
-      onSubmit({ text: "/marketplace", imageUrls: [], command: "marketplace" });
-      resetPromptInput();
-      return;
-    }
-    if (item.kind === "plugin") {
-      onSubmit({ text: "/plugin", imageUrls: [], command: "plugin" });
-      resetPromptInput();
-      return;
-    }
-    if (item.kind === "login") {
-      onSubmit({ text: "/login", imageUrls: [], command: "login" });
       resetPromptInput();
       return;
     }
@@ -741,6 +771,7 @@ export const PromptInput = React.memo(function PromptInput({
       text: expandPasteMarkers(buffer.text, pastesRef.current),
       imageUrls,
       selectedSkills,
+      planMode,
     });
     resetPromptInput();
   }
@@ -758,24 +789,6 @@ export const PromptInput = React.memo(function PromptInput({
     setBuffer((state) => removeCurrentSlashToken(state));
     clearUndoRedoStacks();
   }
-
-  const showFooterText = useMemo(
-    () =>
-      showMenu ||
-      showSkillsDropdown ||
-      openRawModelDropdown ||
-      showModelDropdown ||
-      showPermissionsDropdown ||
-      showFileMentionMenu,
-    [
-      showMenu,
-      showSkillsDropdown,
-      showModelDropdown,
-      openRawModelDropdown,
-      showPermissionsDropdown,
-      showFileMentionMenu,
-    ]
-  );
 
   const matchedCommand = slashToken ? findExactSlashCommand(slashItems, slashToken) : null;
   const inlineHint = matchedCommand?.args ? ` ${matchedCommand.args.join(ARGS_SEPARATOR)}` : "";
@@ -796,8 +809,15 @@ export const PromptInput = React.memo(function PromptInput({
           <Text dimColor> (use /skills to edit)</Text>
         </Box>
       ) : null}
+      {planMode ? (
+        <Box width={screenWidth} justifyContent="flex-end">
+          <Text color="yellow">💡 Plan mode</Text>
+          <Text dimColor> (shift+tab to cycle)</Text>
+        </Box>
+      ) : null}
       {/* Input */}
       <Box
+        width={screenWidth}
         borderStyle="single"
         borderTop={true}
         borderBottom={true}
@@ -805,9 +825,19 @@ export const PromptInput = React.memo(function PromptInput({
         borderRight={false}
         borderDimColor
       >
-        <PromptPrefixLine busy={busy} />
-        <Text>{renderBufferWithCursor(buffer, !disabled && hasTerminalFocus, placeholder, pastesRef.current)}</Text>
-        {inlineHint ? <Text dimColor>{inlineHint}</Text> : null}
+        <PromptPrefixLine />
+        <Box ref={inputTextRef} flexGrow={1} flexShrink={1} width={inputContentWidth}>
+          <Text wrap="hard">
+            {renderBufferWithCursor(
+              buffer,
+              !disabled && hasTerminalFocus,
+              placeholder,
+              pastesRef.current,
+              !busy && !terminalCursorActive
+            )}
+          </Text>
+          {inlineHint ? <Text dimColor>{inlineHint}</Text> : null}
+        </Box>
       </Box>
       <RawModelDropdown
         open={openRawModelDropdown}
@@ -831,15 +861,6 @@ export const PromptInput = React.memo(function PromptInput({
         onModelConfigChange={onModelConfigChange}
         onStatusMessage={setStatusMessage}
       />
-      <PermissionsDropdown
-        open={showPermissionsDropdown}
-        currentMode={currentPermissionMode}
-        width={screenWidth}
-        onClose={() => setShowPermissionsDropdown(false)}
-        onPermissionsChange={onPermissionsChange}
-        onStatusMessage={setStatusMessage}
-        hasProjectSettings={hasProjectSettings}
-      />
       <FileMentionMenu
         open={showFileMentionMenu}
         width={screenWidth}
@@ -855,7 +876,39 @@ export const PromptInput = React.memo(function PromptInput({
       <SlashCommandMenu width={screenWidth} items={slashMenu} activeIndex={menuIndex} />
       {!showFooterText && (
         <Box>
-          <Text dimColor>{footerText}</Text>
+          <Text dimColor wrap="truncate-end">
+            {footerText}
+          </Text>
+        </Box>
+      )}
+      {statusLineSegments && statusLineSegments.length > 0 && (
+        <Box flexDirection="column">
+          {(() => {
+            const lines: StatusSegment[][] = [];
+            let currentLine: StatusSegment[] = [];
+            for (const segment of statusLineSegments) {
+              if (segment.newLine && currentLine.length > 0) {
+                lines.push(currentLine);
+                currentLine = [];
+              }
+              currentLine.push(segment);
+            }
+            if (currentLine.length > 0) {
+              lines.push(currentLine);
+            }
+            return lines.map((line, lineIndex) => (
+              <Box key={lineIndex}>
+                {line.map((segment, index) => (
+                  <React.Fragment key={segment.id}>
+                    {index > 0 && <Text dimColor>{statusLineSeparator ?? " · "}</Text>}
+                    <Text color={segment.color} dimColor={!segment.color}>
+                      {segment.text}
+                    </Text>
+                  </React.Fragment>
+                ))}
+              </Box>
+            ));
+          })()}
         </Box>
       )}
     </Box>
@@ -917,6 +970,10 @@ export function isClearImageAttachmentsShortcut(input: string, key: Pick<InputKe
   return key.ctrl && (input === "x" || input === "X");
 }
 
+export function isRawModeShortcut(input: string, key: Pick<InputKey, "ctrl">): boolean {
+  return key.ctrl && (input === "r" || input === "R");
+}
+
 export type PromptReturnKeyAction = "submit" | "newline" | null;
 
 export function getPromptReturnKeyAction(key: Pick<InputKey, "return" | "shift" | "meta">): PromptReturnKeyAction {
@@ -933,24 +990,28 @@ export function renderBufferWithCursor(
   state: PromptBufferState,
   isFocused: boolean,
   placeholder?: string,
-  validPastes?: Map<number, string>
+  validPastes?: Map<number, string>,
+  showSimulatedCursor = true
 ): string {
   const text = state.text || "";
   const cursor = Math.max(0, Math.min(state.cursor, text.length));
   const validIds = validPastes ?? new Map<number, string>();
 
   if (text.length === 0 && placeholder) {
-    if (!isFocused) {
+    if (!isFocused || !showSimulatedCursor) {
       return chalk.dim(`  ${placeholder}`);
     }
     return renderCursorCell(" ") + chalk.dim(` ${placeholder}`);
   }
 
   if (text.length === 0) {
-    return isFocused ? renderCursorCell(" ") : "";
+    if (!isFocused) {
+      return "";
+    }
+    return showSimulatedCursor ? renderCursorCell(" ") : " ";
   }
 
-  if (!isFocused) {
+  if (!isFocused || !showSimulatedCursor) {
     return highlightPasteMarkersInText(text, validIds);
   }
 
@@ -958,7 +1019,7 @@ export function renderBufferWithCursor(
 }
 
 function highlightPasteMarkersInText(s: string, validIds: Map<number, string>): string {
-  if (!s.includes("[paste #")) return s;
+  if (!s.includes("[paste #")) return s.endsWith("\n") ? `${s} ` : s;
   PASTE_MARKER_REGEX.lastIndex = 0;
   let result = "";
   let pos = 0;

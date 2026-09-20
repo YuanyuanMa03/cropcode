@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
-import DropdownMenu from "./DropdownMenu";
-import { BUILTIN_PROVIDERS, type ProviderPreset, type ProviderModel } from "@YuanyuanMa03/cropcode-core";
-import { setActiveCredential } from "@YuanyuanMa03/cropcode-core";
+import DropdownMenu from "./components/DropdownMenu";
+import { BUILTIN_PROVIDERS, type ProviderPreset, type ProviderModel } from "@yuanyuanma03/cropcode-core";
+import { activateProvider } from "@yuanyuanma03/cropcode-core";
 
 type LoginStep = "provider" | "mode" | "model" | "apikey";
 type AccessMode = "api" | "coding-plan";
@@ -10,9 +10,10 @@ type AccessMode = "api" | "coding-plan";
 type LoginScreenProps = {
   width: number;
   onComplete: () => void;
+  onCancel?: () => void;
 };
 
-export function LoginScreen({ width, onComplete }: LoginScreenProps): React.ReactElement {
+export function LoginScreen({ width, onComplete, onCancel }: LoginScreenProps): React.ReactElement {
   const [step, setStep] = useState<LoginStep>("provider");
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedProvider, setSelectedProvider] = useState<ProviderPreset | null>(null);
@@ -43,6 +44,10 @@ export function LoginScreen({ width, onComplete }: LoginScreenProps): React.Reac
   useInput(
     (_input, key) => {
       if (step !== "provider") return;
+      if (key.escape && onCancel) {
+        onCancel();
+        return;
+      }
 
       if (key.upArrow) {
         setActiveIndex((i) => (i - 1 + BUILTIN_PROVIDERS.length) % BUILTIN_PROVIDERS.length);
@@ -153,14 +158,19 @@ export function LoginScreen({ width, onComplete }: LoginScreenProps): React.Reac
         }
         if (!provider || !selectedModel) return;
         const thinkingEnabled = selectedModel.defaultThinking ?? false;
-        setActiveCredential(
-          provider.id,
-          apiKey.trim(),
-          selectedModel.id,
-          selectedMode,
-          thinkingEnabled,
-          thinkingEnabled ? "high" : undefined
-        );
+        try {
+          activateProvider({
+            providerId: provider.id,
+            apiKey: apiKey.trim(),
+            activeModel: selectedModel.id,
+            mode: selectedMode,
+            thinkingEnabled,
+            reasoningEffort: "high",
+          });
+        } catch {
+          setError("无法保存配置，请检查配置目录的写入权限。");
+          return;
+        }
         onComplete();
         return;
       }
@@ -180,8 +190,8 @@ export function LoginScreen({ width, onComplete }: LoginScreenProps): React.Reac
   // ── Render ──────────────────────────────────────────────
   return (
     <Box flexDirection="column" marginY={1} width={Math.min(width, 72)}>
-      <Box borderStyle="round" borderColor="#229ac3" flexDirection="column" paddingX={1}>
-        <Text color="#229ac3" bold>
+      <Box borderStyle="round" borderColor="#2d8a4e" flexDirection="column" paddingX={1}>
+        <Text color="#2d8a4e" bold>
           🌾 欢迎使用 CropCode！
         </Text>
         <Text dimColor> 选择 AI 供应商开始使用（国内直连，无需代理）</Text>
@@ -210,7 +220,7 @@ export function LoginScreen({ width, onComplete }: LoginScreenProps): React.Reac
           items={items}
           activeIndex={activeIndex}
           title="选择供应商"
-          activeColor="#229ac3"
+          activeColor="#2d8a4e"
           helpText="↑↓ 选择 · Enter 确认"
           maxVisible={6}
         />
@@ -228,7 +238,7 @@ export function LoginScreen({ width, onComplete }: LoginScreenProps): React.Reac
 
     return (
       <Box flexDirection="column" marginTop={1}>
-        <Text color="#229ac3" bold>
+        <Text color="#2d8a4e" bold>
           {provider?.icon} {provider?.label} — 选择接入方式
         </Text>
         <DropdownMenu
@@ -236,15 +246,12 @@ export function LoginScreen({ width, onComplete }: LoginScreenProps): React.Reac
           items={items}
           activeIndex={activeIndex}
           title="接入方式"
-          activeColor="#229ac3"
+          activeColor="#2d8a4e"
           helpText="↑↓ 选择 · Enter 确认 · Esc 返回"
           maxVisible={4}
         />
         <Box marginTop={1}>
-          <Text dimColor>
-            💡 未购买套餐？选"按量付费"即可
-            {provider?.id === "zhipu" ? " · GLM-4.7-Flash 永久免费" : ""}
-          </Text>
+          <Text dimColor>💡 未购买套餐？选"按量付费"即可</Text>
         </Box>
       </Box>
     );
@@ -252,23 +259,17 @@ export function LoginScreen({ width, onComplete }: LoginScreenProps): React.Reac
 
   function renderModelStep() {
     const items = models.map((m, i) => {
-      const priceLabel =
-        m.inputPricePerMTok === 0 && m.outputPricePerMTok === 0
-          ? "免费"
-          : `¥${m.inputPricePerMTok}/¥${m.outputPricePerMTok}`;
-      const tagLabel = m.tags?.length ? ` [${m.tags.join(", ")}]` : "";
-      const deprecatedLabel = m.deprecated ? ` (将于${m.deprecated}弃用)` : "";
       return {
         key: m.id,
         label: m.label,
-        description: `${priceLabel} · ${m.contextWindow}${tagLabel}${deprecatedLabel}`,
+        description: m.supportsThinking ? "支持思考模式" : "对话模型",
         selected: i === activeIndex,
       };
     });
 
     return (
       <Box flexDirection="column" marginTop={1}>
-        <Text color="#229ac3" bold>
+        <Text color="#2d8a4e" bold>
           {provider?.icon} {provider?.label} — 选择模型
         </Text>
         <DropdownMenu
@@ -276,7 +277,7 @@ export function LoginScreen({ width, onComplete }: LoginScreenProps): React.Reac
           items={items}
           activeIndex={activeIndex}
           title="选择模型"
-          activeColor="#229ac3"
+          activeColor="#2d8a4e"
           helpText="↑↓ 选择 · Enter 确认 · Esc 返回"
           maxVisible={6}
         />
@@ -285,14 +286,11 @@ export function LoginScreen({ width, onComplete }: LoginScreenProps): React.Reac
   }
 
   function renderApiKeyStep() {
-    const maskedKey =
-      apiKey.length > 8
-        ? `${apiKey.slice(0, 4)}${"•".repeat(Math.min(apiKey.length - 8, 20))}${apiKey.slice(-4)}`
-        : apiKey;
+    const maskedKey = "•".repeat(Math.min(apiKey.length, 28));
 
     return (
       <Box flexDirection="column" marginTop={1}>
-        <Text color="#229ac3" bold>
+        <Text color="#2d8a4e" bold>
           🔑 {provider?.label} API Key
         </Text>
         <Box flexDirection="column" marginTop={1}>
@@ -302,7 +300,7 @@ export function LoginScreen({ width, onComplete }: LoginScreenProps): React.Reac
           <Text dimColor> 3. Key 格式: {provider?.keyFormat}</Text>
         </Box>
         <Box flexDirection="row" marginTop={1}>
-          <Text color="#229ac3">{">"}_ </Text>
+          <Text color="#2d8a4e">{">"}_ </Text>
           <Text>{maskedKey}</Text>
           <Text color="gray">▎</Text>
         </Box>

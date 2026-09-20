@@ -2,12 +2,12 @@ import React, { useMemo, useState } from "react";
 import { Box, Text } from "ink";
 import * as os from "node:os";
 import path from "node:path";
-import type { SkillInfo } from "@YuanyuanMa03/cropcode-core";
-import type { ResolvedCropcodeSettings } from "@YuanyuanMa03/cropcode-core";
+import type { SkillInfo } from "@yuanyuanma03/cropcode-core";
+import type { ResolvedCropcodeSettings } from "@yuanyuanma03/cropcode-core";
 import { buildSlashCommands, formatSlashCommandDescription } from "../core/slash-commands";
-import { getActiveProviderLabel, getActiveModelLabel } from "@YuanyuanMa03/cropcode-core";
+import { findProviderByBaseURL } from "@yuanyuanma03/cropcode-core";
 import { ThemedGradient, THEME_COLORS } from "./ThemedGradient";
-import { AsciiLogo } from "../../AsciiArt";
+import { AsciiLogo } from "../ascii-art";
 import { useAppContext } from "../contexts";
 
 type WelcomeScreenProps = {
@@ -15,7 +15,7 @@ type WelcomeScreenProps = {
   settings: ResolvedCropcodeSettings;
   skills: SkillInfo[];
   width: number;
-  totalTokens: number;
+  totalTokens?: number;
 };
 
 const TITLE_PANEL_WIDTH = 70;
@@ -41,7 +41,9 @@ const KEYBOARD_SHORTCUT_TIPS = [
   { label: "Ctrl+V", description: "粘贴剪贴板图片" },
   { label: "Esc", description: "中断当前生成" },
   { label: "/", description: "打开技能/命令菜单" },
-  { label: "Ctrl+D", description: "退出 CropCode" },
+  { label: "Ctrl+D", description: "连续两次退出 CropCode" },
+  { label: "Ctrl+R", description: "切换原始显示" },
+  { label: "Shift+Tab", description: "切换规划模式" },
 ];
 
 export function WelcomeScreen({
@@ -49,7 +51,7 @@ export function WelcomeScreen({
   settings,
   skills,
   width,
-  totalTokens,
+  totalTokens = 0,
 }: WelcomeScreenProps): React.ReactElement {
   const { version } = useAppContext();
   const tips = useMemo(() => buildWelcomeTips(skills), [skills]);
@@ -88,8 +90,8 @@ export function WelcomeScreen({
             </Box>
             {!compact ? <Text color="gray"> 面向农业科研，助力田间试验、作物模型与数据分析 ⚡</Text> : null}
             {!compact ? <Text> </Text> : null}
-            <SettingRow label="服务商" value={getActiveProviderLabel()} />
-            <SettingRow label="模型" value={getActiveModelLabel() || settings.model} />
+            <SettingRow label="服务商" value={findProviderByBaseURL(settings.baseURL)?.label ?? "自定义服务"} />
+            <SettingRow label="模型" value={settings.model} />
             <SettingRow
               label="思考"
               value={settings.thinkingEnabled ? `深度思考 · ${settings.reasoningEffort}` : "关闭"}

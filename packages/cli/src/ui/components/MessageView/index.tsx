@@ -13,6 +13,7 @@ import type { DiffPreviewLine, MessageViewProps } from "./types";
 import { RawMode, useRawModeContext } from "../../contexts";
 
 const PROMPT_ECHO_PREFIX_WIDTH = 2;
+const PROMPT_ECHO_MARGIN_LEFT = 1;
 
 export function MessageView({ message, collapsed, width = 80 }: MessageViewProps): React.ReactElement | null {
   const { mode } = useRawModeContext();
@@ -21,7 +22,8 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
   }
 
   if (message.role === "user") {
-    const text = message.content || "(no content)";
+    const content = message.content || "(no content)";
+    const text = message.meta?.isAnswers ? renderMarkdown(content) : content;
     return (
       <PromptEchoLine
         text={text}
@@ -40,13 +42,13 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
       if (collapsed !== false) {
         return (
           <Box marginLeft={1} marginBottom={1} marginY={0}>
-            <StatusLine width={width} bulletColor="gray" name="思考中" params={summary} />
+            <StatusLine width={width} bulletColor="gray" name="Thinking" params={summary} />
           </Box>
         );
       }
       return (
         <Box marginLeft={1} flexDirection="column" marginBottom={1} marginY={0}>
-          <StatusLine width={width} bulletColor="gray" name="思考中" params={content ? "" : summary} />
+          <StatusLine width={width} bulletColor="gray" name="Thinking" params={content ? "" : summary} />
           <Box flexDirection="column" marginLeft={2}>
             {content ? <Text dimColor>{renderMarkdown(content)}</Text> : null}
           </Box>
@@ -60,7 +62,7 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
     return (
       <Box marginLeft={1} marginBottom={1} width={containerWidth} gap={1} marginY={0} flexDirection="row">
         <Box alignSelf="stretch">
-          <Text color="#2d8a4e">✦</Text>
+          <Text color="#229ac3">✦</Text>
         </Box>
         <Box flexGrow={1} width={contentWidth} flexDirection="column">
           {content
@@ -80,6 +82,14 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
               })
             : null}
         </Box>
+      </Box>
+    );
+  }
+
+  if ((message.role === "system" || message.role === "tool") && message.meta?.skill) {
+    return (
+      <Box marginY={0} marginLeft={1} marginBottom={1}>
+        <Text color="magenta">⚡ Loaded skill: {message.meta.skill.name}</Text>
       </Box>
     );
   }
@@ -108,36 +118,12 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
       return <PromptEchoLine text={message.content || ""} width={width} />;
     }
 
-    if (message.meta?.skill) {
-      return (
-        <Box marginY={0} marginLeft={1} marginBottom={1}>
-          <Text color="magenta">⚡ Loaded skill: {message.meta.skill.name}</Text>
-        </Box>
-      );
-    }
     if (message.meta?.isSummary) {
       return (
         <Box marginY={0} marginLeft={1} marginBottom={1}>
           <Text dimColor italic>
             (conversation summary inserted)
           </Text>
-        </Box>
-      );
-    }
-    if (
-      message.meta?.kind === "info" ||
-      message.meta?.kind === "marketplace" ||
-      message.meta?.kind === "plugin" ||
-      message.meta?.kind === "error"
-    ) {
-      const color = message.meta.kind === "error" ? "red" : "cyan";
-      return (
-        <Box marginY={0} marginLeft={1} marginBottom={1} flexDirection="column">
-          {(message.content ?? "").split("\n").map((line: string, i: number) => (
-            <Text key={i} color={color}>
-              {line}
-            </Text>
-          ))}
         </Box>
       );
     }
@@ -148,7 +134,7 @@ export function MessageView({ message, collapsed, width = 80 }: MessageViewProps
 }
 
 export function getPromptEchoContentWidth(width: number): number {
-  return Math.max(1, width - PROMPT_ECHO_PREFIX_WIDTH);
+  return Math.max(1, width - PROMPT_ECHO_MARGIN_LEFT - PROMPT_ECHO_PREFIX_WIDTH);
 }
 
 function PromptEchoLine({
@@ -161,16 +147,17 @@ function PromptEchoLine({
   attachmentCount?: number;
 }): React.ReactElement {
   const contentWidth = getPromptEchoContentWidth(width);
+  const containerWidth = Math.max(1, width - PROMPT_ECHO_MARGIN_LEFT);
   return (
-    <Box marginBottom={1} marginY={0} width={Math.max(1, width)} flexDirection="row">
+    <Box marginBottom={1} marginLeft={PROMPT_ECHO_MARGIN_LEFT} marginY={0} width={containerWidth} flexDirection="row">
       <Box width={PROMPT_ECHO_PREFIX_WIDTH}>
-        <Text color="#2d8a4e">{"> "}</Text>
+        <Text color="#229ac3">{"> "}</Text>
       </Box>
       <Box flexGrow={1} flexShrink={1} width={contentWidth}>
-        <Text color="#2d8a4e" wrap="hard">
+        <Text color="#229ac3" wrap="hard">
           {text}
         </Text>
-        {attachmentCount > 0 ? <Text color="#2d8a4e">{`  📎 ${attachmentCount} image attachment(s)`}</Text> : null}
+        {attachmentCount > 0 ? <Text color="#229ac3">{`  📎 ${attachmentCount} image attachment(s)`}</Text> : null}
       </Box>
     </Box>
   );

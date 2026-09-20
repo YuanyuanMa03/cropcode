@@ -19,9 +19,11 @@ JSON schema:
 ```
 
 Usage:
+
 - Do not reduce `query` to space-separated keywords.
 
 Typical use cases:
+
 - Confirm recent SDK, framework, or API changes
 - Check current compatibility, deprecations, or migration notes
 - Look up active issue tracker discussions or recent regressions

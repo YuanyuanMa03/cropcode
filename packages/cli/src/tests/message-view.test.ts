@@ -1,14 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import React from "react";
+import { renderToString } from "ink";
 import { parseDiffPreview } from "../ui";
+import { MessageView, getPromptEchoContentWidth } from "../ui/components/MessageView";
 import {
   buildThinkingSummary,
+  formatBashStatusParams,
+  formatToolStatusParams,
   renderMessageToStdout,
   getUpdatePlanPreviewLines,
   parseToolPayload,
 } from "../ui/components/MessageView/utils";
 import { RawMode } from "../ui/contexts";
-import type { SessionMessage } from "@YuanyuanMa03/cropcode-core";
+import type { SessionMessage } from "@yuanyuanma03/cropcode-core";
 import type { ToolSummary } from "../ui/components/MessageView/types";
 
 test("parseDiffPreview removes headers and classifies lines", () => {
@@ -60,6 +65,26 @@ test("MessageView shows full reasoning content in Normal/Raw mode", () => {
   );
 });
 
+test("formatBashStatusParams compacts multi-line commands and keeps the final description", () => {
+  assert.equal(
+    formatBashStatusParams('python3 -c "\nprint(1)\nprint(2)\n"  # Run inline script'),
+    'python3 -c " ... "  # Run inline script'
+  );
+});
+
+test("formatToolStatusParams preserves compacted Bash params but truncates other tools", () => {
+  assert.equal(
+    formatToolStatusParams({
+      name: "bash",
+      params: "cat <<'EOF'\nhello\nEOF  # Print heredoc",
+      ok: true,
+      metadata: null,
+    }),
+    "cat <<'EOF' ... EOF  # Print heredoc"
+  );
+  assert.equal(formatToolStatusParams({ name: "read", params: "first\nsecond", ok: true, metadata: null }), "first");
+});
+
 // --- renderMessageToStdout tests ---
 
 function makeSessionMessage(overrides: Partial<SessionMessage> & Pick<SessionMessage, "role">): SessionMessage {
@@ -80,6 +105,10 @@ function makeSessionMessage(overrides: Partial<SessionMessage> & Pick<SessionMes
   };
 }
 
+function stripAnsi(text: string): string {
+  return text.replace(/\u001b\[[0-9;]*m/g, "");
+}
+
 test("renderMessageToStdout returns empty for invisible messages", () => {
   const msg = makeSessionMessage({ role: "user", content: "hello", visible: false });
   assert.equal(renderMessageToStdout(msg, RawMode.Raw), "");
@@ -91,10 +120,75 @@ test("renderMessageToStdout renders user messages with > prefix", () => {
   assert.ok(output.includes("> fix the bug"));
 });
 
+test("MessageView renders only answer user messages as Markdown", () => {
+  const regular = makeSessionMessage({ role: "user", content: "**Questions answered**" });
+  const answers = makeSessionMessage({
+    role: "user",
+    content: "**Questions answered**",
+    meta: { isAnswers: true },
+  });
+
+  const regularOutput = stripAnsi(
+    renderToString(React.createElement(MessageView, { message: regular, width: 80 }), { columns: 80 })
+  );
+  const answersOutput = stripAnsi(
+    renderToString(React.createElement(MessageView, { message: answers, width: 80 }), { columns: 80 })
+  );
+
+  assert.match(regularOutput, /\*\*Questions answered\*\*/);
+  assert.doesNotMatch(answersOutput, /\*\*/);
+  assert.match(answersOutput, /Questions answered/);
+});
+
+test("renderMessageToStdout renders answer user messages as Markdown", () => {
+  const msg = makeSessionMessage({
+    role: "user",
+    content: "**Questions answered**",
+    meta: { isAnswers: true },
+  });
+  const output = stripAnsi(renderMessageToStdout(msg, RawMode.Raw));
+
+  assert.equal(output, "> Questions answered");
+});
+
 test("renderMessageToStdout shows (no content) for empty user messages", () => {
   const msg = makeSessionMessage({ role: "user", content: "" });
   const output = renderMessageToStdout(msg, RawMode.Raw);
   assert.ok(output.includes("(no content)"));
+});
+
+test("MessageView echoes submitted user prompts with live prompt wrapping width", () => {
+  assert.equal(getPromptEchoContentWidth(8), 5);
+
+  const msg = makeSessionMessage({ role: "user", content: "abcdefg" });
+  const output = renderToString(React.createElement(MessageView, { message: msg, width: 8 }), { columns: 8 });
+
+  const text = stripAnsi(output);
+  assert.equal(text, " > abcde\n   fg\n");
+  assert.ok(
+    text
+      .trimEnd()
+      .split("\n")
+      .every((line) => line.length <= 8)
+  );
+});
+
+test("MessageView echoes model changes with submitted prompt wrapping", () => {
+  const msg = makeSessionMessage({
+    role: "system",
+    content: "abcdefgh",
+    meta: { isModelChange: true },
+  });
+  const output = renderToString(React.createElement(MessageView, { message: msg, width: 8 }), { columns: 8 });
+
+  const text = stripAnsi(output);
+  assert.equal(text, " > abcde\n   fgh\n");
+  assert.ok(
+    text
+      .trimEnd()
+      .split("\n")
+      .every((line) => line.length <= 8)
+  );
 });
 
 test("renderMessageToStdout renders assistant non-thinking messages with ✦", () => {
@@ -137,6 +231,18 @@ test("renderMessageToStdout renders tool messages with resultMd output", () => {
   assert.ok(output.includes("└ Result"));
   assert.ok(output.includes("File content:"));
   assert.ok(output.includes("line 1"));
+});
+
+test("renderMessageToStdout compacts multi-line Bash params", () => {
+  const payload = JSON.stringify({ name: "bash", ok: true });
+  const msg = makeSessionMessage({
+    role: "tool",
+    content: payload,
+    meta: { paramsMd: 'python3 -c "\nprint(1)\nprint(2)\n"  # Run inline script' },
+  });
+  const output = renderMessageToStdout(msg, RawMode.Raw);
+  assert.ok(output.includes('python3 -c " ... "  # Run inline script'));
+  assert.ok(!output.includes("print(1)"));
 });
 
 test("renderMessageToStdout renders UpdatePlan tool messages with Plan preview and resultMd", () => {
@@ -192,6 +298,19 @@ test("renderMessageToStdout renders system skill load messages", () => {
   });
   const output = renderMessageToStdout(msg, RawMode.Raw);
   assert.ok(output.includes("⚡ Loaded skill: code-review"));
+});
+
+test("MessageView renders tool skill load messages with the existing skill status", () => {
+  const msg = makeSessionMessage({
+    role: "tool",
+    content: JSON.stringify({ ok: true, name: "skill", output: "full skill document" }),
+    meta: { skill: { name: "code-review", path: "", description: "" } },
+  });
+  const output = renderToString(React.createElement(MessageView, { message: msg }), { columns: 80 });
+
+  assert.ok(output.includes("⚡ Loaded skill: code-review"));
+  assert.equal(renderMessageToStdout(msg, RawMode.Raw).includes("⚡ Loaded skill: code-review"), true);
+  assert.equal(output.includes("full skill document"), false);
 });
 
 test("renderMessageToStdout renders system summary messages", () => {

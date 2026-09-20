@@ -1,0 +1,99 @@
+{
+  "name": "cropcode-vscode",
+  "version": "2.2.0",
+  "publisher": "YuanyuanMa03",
+  "displayName": "CropCode",
+  "description": "CropCode VSCode companion — AI-assisted development in your editor",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "./out/extension.js",
+  "preview": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YuanyuanMa03/cropcode.git",
+    "directory": "packages/vscode-ide-companion"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "keywords": [
+    "deep-code",
+    "deep code",
+    "deep",
+    "code",
+    "cli",
+    "ide integration",
+    "ide companion"
+  ],
+  "icon": "resources/cropcode_icon.png",
+  "activationEvents": [],
+  "files": [
+    "out/**",
+    "resources/**",
+    "templates/**",
+    "README.md",
+    "README_cn.md",
+    "README_en.md",
+    "LICENSE"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "cropcode.openView",
+        "title": "Open CropCode",
+        "icon": {
+          "light": "resources/cropcode_icon.svg",
+          "dark": "resources/cropcode_icon.svg"
+        }
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cropcode",
+          "title": "CropCode",
+          "icon": "resources/cropcode_icon.png"
+        }
+      ]
+    },
+    "views": {
+      "cropcode": [
+        {
+          "id": "cropcode.chatView",
+          "name": "CropCode",
+          "icon": "resources/cropcode_icon.png",
+          "type": "webview"
+        }
+      ]
+    },
+    "menus": {
+      "editor/title": [
+        {
+          "command": "cropcode.openView",
+          "group": "navigation@100"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p ./ --noEmit",
+    "build": "node ../../scripts/esbuild-vscode.config.js",
+    "prepublishOnly": "npm run build",
+    "package": "node ../../scripts/package-vscode.js",
+    "test": "node src/tests/run-tests.mjs"
+  },
+  "dependencies": {
+    "@yuanyuanma03/cropcode-core": "file:../core",
+    "markdown-it": "^14.2.0"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.1",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.6.0"
+  },
+  "homepage": "https://github.com/YuanyuanMa03/cropcode"
+}

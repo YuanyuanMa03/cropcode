@@ -13,21 +13,27 @@ import {
   formatSelectedSkillsStatus,
   getPromptCursorPlacement,
   getPromptReturnKeyAction,
+  isPromptCursorAtWrapBoundary,
   isClearImageAttachmentsShortcut,
-  parseTerminalInput,
+  isRawModeShortcut,
   removeCurrentSlashToken,
+  resolvePromptTerminalCursorPosition,
   toggleSkillSelection,
   renderBufferWithCursor,
   buildInitPromptSubmission,
   buildPromptDraftFromSessionMessage,
-  dispatchTerminalInput,
+  extractProposedPlan,
+  getClearContextImplementationPrompt,
+  getImplementationPrompt,
+  getPlanImplementationChoice,
   disableTerminalExtendedKeys,
   enableTerminalExtendedKeys,
   EMPTY_BUFFER,
   insertText,
   backspace,
 } from "../ui";
-import type { SessionMessage, SkillInfo } from "@YuanyuanMa03/cropcode-core";
+import type { SessionMessage, SkillInfo } from "@yuanyuanma03/cropcode-core";
+import { dispatchTerminalInput, parseTerminalInput } from "../ui/hooks";
 
 function collectDispatchedInput(data: string) {
   const events: ReturnType<typeof parseTerminalInput>[] = [];
@@ -75,6 +81,26 @@ test("parseTerminalInput recognizes word navigation modifiers", () => {
   assert.equal(metaRight.input, "f");
   assert.equal(metaRight.key.rightArrow, true);
   assert.equal(metaRight.key.meta, true);
+});
+
+test("parseTerminalInput recognizes application cursor mode arrows", () => {
+  const left = parseTerminalInput("\u001BOD");
+  const right = parseTerminalInput("\u001BOC");
+  assert.equal(left.key.leftArrow, true);
+  assert.equal(left.key.meta, false);
+  assert.equal(right.key.rightArrow, true);
+  assert.equal(right.key.meta, false);
+});
+
+test("parseTerminalInput recognizes ctrl+home and ctrl+end", () => {
+  const home = parseTerminalInput("\u001B[1;5H");
+  const end = parseTerminalInput("\u001B[1;5F");
+  assert.equal(home.key.home, true);
+  assert.equal(home.key.ctrl, true);
+  assert.equal(home.key.meta, false);
+  assert.equal(end.key.end, true);
+  assert.equal(end.key.ctrl, true);
+  assert.equal(end.key.meta, false);
 });
 
 test("parseTerminalInput keeps DEL payload for meta+backspace", () => {
@@ -138,6 +164,49 @@ test("parseTerminalInput recognizes shifted return sequences", () => {
   assert.equal(key.meta, false);
 });
 
+test("parseTerminalInput recognizes shift+tab for Plan Mode cycling", () => {
+  const { input, key } = parseTerminalInput("\u001B[Z");
+  assert.equal(input, "");
+  assert.equal(key.tab, true);
+  assert.equal(key.shift, true);
+});
+
+test("extractProposedPlan only returns a complete non-empty plan", () => {
+  assert.equal(extractProposedPlan("<proposed_plan>\nPlan\n</proposed_plan>"), "Plan");
+  assert.equal(extractProposedPlan("<proposed_plan>Plan"), null);
+  assert.equal(extractProposedPlan("<proposed_plan>\n</proposed_plan>"), null);
+});
+
+test("getImplementationPrompt uses Chinese only above five full-width punctuation marks", () => {
+  assert.equal(getImplementationPrompt("，、；。；"), "Implement the plan.");
+  assert.equal(getImplementationPrompt("，、；。；。"), "实现此方案。");
+});
+
+test("getClearContextImplementationPrompt carries the complete plan into a fresh context", () => {
+  const plan = "# 方案\n\n- 保留 `Markdown`\n- Verify tests";
+  const prompt = getClearContextImplementationPrompt(plan);
+
+  assert.equal(
+    prompt,
+    "A previous agent produced the plan below to accomplish the user's task. " +
+      "Implement the plan in a fresh context. Treat the plan as the source of " +
+      "user intent, re-read files as needed, and carry the work through " +
+      `implementation and verification.\n\n${plan}`
+  );
+});
+
+test("getPlanImplementationChoice maps all four number shortcuts", () => {
+  const key = { escape: false, return: false };
+  assert.equal(getPlanImplementationChoice("1", key, 0), "implement");
+  assert.equal(getPlanImplementationChoice("2", key, 0), "clear-context");
+  assert.equal(getPlanImplementationChoice("3", key, 0), "stay");
+  assert.equal(getPlanImplementationChoice("4", key, 0), "default");
+});
+
+test("getPlanImplementationChoice treats escape as staying in Plan Mode", () => {
+  assert.equal(getPlanImplementationChoice("", { escape: true, return: false }, 0), "stay");
+});
+
 test("prompt return key action submits on plain enter", () => {
   const { key } = parseTerminalInput("\r");
   assert.equal(getPromptReturnKeyAction(key), "submit");
@@ -189,6 +258,33 @@ test("buildPromptDraftFromSessionMessage restores text and image urls", () => {
   });
 });
 
+test("buildPromptDraftFromSessionMessage prefers stored prompt image urls", () => {
+  const message: SessionMessage = {
+    id: "user-with-stored-images",
+    sessionId: "session-1",
+    role: "user",
+    content: "revise this prompt",
+    contentParams: null,
+    messageParams: null,
+    compacted: false,
+    visible: true,
+    createTime: "2026-01-01T00:00:00.000Z",
+    updateTime: "2026-01-01T00:00:00.000Z",
+    meta: {
+      userPrompt: {
+        text: "revise this prompt",
+        imageUrls: ["file:///tmp/image.png"],
+      },
+    },
+  };
+
+  assert.deepEqual(buildPromptDraftFromSessionMessage(message, 8), {
+    nonce: 8,
+    text: "revise this prompt",
+    imageUrls: ["file:///tmp/image.png"],
+  });
+});
+
 test("parseTerminalInput recognizes terminal focus events", () => {
   const focusIn = parseTerminalInput("\u001B[I");
   const focusOut = parseTerminalInput("\u001B[O");
@@ -203,6 +299,13 @@ test("parseTerminalInput recognizes ctrl+x as the image attachment clear shortcu
   assert.equal(input, "x");
   assert.equal(key.ctrl, true);
   assert.equal(isClearImageAttachmentsShortcut(input, key), true);
+});
+
+test("parseTerminalInput recognizes ctrl+r as the raw mode shortcut", () => {
+  const { input, key } = parseTerminalInput("\u0012");
+  assert.equal(input, "r");
+  assert.equal(key.ctrl, true);
+  assert.equal(isRawModeShortcut(input, key), true);
 });
 
 test("parseTerminalInput recognizes ctrl+- modifyOtherKeys sequence (standard)", () => {
@@ -295,24 +398,83 @@ test("renderBufferWithCursor styles exactly one simulated cursor", () => {
   assert.equal((renderBufferWithCursor({ text: "hello\nworld", cursor: 6 }, true).match(ANSI_RE) ?? []).length, 2);
 });
 
-test("getPromptCursorPlacement targets the prompt row above divider and footer", () => {
-  const placement = getPromptCursorPlacement({ text: "hello", cursor: 5 }, 80, 2, "Enter send");
-  assert.deepEqual(placement, { rowsUp: 3, column: 7 });
+test("renderBufferWithCursor can suppress the simulated cursor for real terminal cursor mode", () => {
+  assert.equal(
+    (renderBufferWithCursor({ text: "", cursor: 0 }, true, undefined, undefined, false).match(ANSI_RE) ?? []).length,
+    0
+  );
+  assert.equal(
+    stripAnsi(renderBufferWithCursor({ text: "", cursor: 0 }, true, "Ask anything", undefined, false)),
+    "  Ask anything"
+  );
+  assert.equal(
+    (renderBufferWithCursor({ text: "hello", cursor: 1 }, true, undefined, undefined, false).match(ANSI_RE) ?? [])
+      .length,
+    0
+  );
+  assert.equal(
+    stripAnsi(renderBufferWithCursor({ text: "hello\n", cursor: 6 }, true, undefined, undefined, false)),
+    "hello\n "
+  );
+});
+
+test("getPromptCursorPlacement targets an Ink-relative prompt cell", () => {
+  const placement = getPromptCursorPlacement({ text: "hello", cursor: 5 }, 80);
+  assert.deepEqual(placement, { row: 0, column: 5 });
 });
 
 test("getPromptCursorPlacement targets the reserved row after a trailing newline", () => {
-  const placement = getPromptCursorPlacement({ text: "hello\n", cursor: 6 }, 80, 2, "Enter send");
-  assert.deepEqual(placement, { rowsUp: 3, column: 2 });
+  const placement = getPromptCursorPlacement({ text: "hello\n", cursor: 6 }, 80);
+  assert.deepEqual(placement, { row: 1, column: 0 });
 });
 
 test("getPromptCursorPlacement accounts for CJK character width", () => {
-  const placement = getPromptCursorPlacement({ text: "你好", cursor: 2 }, 80, 2, "Enter send");
-  assert.equal(placement.column, 6);
+  const placement = getPromptCursorPlacement({ text: "你好", cursor: 2 }, 80);
+  assert.equal(placement.column, 4);
 });
 
 test("getPromptCursorPlacement accounts for multiline buffer rows", () => {
-  const placement = getPromptCursorPlacement({ text: "hello\nworld", cursor: 11 }, 80, 2, "Enter send");
-  assert.deepEqual(placement, { rowsUp: 3, column: 7 });
-  const middle = getPromptCursorPlacement({ text: "hello\nworld", cursor: 2 }, 80, 2, "Enter send");
-  assert.deepEqual(middle, { rowsUp: 4, column: 4 });
+  const placement = getPromptCursorPlacement({ text: "hello\nworld", cursor: 11 }, 80);
+  assert.deepEqual(placement, { row: 1, column: 5 });
+  const middle = getPromptCursorPlacement({ text: "hello\nworld", cursor: 2 }, 80);
+  assert.deepEqual(middle, { row: 0, column: 2 });
+});
+
+test("getPromptCursorPlacement accounts for wrapped input rows", () => {
+  const placement = getPromptCursorPlacement({ text: "hello", cursor: 5 }, 5);
+  assert.deepEqual(placement, { row: 1, column: 0 });
+  const cursorBeforeWrappedChar = getPromptCursorPlacement({ text: "hello!", cursor: 5 }, 5);
+  assert.deepEqual(cursorBeforeWrappedChar, { row: 1, column: 0 });
+  const secondLine = getPromptCursorPlacement({ text: "hello!", cursor: 6 }, 5);
+  assert.deepEqual(secondLine, { row: 1, column: 1 });
+});
+
+test("isPromptCursorAtWrapBoundary detects hard-wrapped cursor positions", () => {
+  assert.equal(isPromptCursorAtWrapBoundary({ text: "hell", cursor: 4 }, 5), false);
+  assert.equal(isPromptCursorAtWrapBoundary({ text: "hello", cursor: 5 }, 5), true);
+  assert.equal(isPromptCursorAtWrapBoundary({ text: "hello!", cursor: 6 }, 5), true);
+  assert.equal(isPromptCursorAtWrapBoundary({ text: "hello world", cursor: 6 }, 5), true);
+  assert.equal(isPromptCursorAtWrapBoundary({ text: "hello\n", cursor: 6 }, 5), false);
+  assert.equal(isPromptCursorAtWrapBoundary({ text: "hello\nworld", cursor: 11 }, 5), true);
+});
+
+test("resolvePromptTerminalCursorPosition requires matching measured layout", () => {
+  const placement = { row: 1, column: 4 };
+  const origin = { layoutKey: "skills:1", left: 2, top: 3 };
+
+  assert.deepEqual(resolvePromptTerminalCursorPosition(placement, true, "skills:1", origin), { x: 6, y: 4 });
+  assert.equal(resolvePromptTerminalCursorPosition(placement, true, "skills:0", origin), undefined);
+  assert.equal(resolvePromptTerminalCursorPosition(placement, false, "skills:1", origin), undefined);
+  assert.equal(resolvePromptTerminalCursorPosition(placement, true, "skills:1", null), undefined);
+});
+
+test("resolvePromptTerminalCursorPosition clamps negative terminal cells", () => {
+  assert.deepEqual(
+    resolvePromptTerminalCursorPosition({ row: 0, column: 1 }, true, "current", {
+      layoutKey: "current",
+      left: -5,
+      top: -1,
+    }),
+    { x: 0, y: 0 }
+  );
 });

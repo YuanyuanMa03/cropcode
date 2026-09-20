@@ -1,14 +1,18 @@
 import * as fs from "fs";
 import * as path from "path";
 import ignore from "ignore";
-import type { ToolExecutionContext, ToolExecutionFollowUpMessage, ToolExecutionResult } from "./executor";
+import type { ToolExecutionContext, ToolExecutionResult } from "./executor";
 import { readTextFileWithMetadata } from "../common/file-utils";
-import { createSnippet, isAbsoluteFilePath, markFileRead, normalizeFilePath } from "../common/state";
+import {
+  createFullFileSnippet,
+  createSnippet,
+  isAbsoluteFilePath,
+  markFileRead,
+  normalizeFilePath,
+} from "../common/state";
 
 const DEFAULT_LINE_LIMIT = 2000;
 const MAX_LINE_LENGTH = 2000;
-const PDF_LARGE_PAGE_THRESHOLD = 10;
-const PDF_MAX_PAGE_RANGE = 20;
 const LINE_NUMBER_WIDTH = 6;
 const DEFAULT_GITIGNORE = [
   "node_modules/",
@@ -35,12 +39,6 @@ const DEFAULT_GITIGNORE = [
   "target/",
 ];
 
-type PageRange = {
-  start: number;
-  end: number;
-  count: number;
-};
-
 type TextReadResult = {
   content: string;
   output: string;
@@ -57,64 +55,15 @@ export async function handleReadTool(
   args: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  let filePath = typeof args.file_path === "string" ? normalizeFilePath(args.file_path) : "";
-  if (!filePath.trim()) {
+  const resolved = resolveReadFilePath(args.file_path, context.projectRoot);
+  if (!resolved.ok) {
     return {
       ok: false,
       name: "read",
-      error: 'Missing required "file_path" string.',
+      error: resolved.error,
     };
   }
-
-  if (!isAbsoluteFilePath(filePath)) {
-    if (filePath.startsWith("../") || filePath.startsWith("..\\")) {
-      return {
-        ok: false,
-        name: "read",
-        error: "file_path must be an absolute path.",
-      };
-    }
-    const normalizedSuffix = normalizeRelativeSuffix(filePath);
-    const isIgnored = loadGitignoreMatcher(context.projectRoot);
-    const matches = normalizedSuffix ? findSuffixMatches(context.projectRoot, normalizedSuffix, isIgnored) : [];
-    if (matches.length > 1) {
-      return {
-        ok: false,
-        name: "read",
-        error:
-          "file_path must be an absolute path. " +
-          `The file_path is ambiguous and may refer to multiple files:\n${matches.slice(0, 3).join("\n")}` +
-          (matches.length > 3 ? `\n...and ${matches.length - 3} more.` : ""),
-      };
-    }
-
-    const resolvedPath = path.resolve(context.projectRoot, filePath);
-    if (!fs.existsSync(resolvedPath)) {
-      if (matches.length > 0) {
-        return {
-          ok: false,
-          name: "read",
-          error: "file_path must be an absolute path. " + `The file_path "${filePath}" is ambiguous.`,
-        };
-      } else {
-        return {
-          ok: false,
-          name: "read",
-          error: `File not found: ${filePath}`,
-        };
-      }
-    }
-
-    filePath = resolvedPath;
-  }
-
-  if (!fs.existsSync(filePath)) {
-    return {
-      ok: false,
-      name: "read",
-      error: `File not found: ${filePath}`,
-    };
-  }
+  const filePath = resolved.filePath;
 
   let stat: fs.Stats;
   try {
@@ -153,36 +102,8 @@ export async function handleReadTool(
     }
 
     if (ext === ".pdf") {
-      const pagesParam = typeof args.pages === "string" ? args.pages.trim() : "";
       const buffer = fs.readFileSync(filePath);
       const pageCount = countPdfPages(buffer);
-      const pageRange = pagesParam ? parsePageRange(pagesParam) : null;
-
-      if (!pageRange && pageCount !== null && pageCount > PDF_LARGE_PAGE_THRESHOLD) {
-        return {
-          ok: false,
-          name: "read",
-          error: `PDF has ${pageCount} pages; provide "pages" to read a range.`,
-        };
-      }
-
-      if (pageRange && pageRange.count > PDF_MAX_PAGE_RANGE) {
-        return {
-          ok: false,
-          name: "read",
-          error: `PDF page range exceeds ${PDF_MAX_PAGE_RANGE} pages.`,
-        };
-      }
-
-      if (pageRange && pageCount !== null && pageRange.end > pageCount) {
-        return {
-          ok: false,
-          name: "read",
-          error: `PDF page range exceeds total page count (${pageCount}).`,
-        };
-      }
-
-      const base64 = buffer.toString("base64");
       markFileRead(context.sessionId, filePath, {
         content: "",
         timestamp: Math.floor(stat.mtimeMs),
@@ -191,34 +112,21 @@ export async function handleReadTool(
       return {
         ok: true,
         name: "read",
-        output: `data:application/pdf;base64,${base64}`,
+        output: "WARNING: File is binary.",
         metadata: {
           mime: "application/pdf",
           encoding: "base64",
           bytes: buffer.length,
           pageCount,
-          pages: pageRange ? `${pageRange.start}-${pageRange.end}` : null,
         },
       };
     }
 
     if (isImageExtension(ext)) {
-      const buffer = fs.readFileSync(filePath);
-      const mime = getImageMimeType(ext);
-      markFileRead(context.sessionId, filePath, {
-        content: "",
-        timestamp: Math.floor(stat.mtimeMs),
-        isPartialView: true,
-      });
       return {
-        ok: true,
+        ok: false,
         name: "read",
-        output: "File loaded.",
-        metadata: {
-          mime,
-          bytes: buffer.length,
-        },
-        followUpMessages: [buildImageFollowUpMessage(filePath, mime, buffer)],
+        error: "Image files are not supported by read. Use ReadImage or UnderstandImage instead.",
       };
     }
 
@@ -249,13 +157,9 @@ export async function handleReadTool(
       encoding: textResult.encoding,
       lineEndings: textResult.lineEndings,
     });
-    const snippet = createSnippet(
-      context.sessionId,
-      filePath,
-      textResult.startLine,
-      textResult.endLine,
-      textResult.output
-    );
+    const snippet = textResult.isPartialView
+      ? createSnippet(context.sessionId, filePath, textResult.startLine, textResult.endLine, textResult.output)
+      : createFullFileSnippet(context.sessionId, filePath, textResult.startLine, textResult.endLine, textResult.output);
     return {
       ok: true,
       name: "read",
@@ -279,6 +183,51 @@ export async function handleReadTool(
       error: message,
     };
   }
+}
+
+export function resolveReadFilePath(
+  value: unknown,
+  projectRoot: string
+): { ok: true; filePath: string } | { ok: false; error: string } {
+  let filePath = typeof value === "string" ? normalizeFilePath(value) : "";
+  if (!filePath.trim()) {
+    return { ok: false, error: 'Missing required "file_path" string.' };
+  }
+
+  if (!isAbsoluteFilePath(filePath)) {
+    if (filePath.startsWith("../") || filePath.startsWith("..\\")) {
+      return { ok: false, error: "file_path must be an absolute path." };
+    }
+    const normalizedSuffix = normalizeRelativeSuffix(filePath);
+    const isIgnored = loadGitignoreMatcher(projectRoot);
+    const matches = normalizedSuffix ? findSuffixMatches(projectRoot, normalizedSuffix, isIgnored) : [];
+    if (matches.length > 1) {
+      return {
+        ok: false,
+        error:
+          "file_path must be an absolute path. " +
+          `The file_path is ambiguous and may refer to multiple files:\n${matches.slice(0, 3).join("\n")}` +
+          (matches.length > 3 ? `\n...and ${matches.length - 3} more.` : ""),
+      };
+    }
+
+    const resolvedPath = path.resolve(projectRoot, filePath);
+    if (!fs.existsSync(resolvedPath)) {
+      if (matches.length > 0) {
+        return {
+          ok: false,
+          error: "file_path must be an absolute path. " + `The file_path "${filePath}" is ambiguous.`,
+        };
+      }
+      return { ok: false, error: `File not found: ${filePath}` };
+    }
+    filePath = resolvedPath;
+  }
+
+  if (!fs.existsSync(filePath)) {
+    return { ok: false, error: `File not found: ${filePath}` };
+  }
+  return { ok: true, filePath };
 }
 
 function normalizeRelativeSuffix(relativePath: string): string | null {
@@ -438,13 +387,9 @@ function readTextFile(filePath: string, offset: number | null, limit: number): T
   const startLine = startIndex + 1;
   const endLine = selected.length > 0 ? startIndex + selected.length : startLine;
   const isPartialView = startLine !== 1 || endLine < lines.length;
-  let output = formatWithLineNumbers(selected, startLine);
-  if (isPartialView) {
-    output += `\n\n[File has ${lines.length} total lines. Shown lines ${startLine}-${endLine}. Use offset=${endLine + 1} to continue reading.]`;
-  }
   return {
     content: selected.join("\n"),
-    output,
+    output: formatWithLineNumbers(selected, startLine),
     startLine,
     endLine,
     totalLines: lines.length,
@@ -459,59 +404,14 @@ function formatWithLineNumbers(lines: string[], startLineNumber: number): string
   return lines
     .map((line, index) => {
       const lineNumber = startLineNumber + index;
-      const truncated = line.length > MAX_LINE_LENGTH;
-      const trimmedLine = truncated ? line.slice(0, MAX_LINE_LENGTH) : line;
-      const suffix = truncated ? ` ... [line truncated, ${line.length} chars total]` : "";
-      return `${String(lineNumber).padStart(LINE_NUMBER_WIDTH, " ")}\t${trimmedLine}${suffix}`;
+      const trimmedLine = line.length > MAX_LINE_LENGTH ? line.slice(0, MAX_LINE_LENGTH) : line;
+      return `${String(lineNumber).padStart(LINE_NUMBER_WIDTH, " ")}\t${trimmedLine}`;
     })
     .join("\n");
 }
 
 function isImageExtension(ext: string): boolean {
   return [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".svg", ".ico", ".avif"].includes(ext);
-}
-
-function getImageMimeType(ext: string): string {
-  switch (ext) {
-    case ".jpg":
-    case ".jpeg":
-      return "image/jpeg";
-    case ".gif":
-      return "image/gif";
-    case ".webp":
-      return "image/webp";
-    case ".bmp":
-      return "image/bmp";
-    case ".tif":
-    case ".tiff":
-      return "image/tiff";
-    case ".svg":
-      return "image/svg+xml";
-    case ".ico":
-      return "image/x-icon";
-    case ".avif":
-      return "image/avif";
-    case ".png":
-    default:
-      return "image/png";
-  }
-}
-
-function buildImageFollowUpMessage(filePath: string, mime: string, buffer: Buffer): ToolExecutionFollowUpMessage {
-  const fileName = path.basename(filePath);
-  return {
-    role: "system",
-    content:
-      `The read tool has loaded \`${fileName}\`. ` + "Use the attached image content to answer the original request.",
-    contentParams: [
-      {
-        type: "image_url",
-        image_url: {
-          url: `data:${mime};base64,${buffer.toString("base64")}`,
-        },
-      },
-    ],
-  };
 }
 
 function countPdfPages(buffer: Buffer): number | null {
@@ -522,45 +422,6 @@ function countPdfPages(buffer: Buffer): number | null {
   } catch {
     return null;
   }
-}
-
-function parsePageRange(input: string): PageRange {
-  const trimmed = input.trim();
-  if (!trimmed) {
-    throw new Error("pages must be a non-empty string.");
-  }
-  if (trimmed.includes(",")) {
-    throw new Error('pages must be a single range like "1-5" or "3".');
-  }
-
-  const parts = trimmed.split("-").map((part) => part.trim());
-  if (parts.length === 1) {
-    const value = parsePositiveInt(parts[0], "pages");
-    return { start: value, end: value, count: 1 };
-  }
-
-  if (parts.length === 2) {
-    const start = parsePositiveInt(parts[0], "pages");
-    const end = parsePositiveInt(parts[1], "pages");
-    if (end < start) {
-      throw new Error("pages range end must be >= start.");
-    }
-    return { start, end, count: end - start + 1 };
-  }
-
-  throw new Error('pages must be a single range like "1-5" or "3".');
-}
-
-function parsePositiveInt(value: string, label: string): number {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    throw new Error(`${label} must be a number.`);
-  }
-  const integer = Math.trunc(numeric);
-  if (integer < 1) {
-    throw new Error(`${label} must be >= 1.`);
-  }
-  return integer;
 }
 
 function readNotebook(filePath: string): string {

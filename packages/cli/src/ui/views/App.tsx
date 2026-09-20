@@ -1,176 +1,89 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Box, Static, Text, useApp, useStdout, useWindowSize } from "ink";
 import chalk from "chalk";
-import * as fs from "fs";
-import { createOpenAIClient } from "@YuanyuanMa03/cropcode-core";
-import { listMarketplaces, listInstalledPlugins } from "@YuanyuanMa03/cropcode-core";
-import {
-  type LlmStreamProgress,
-  type MessageMeta,
-  type SessionEntry,
-  SessionManager,
-  type SessionMessage,
-  type SessionStatus,
-  type SkillInfo,
-  type UndoTarget,
-  type UserPromptContent,
-} from "@YuanyuanMa03/cropcode-core";
-import {
-  applyModelConfigSelection,
-  type CropcodeSettings,
-  type ModelConfigSelection,
-  type PermissionDefaultMode,
-  type PermissionScope,
-  type ResolvedCropcodeSettings,
-  resolveSettingsSources,
-  readSettings,
-  readProjectSettings,
-  writeSettings,
-  writeProjectSettings,
-  getProjectSettingsPath,
-  type ReasoningEffort,
-} from "@YuanyuanMa03/cropcode-core";
-import { PromptInput, type PromptDraft, type PromptSubmission } from "./PromptInput";
+import { createOpenAIClient } from "@yuanyuanma03/cropcode-core";
+import type { PermissionScope } from "@yuanyuanma03/cropcode-core";
+import { type ModelConfigSelection } from "@yuanyuanma03/cropcode-core";
+import { type PromptDraft, PromptInput, type PromptSubmission } from "./PromptInput";
 import { MessageView, RawModeExitPrompt } from "../components";
 import { SessionList } from "./SessionList";
-import { UndoSelector, type UndoRestoreMode } from "./UndoSelector";
+import { type UndoRestoreMode, UndoSelector } from "./UndoSelector";
+import { StatusLine } from "../components/status-line";
 import { buildLoadingText } from "../core/loading-text";
 import { findExpandedThinkingId } from "../core/thinking-state";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { LoginScreen } from "../LoginScreen";
-import {
-  hasCredentials,
-  getActiveApiKey,
-  getActiveBaseURL,
-  getActiveModel,
-  getActiveCredential,
-  setActiveCredential,
-  getActiveThinkingEnabled,
-  getActiveReasoningEffort,
-} from "@YuanyuanMa03/cropcode-core";
-import { BUILTIN_PROVIDERS } from "@YuanyuanMa03/cropcode-core";
 import { AskUserQuestionPrompt } from "./AskUserQuestionPrompt";
 import { McpStatusList } from "./McpStatusList";
-import { PermissionPrompt, type PermissionPromptResult } from "./PermissionPrompt";
-import type { AskPermissionRequest, UserToolPermission } from "@YuanyuanMa03/cropcode-core";
 import { ProcessStdoutView } from "./ProcessStdoutView";
 import {
   type AskUserQuestionAnswers,
   findPendingAskUserQuestion,
   formatAskUserQuestionAnswers,
 } from "../core/ask-user-question";
-import { buildExitSummaryText } from "../exit-summary";
+import { PermissionPrompt, type PermissionPromptResult } from "./PermissionPrompt";
+import {
+  PlanImplementationPrompt,
+  extractProposedPlan,
+  getClearContextImplementationPrompt,
+  getImplementationPrompt,
+  type PlanImplementationChoice,
+} from "./PlanImplementationPrompt";
+import { buildExitSummaryText, buildPluginRateLimitHintText, buildResumeHintText } from "../exit-summary";
 import { RawMode, useRawModeContext } from "../contexts";
 import { renderMessageToStdout } from "../components/MessageView/utils";
-import { ANSI_CLEAR_SCREEN } from "../constants";
 import {
-  buildSyntheticUserMessage,
+  buildPromptDraftFromSessionMessage,
+  buildPromptHistory,
   buildStatusLine,
+  buildSyntheticUserMessage,
   formatModelConfig,
   isCurrentSessionEmpty,
-  extractImageUrlsFromContentParams,
+  renderRawModeMessages,
 } from "../utils";
-
-// Derive defaults from the first provider preset instead of hardcoding a specific vendor
-const FIRST_PROVIDER = BUILTIN_PROVIDERS[0];
-const DEFAULT_MODEL = FIRST_PROVIDER?.models[0]?.id ?? "deepseek-v4-pro";
-const DEFAULT_BASE_URL = FIRST_PROVIDER?.baseURL ?? "https://api.deepseek.com";
+import { resolveCurrentSettings, writeModelConfigSelection } from "@yuanyuanma03/cropcode-core";
+import { useStatusLine } from "../hooks";
+import type { SessionInfo } from "../statusline";
+import { isCollapsedThinking } from "../core/thinking-state";
+import { ANSI_CLEAR_SCREEN } from "../constants";
+import type {
+  LlmStreamProgress,
+  LlmRetryEvent,
+  MessageMeta,
+  SessionEntry,
+  SessionMessage,
+  SessionStatus,
+  SkillInfo,
+  UndoTarget,
+  UserPromptContent,
+} from "@yuanyuanma03/cropcode-core";
+import { SessionManager } from "@yuanyuanma03/cropcode-core";
+import { writeStdout, writeStdoutLine } from "../../utils/stdio-helpers";
 
 type View = "chat" | "session-list" | "undo" | "mcp-status" | "login";
-
-const STATUS_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-
-const BUSY_PHRASES = [
-  "翻阅农业文献",
-  "分析田间数据",
-  "构建作物模型",
-  "处理遥感影像",
-  "设计试验方案",
-  "统计产量数据",
-  "优化模型参数",
-  "解析土壤数据",
-  "计算植被指数",
-  "拟合生长曲线",
-  "检验假设条件",
-  "评估模型精度",
-  "整理实验记录",
-  "推导数学公式",
-  "调试分析脚本",
-];
 
 type AppProps = {
   projectRoot: string;
   initialPrompt?: string;
+  resumeSessionId?: string | true;
+  forkSessionId?: string;
   onRestart?: () => void;
 };
 
-const StatusLine = React.memo(function StatusLine({
-  busy,
-  text,
-}: {
-  busy: boolean;
-  text?: string;
-}): React.ReactElement {
-  const [spinnerIndex, setSpinnerIndex] = useState(0);
-  const [phraseIndex, setPhraseIndex] = useState(0);
-
-  useEffect(() => {
-    if (!busy) {
-      setSpinnerIndex(0);
-      setPhraseIndex(0);
-      return;
-    }
-
-    const spinnerTimer = setInterval(() => {
-      setSpinnerIndex((index) => (index + 1) % STATUS_SPINNER_FRAMES.length);
-    }, 80);
-    const phraseTimer = setInterval(() => {
-      setPhraseIndex((index) => (index + 1) % BUSY_PHRASES.length);
-    }, 2500);
-    return () => {
-      clearInterval(spinnerTimer);
-      clearInterval(phraseTimer);
-    };
-  }, [busy]);
-
-  return (
-    <Box>
-      {busy ? (
-        <Box marginRight={1}>
-          <Text color="yellow">{STATUS_SPINNER_FRAMES[spinnerIndex]}</Text>
-        </Box>
-      ) : null}
-      {busy ? (
-        <Box marginRight={1}>
-          <Text color="green">{BUSY_PHRASES[phraseIndex]}</Text>
-        </Box>
-      ) : null}
-      {text ? <Text dimColor>{text}</Text> : null}
-    </Box>
-  );
-});
-
-export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.ReactElement {
+function App({ projectRoot, initialPrompt, resumeSessionId, forkSessionId, onRestart }: AppProps): React.ReactElement {
   const { exit } = useApp();
   const { stdout, write } = useStdout();
   const { columns, rows } = useWindowSize();
   const { mode, setMode } = useRawModeContext();
   const initialPromptSubmittedRef = useRef(false);
+  const resumeSessionIdRef = useRef(false);
+  const startupDoneRef = useRef(false);
   const processStdoutRef = useRef<Map<number, string>>(new Map());
   const rawModeRef = useRef<RawMode>(mode);
   const writeRef = useRef(write);
   const lastRenderedColumnsRef = useRef<number | null>(null);
   const messagesRef = useRef<SessionMessage[]>([]);
-  // Existing users with settings.json API keys should not be forced into login
-  const hasLegacyApiKey = (() => {
-    try {
-      const s = resolveCurrentSettings(projectRoot);
-      return !!s.apiKey;
-    } catch {
-      return false;
-    }
-  })();
-  const [view, setView] = useState<View>(hasCredentials() || hasLegacyApiKey ? "chat" : "login");
+  const [view, setView] = useState<View>("chat");
   const [busy, setBusy] = useState(false);
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [messages, setMessages] = useState<SessionMessage[]>([]);
@@ -180,14 +93,13 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const [statusLine, setStatusLine] = useState<string>("");
   const [errorLine, setErrorLine] = useState<string | null>(null);
   const [streamProgress, setStreamProgress] = useState<LlmStreamProgress | null>(null);
-  const [streamingContent, setStreamingContent] = useState<string>("");
-  const [streamingReasoning, setStreamingReasoning] = useState<string>("");
+  const [retryEvent, setRetryEvent] = useState<LlmRetryEvent | null>(null);
   const [runningProcesses, setRunningProcesses] = useState<SessionEntry["processes"]>(null);
   const [activeStatus, setActiveStatus] = useState<SessionStatus | null>(null);
-  const [askPermissions, setAskPermissions] = useState<AskPermissionRequest[]>([]);
+  const [activeAskPermissions, setActiveAskPermissions] = useState<SessionEntry["askPermissions"]>(undefined);
   const [pendingPermissionReply, setPendingPermissionReply] = useState<{
     sessionId: string;
-    permissions: UserToolPermission[];
+    permissions: PermissionPromptResult["permissions"];
     alwaysAllows: PermissionScope[];
   } | null>(null);
   const [dismissedQuestionIds, setDismissedQuestionIds] = useState<Set<string>>(() => new Set());
@@ -198,15 +110,8 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const [nowTick, setNowTick] = useState(0);
   const [mcpStatuses, setMcpStatuses] = useState<ReturnType<typeof sessionManager.getMcpStatus>>([]);
   const [showProcessStdout, setShowProcessStdout] = useState(false);
-
-  // Throttle stream progress updates: LLM fires events per-token (~10-50ms),
-  // but React+Ink can't re-render that fast without visible flicker. Batch at ~200ms.
-  const streamProgressRef = useRef<LlmStreamProgress | null>(null);
-  const lastProgressFlushRef = useRef(0);
-  const PROGRESS_FLUSH_INTERVAL = 200;
-  const streamingContentRef = useRef<string>("");
-  const streamingReasoningRef = useRef<string>("");
-  const lastDeltaFlushRef = useRef(0);
+  const [planMode, setPlanMode] = useState(false);
+  const [pendingPlanImplementation, setPendingPlanImplementation] = useState<string | null>(null);
 
   rawModeRef.current = mode;
   messagesRef.current = messages;
@@ -220,58 +125,26 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       onAssistantMessage: (message: SessionMessage) => {
         setMessages((prev) => [...prev, message]);
         if (rawModeRef.current === RawMode.Raw) {
-          process.stdout.write("\n");
-          process.stdout.write(renderMessageToStdout(message, rawModeRef.current) + "\n\n");
+          writeStdoutLine("\n");
+          writeStdoutLine(renderMessageToStdout(message, rawModeRef.current) + "\n\n");
         }
       },
       onSessionEntryUpdated: (entry) => {
-        setStatusLine(buildStatusLine(entry));
+        setStatusLine(buildStatusLine(entry, resolveCurrentSettings(projectRoot)));
         setRunningProcesses(entry.processes);
         setActiveStatus(entry.status);
-        setAskPermissions(entry.askPermissions ?? []);
+        setActiveAskPermissions(entry.askPermissions);
       },
       onLlmStreamProgress: (progress) => {
+        setRetryEvent(null);
         if (progress.phase === "end") {
-          streamProgressRef.current = null;
-          lastProgressFlushRef.current = 0;
           setStreamProgress(null);
           return;
         }
-        streamProgressRef.current = progress;
-        const now = Date.now();
-        if (now - lastProgressFlushRef.current >= PROGRESS_FLUSH_INTERVAL) {
-          lastProgressFlushRef.current = now;
-          setStreamProgress(progress);
-        }
+        setStreamProgress(progress);
       },
-      onLlmStreamDelta: (delta) => {
-        if (delta.phase === "start") {
-          streamingContentRef.current = "";
-          streamingReasoningRef.current = "";
-          lastDeltaFlushRef.current = 0;
-          setStreamingContent("");
-          setStreamingReasoning("");
-          return;
-        }
-        if (delta.phase === "end") {
-          streamingContentRef.current = "";
-          streamingReasoningRef.current = "";
-          setStreamingContent("");
-          setStreamingReasoning("");
-          return;
-        }
-        if (delta.contentDelta) {
-          streamingContentRef.current += delta.contentDelta;
-        }
-        if (delta.reasoningDelta) {
-          streamingReasoningRef.current += delta.reasoningDelta;
-        }
-        const now = Date.now();
-        if (now - lastDeltaFlushRef.current >= PROGRESS_FLUSH_INTERVAL) {
-          lastDeltaFlushRef.current = now;
-          setStreamingContent(streamingContentRef.current);
-          setStreamingReasoning(streamingReasoningRef.current);
-        }
+      onLlmRetry: (event) => {
+        setRetryEvent(event);
       },
       onMcpStatusChanged: () => {
         // 当 MCP 状态变更时，如果当前正在查看 MCP 状态页面，则更新显示
@@ -292,6 +165,36 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       },
     });
   }, [projectRoot]);
+
+  /**
+   * Navigate to a sub-view.
+   */
+  const navigateToSubView = useCallback((targetView: View) => {
+    setShowWelcome(false);
+    setView(targetView);
+  }, []);
+
+  /**
+   * Reset the static view to the welcome screen.
+   */
+  const resetStaticView = useCallback(
+    (loadedMessages: SessionMessage[], options?: { clearScreen?: boolean }): Promise<void> => {
+      if (options?.clearScreen) {
+        writeStdout(ANSI_CLEAR_SCREEN);
+      }
+      setMessages([]);
+      setWelcomeNonce((n) => n + 1);
+      navigateToSubView("chat");
+      return new Promise<void>((resolve) => {
+        setTimeout(() => {
+          setMessages(loadedMessages);
+          setShowWelcome(true);
+          resolve();
+        }, 0);
+      });
+    },
+    [navigateToSubView]
+  );
 
   useEffect(() => {
     if (!busy) {
@@ -321,41 +224,28 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     [sessionManager]
   );
 
-  const navigateToSubView = useCallback((targetView: View) => {
-    setShowWelcome(false);
-    setView(targetView);
-  }, []);
-
-  const resetStaticView = useCallback(
-    (loadedMessages: SessionMessage[], options?: { clearScreen?: boolean }) => {
-      if (options?.clearScreen) {
-        process.stdout.write(ANSI_CLEAR_SCREEN);
-      }
-      setMessages([]);
-      setWelcomeNonce((n) => n + 1);
-      navigateToSubView("chat");
-      setTimeout(() => {
-        setMessages(loadedMessages);
-        setShowWelcome(true);
-      }, 0);
-    },
-    [navigateToSubView]
-  );
-
+  /**
+   * Reset the app to the welcome screen.
+   */
   const resetToWelcome = useCallback(async () => {
-    process.stdout.write(ANSI_CLEAR_SCREEN);
+    writeRef.current(ANSI_CLEAR_SCREEN);
     sessionManager.setActiveSessionId(null);
     setStatusLine("");
     setErrorLine(null);
     setRunningProcesses(null);
     setActiveStatus(null);
-    setAskPermissions([]);
+    setActiveAskPermissions(undefined);
     setPendingPermissionReply(null);
+    setPlanMode(false);
+    setPendingPlanImplementation(null);
     setDismissedQuestionIds(new Set());
-    resetStaticView([]);
+    await resetStaticView([]);
     await refreshSkills();
   }, [sessionManager, resetStaticView, refreshSkills]);
 
+  /**
+   * Refresh the list of sessions.
+   */
   useEffect(() => {
     refreshSessionsList();
     void refreshSkills();
@@ -368,11 +258,17 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
     createOpenAIClient(projectRoot);
   }, [projectRoot]);
 
+  /**
+   * Initialize MCP servers.
+   */
   useLayoutEffect(() => {
     const settings = resolveCurrentSettings(projectRoot);
     void sessionManager.initMcpServers(settings.mcpServers);
   }, [projectRoot, sessionManager]);
 
+  /**
+   * Dispose the session manager on unmount.
+   */
   useEffect(() => {
     return () => {
       sessionManager.dispose();
@@ -380,22 +276,48 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   }, [sessionManager]);
 
   writeRef.current = write;
+  const handleExit = useCallback(
+    ({ showCommand, showSummary }: { showCommand: boolean; showSummary: boolean }) => {
+      setIsExiting(true);
+      setTimeout(() => {
+        const activeSessionId = sessionManager.getActiveSessionId();
+        const session = activeSessionId ? sessionManager.getSession(activeSessionId) : null;
+        const resumeHint = buildResumeHintText(activeSessionId ?? undefined);
+        const rateLimitHint = buildPluginRateLimitHintText(session);
+
+        writeStdoutLine("\n");
+        if (showCommand) {
+          writeStdoutLine(chalk.rgb(34, 154, 195)(" > /exit "));
+          writeStdoutLine("\n");
+        }
+        if (showSummary) {
+          const summary = buildExitSummaryText({ session, sessionId: activeSessionId ?? undefined });
+          writeStdoutLine(summary);
+          writeStdoutLine("\n");
+        }
+        if (resumeHint) {
+          writeStdoutLine(resumeHint);
+          if (rateLimitHint) {
+            writeStdoutLine(rateLimitHint);
+          }
+          writeStdoutLine("\n");
+        }
+
+        sessionManager.dispose();
+        exit();
+      }, 0);
+    },
+    [exit, sessionManager]
+  );
+
   const handlePrompt = useCallback(
     async (submission: PromptSubmission) => {
       if (submission.command === "exit") {
-        setIsExiting(true);
-        setTimeout(() => {
-          const activeSessionId = sessionManager.getActiveSessionId();
-          const session = activeSessionId ? sessionManager.getSession(activeSessionId) : null;
-          const summary = buildExitSummaryText({ session });
-          process.stdout.write("\n");
-          process.stdout.write(chalk.rgb(34, 154, 195)("> /exit "));
-          process.stdout.write("\n\n");
-          process.stdout.write(summary);
-          process.stdout.write("\n\n");
-          sessionManager.dispose();
-          exit();
-        }, 0);
+        handleExit({ showCommand: true, showSummary: true });
+        return;
+      }
+      if (submission.command === "login") {
+        navigateToSubView("login");
         return;
       }
       if (submission.command === "new") {
@@ -410,6 +332,32 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
       if (submission.command === "resume") {
         refreshSessionsList();
         navigateToSubView("session-list");
+        return;
+      }
+      if (submission.command === "fork") {
+        const sourceSessionId = sessionManager.getActiveSessionId();
+        if (!sourceSessionId) {
+          setErrorLine("No active session to fork.");
+          return;
+        }
+        try {
+          const sessionId = sessionManager.forkSession(sourceSessionId);
+          sessionManager.setActiveSessionId(sessionId);
+          await resetStaticView(loadVisibleMessages(sessionManager, sessionId), { clearScreen: true });
+          const session = sessionManager.getSession(sessionId);
+          setStatusLine(session ? buildStatusLine(session, resolveCurrentSettings(projectRoot)) : "");
+          setRunningProcesses(null);
+          setActiveStatus(session?.status ?? null);
+          setActiveAskPermissions(undefined);
+          setPlanMode(session?.planMode === true);
+          setPendingPlanImplementation(null);
+          setPendingPermissionReply(null);
+          setErrorLine(null);
+          refreshSessionsList();
+          await refreshSkills(sessionId);
+        } catch (error) {
+          setErrorLine(error instanceof Error ? error.message : String(error));
+        }
         return;
       }
       if (submission.command === "continue" && isCurrentSessionEmpty(sessionManager)) {
@@ -427,133 +375,9 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         navigateToSubView("undo");
         return;
       }
-      if (submission.command === "login") {
-        navigateToSubView("login");
-        return;
-      }
       if (submission.command === "mcp") {
         setMcpStatuses(sessionManager.getMcpStatus());
         navigateToSubView("mcp-status");
-        return;
-      }
-      if (submission.command === "marketplace") {
-        setShowWelcome(false);
-        try {
-          const marketplaces = listMarketplaces();
-          const lines: string[] = [];
-          if (marketplaces.length === 0) {
-            lines.push("No marketplaces registered.");
-            lines.push("Use: cropcode marketplace add <git-url|github-repo|local-path>");
-          } else {
-            lines.push(`Registered marketplaces (${marketplaces.length}):`);
-            for (const mp of marketplaces) {
-              lines.push(`  [${mp.name}]${mp.manifest?.description ? ` — ${mp.manifest.description}` : ""}`);
-              if (mp.manifest) {
-                for (const p of mp.manifest.plugins) {
-                  lines.push(`    - ${p.name}: ${p.description}`);
-                }
-              }
-            }
-          }
-          lines.push("");
-          lines.push("Commands:");
-          lines.push("  cropcode marketplace add <url>      Register a marketplace");
-          lines.push("  cropcode marketplace remove <name>  Remove a marketplace");
-          lines.push("  cropcode plugin install <n>@<m>     Install a plugin");
-          lines.push("  cropcode plugin list                List installed plugins");
-          lines.push("  cropcode plugin remove <name>       Remove a plugin");
-          const now = new Date().toISOString();
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `local-${Math.random().toString(36).slice(2)}`,
-              sessionId: "local",
-              role: "system",
-              content: lines.join("\n"),
-              contentParams: null,
-              messageParams: null,
-              compacted: false,
-              visible: true,
-              createTime: now,
-              updateTime: now,
-              meta: { kind: "marketplace" },
-            },
-          ]);
-        } catch (error) {
-          const now = new Date().toISOString();
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `local-${Math.random().toString(36).slice(2)}`,
-              sessionId: "local",
-              role: "system",
-              content: `Error: ${error instanceof Error ? error.message : String(error)}`,
-              contentParams: null,
-              messageParams: null,
-              compacted: false,
-              visible: true,
-              createTime: now,
-              updateTime: now,
-              meta: { kind: "error" },
-            },
-          ]);
-        }
-        return;
-      }
-      if (submission.command === "plugin") {
-        setShowWelcome(false);
-        try {
-          const plugins = listInstalledPlugins();
-          const lines: string[] = [];
-          if (plugins.length === 0) {
-            lines.push("No plugins installed.");
-            lines.push("Use: cropcode plugin install <name>@<marketplace>");
-          } else {
-            lines.push(`Installed plugins (${plugins.length}):`);
-            for (const { name, config } of plugins) {
-              lines.push(`  - ${name} (from ${config.marketplace}, installed ${config.installedAt.split("T")[0]})`);
-            }
-          }
-          lines.push("");
-          lines.push("Commands:");
-          lines.push("  cropcode plugin install <n>@<m>  Install a plugin");
-          lines.push("  cropcode plugin remove <name>   Remove a plugin");
-          const now = new Date().toISOString();
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `local-${Math.random().toString(36).slice(2)}`,
-              sessionId: "local",
-              role: "system",
-              content: lines.join("\n"),
-              contentParams: null,
-              messageParams: null,
-              compacted: false,
-              visible: true,
-              createTime: now,
-              updateTime: now,
-              meta: { kind: "plugin" },
-            },
-          ]);
-        } catch (error) {
-          const now = new Date().toISOString();
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `local-${Math.random().toString(36).slice(2)}`,
-              sessionId: "local",
-              role: "system",
-              content: `Error: ${error instanceof Error ? error.message : String(error)}`,
-              contentParams: null,
-              messageParams: null,
-              compacted: false,
-              visible: true,
-              createTime: now,
-              updateTime: now,
-              meta: { kind: "error" },
-            },
-          ]);
-        }
         return;
       }
 
@@ -564,6 +388,8 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           submission.selectedSkills && submission.selectedSkills.length > 0 ? submission.selectedSkills : undefined,
         permissions: submission.permissions,
         alwaysAllows: submission.alwaysAllows,
+        planMode: submission.planMode ?? planMode,
+        isAnswers: submission.isAnswers,
       };
       const activeSessionId = sessionManager.getActiveSessionId();
       const permissionReply =
@@ -581,14 +407,25 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         (submission.imageUrls.length > 0 ? "[Image]" : "");
 
       if (userDisplayContent && submission.command !== "continue") {
-        setMessages((prev) => [...prev, buildSyntheticUserMessage(userDisplayContent, submission.imageUrls.length)]);
+        setMessages((prev) => [
+          ...prev,
+          buildSyntheticUserMessage(
+            userDisplayContent,
+            submission.imageUrls.length,
+            submission.isAnswers ? { isAnswers: true } : undefined
+          ),
+        ]);
       }
 
       setBusy(true);
       setErrorLine(null);
-      setRunningProcesses(null);
+      setRetryEvent(null);
+      const activeProcesses = activeSessionId ? (sessionManager.getSession(activeSessionId)?.processes ?? null) : null;
+      setRunningProcesses(activeProcesses);
       setShowProcessStdout(false);
-      processStdoutRef.current.clear();
+      if (!activeProcesses || activeProcesses.size === 0) {
+        processStdoutRef.current.clear();
+      }
       try {
         await sessionManager.handleUserPrompt(prompt);
         if (permissionReply) {
@@ -596,30 +433,499 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
         }
         await refreshSkills();
         refreshSessionsList();
+        const completedSession = sessionManager.getSession(sessionManager.getActiveSessionId() ?? "");
+        const proposedPlan =
+          prompt.planMode && completedSession?.status === "completed"
+            ? extractProposedPlan(completedSession.assistantReply)
+            : null;
+        setPendingPlanImplementation(proposedPlan);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         setErrorLine(message);
       } finally {
         setBusy(false);
         setStreamProgress(null);
-        setRunningProcesses(null);
+        setRetryEvent(null);
+        const finalActiveSessionId = sessionManager.getActiveSessionId();
+        setRunningProcesses(
+          finalActiveSessionId ? (sessionManager.getSession(finalActiveSessionId)?.processes ?? null) : null
+        );
       }
     },
     [
-      exit,
-      onRestart,
       sessionManager,
       pendingPermissionReply,
+      handleExit,
+      onRestart,
       refreshSkills,
       refreshSessionsList,
       navigateToSubView,
       resetToWelcome,
+      resetStaticView,
+      planMode,
+      projectRoot,
     ]
   );
 
   const handleInterrupt = useCallback(() => {
     sessionManager.interruptActiveSession();
   }, [sessionManager]);
+
+  const handleToggleProcessStdout = useCallback(() => {
+    setShowProcessStdout(true);
+  }, []);
+
+  const handleDismissProcessStdout = useCallback(() => {
+    setShowProcessStdout(false);
+  }, []);
+
+  const handleAdjustBashTimeout = useCallback(
+    (deltaMs: number) => sessionManager.adjustActiveBashTimeout(deltaMs),
+    [sessionManager]
+  );
+
+  const handleModelConfigChange = useCallback(
+    (selection: ModelConfigSelection): string => {
+      const current = resolveCurrentSettings(projectRoot);
+      const { changed } = writeModelConfigSelection(selection, current, projectRoot);
+      const next = resolveCurrentSettings(projectRoot);
+      setResolvedSettings(next);
+
+      if (!changed) {
+        return "Model settings unchanged";
+      }
+
+      const activeSessionId = sessionManager.getActiveSessionId();
+      const meta: MessageMeta = {
+        isModelChange: true,
+      };
+      const content = `/model\n└ Set model to ${selection.model} (${selection?.thinkingEnabled ? selection?.reasoningEffort : "no thinking"})`;
+
+      if (activeSessionId) {
+        sessionManager.addSessionSystemMessage(activeSessionId, content, true, meta);
+        const activeSession = sessionManager.getSession(activeSessionId);
+        setStatusLine(activeSession ? buildStatusLine(activeSession, next) : "");
+      } else {
+        const now = new Date().toISOString();
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            sessionId: "local",
+            role: "system" as const,
+            content,
+            contentParams: null,
+            messageParams: null,
+            compacted: false,
+            visible: true,
+            createTime: now,
+            updateTime: now,
+            meta,
+          },
+        ]);
+      }
+
+      return `Model settings updated: ${formatModelConfig(current)} → ${formatModelConfig(next)}`;
+    },
+    [projectRoot, sessionManager]
+  );
+
+  const handleSubmit = useCallback(
+    (submission: PromptSubmission) => {
+      void handlePrompt(submission);
+    },
+    [handlePrompt]
+  );
+
+  const handlePlanImplementationChoice = useCallback(
+    (choice: PlanImplementationChoice) => {
+      const proposedPlan = pendingPlanImplementation;
+      setPendingPlanImplementation(null);
+      if (choice === "stay") {
+        return;
+      }
+      setPlanMode(false);
+      if (choice === "clear-context" && proposedPlan) {
+        void resetToWelcome().then(() => {
+          handleSubmit({
+            text: getClearContextImplementationPrompt(proposedPlan),
+            imageUrls: [],
+            planMode: false,
+          });
+        });
+        return;
+      }
+      if (choice === "implement" && proposedPlan) {
+        handleSubmit({
+          text: getImplementationPrompt(proposedPlan),
+          imageUrls: [],
+          planMode: false,
+        });
+      }
+    },
+    [handleSubmit, pendingPlanImplementation, resetToWelcome]
+  );
+
+  const handleExitShortcut = useCallback(() => {
+    handleExit({ showCommand: false, showSummary: false });
+  }, [handleExit]);
+
+  const reloadActiveSessionView = useCallback(
+    (sessionId: string): void => {
+      resetStaticView(loadVisibleMessages(sessionManager, sessionId), { clearScreen: true });
+    },
+    [resetStaticView, sessionManager]
+  );
+
+  const handleSelectSession = useCallback(
+    async (sessionId: string) => {
+      sessionManager.setActiveSessionId(sessionId);
+      // Clear first so <Static> resets its index to 0.
+      await resetStaticView(loadVisibleMessages(sessionManager, sessionId), { clearScreen: true });
+      const session = sessionManager.getSession(sessionId);
+      setStatusLine(session ? buildStatusLine(session, resolveCurrentSettings(projectRoot)) : "");
+      setRunningProcesses(session?.processes ?? null);
+      setActiveStatus(session?.status ?? null);
+      setActiveAskPermissions(session?.askPermissions);
+      setPlanMode(session?.planMode === true);
+      setPendingPlanImplementation(null);
+      if (pendingPermissionReply && pendingPermissionReply.sessionId !== sessionId) {
+        setPendingPermissionReply(null);
+      }
+      await refreshSkills(sessionId);
+    },
+    [sessionManager, resetStaticView, pendingPermissionReply, projectRoot, refreshSkills]
+  );
+
+  /**
+   * Coordinated startup effect: handle --resume and --prompt together.
+   * When both are present, resume the session first, then submit the prompt.
+   */
+  useEffect(() => {
+    if (startupDoneRef.current) {
+      return;
+    }
+    startupDoneRef.current = true;
+
+    async function run() {
+      try {
+        // Step 1: Resume or fork a session if requested
+        if (forkSessionId) {
+          const sessionId = sessionManager.forkSession(forkSessionId);
+          await handleSelectSession(sessionId);
+        } else if (resumeSessionId) {
+          resumeSessionIdRef.current = true;
+          if (resumeSessionId === true) {
+            // Bare --resume — show session picker; prompt makes no sense here
+            refreshSessionsList();
+            navigateToSubView("session-list");
+            return;
+          }
+          await handleSelectSession(resumeSessionId);
+        }
+
+        // Step 2: Submit prompt if provided
+        if (initialPrompt && initialPrompt.trim()) {
+          initialPromptSubmittedRef.current = true;
+          handleSubmit({
+            text: initialPrompt,
+            imageUrls: [],
+            selectedSkills: undefined,
+          });
+        }
+      } catch (error) {
+        setErrorLine(error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    void run();
+  }, [
+    forkSessionId,
+    handleSubmit,
+    handleSelectSession,
+    initialPrompt,
+    navigateToSubView,
+    refreshSessionsList,
+    resumeSessionId,
+    sessionManager,
+  ]);
+
+  const handleDeleteSession = useCallback(
+    async (id: string): Promise<void> => {
+      const isActiveSession = sessionManager.getActiveSessionId() === id;
+
+      // If the deleted session is the active one, clear the active session first
+      if (isActiveSession) {
+        sessionManager.setActiveSessionId(null);
+      }
+
+      sessionManager.deleteSession(id);
+      refreshSessionsList();
+
+      if (isActiveSession) {
+        await resetToWelcome();
+      }
+    },
+    [sessionManager, refreshSessionsList, resetToWelcome]
+  );
+
+  const handleUndoRestore = useCallback(
+    async (target: UndoTarget, restoreMode: UndoRestoreMode): Promise<void> => {
+      const sessionId = sessionManager.getActiveSessionId();
+      if (!sessionId) {
+        setErrorLine("No active session to undo.");
+        setView("chat");
+        setShowWelcome(true);
+        return;
+      }
+
+      const errors: string[] = [];
+      if (restoreMode === "code-and-conversation") {
+        try {
+          sessionManager.restoreSessionCode(sessionId, target.message.id);
+        } catch (error) {
+          errors.push(`Code restore failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+      let conversationRestored = false;
+      try {
+        sessionManager.restoreSessionConversation(sessionId, target.message.id);
+        conversationRestored = true;
+      } catch (error) {
+        errors.push(`Conversation restore failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+
+      refreshSessionsList();
+      await refreshSkills(sessionId);
+      setView("chat");
+      setErrorLine(errors.length > 0 ? errors.join(" ") : null);
+      if (conversationRestored) {
+        setPromptDraft(buildPromptDraftFromSessionMessage(target.message, Date.now()));
+      }
+      reloadActiveSessionView(sessionId);
+    },
+    [reloadActiveSessionView, refreshSessionsList, refreshSkills, sessionManager]
+  );
+
+  const handleRawModeChange = useCallback(
+    (nextMode: string) => {
+      const activeSessionId = sessionManager.getActiveSessionId();
+      setMode(nextMode as RawMode);
+      // Reset chat view state synchronously so the transition frame does not
+      // re-render a stale welcome screen before handleSelectSession runs.
+      setShowWelcome(false);
+      setMessages([]);
+      // Clear screen to remove stale formatted text.
+      writeStdout(ANSI_CLEAR_SCREEN);
+
+      setTimeout(() => {
+        if (nextMode === RawMode.Raw) {
+          // Write all messages directly to stdout for raw scrollback mode.
+          const allMessages = activeSessionId ? loadVisibleMessages(sessionManager, activeSessionId) : [];
+          renderRawModeMessages(allMessages, nextMode);
+        } else if (activeSessionId) {
+          // Switch to chat view to render messages.
+          handleSelectSession(activeSessionId);
+        } else {
+          // No active session: just show the welcome screen once.
+          setWelcomeNonce((n) => n + 1);
+          setShowWelcome(true);
+        }
+      }, 200);
+    },
+    [handleSelectSession, sessionManager, setMode]
+  );
+
+  useEffect(() => {
+    if (!stdout?.isTTY) {
+      return;
+    }
+    if (columns <= 0) {
+      return;
+    }
+    if (lastRenderedColumnsRef.current === null) {
+      lastRenderedColumnsRef.current = columns;
+      return;
+    }
+    if (lastRenderedColumnsRef.current === columns) {
+      return;
+    }
+    lastRenderedColumnsRef.current = columns;
+
+    if (mode === RawMode.Raw) {
+      // In raw mode, re-render all messages directly to stdout at the new width.
+      // Use direct stdout instead of writeRef to avoid Ink interference.
+      writeStdout(ANSI_CLEAR_SCREEN);
+      const activeSessionId = sessionManager.getActiveSessionId();
+      const allMessages = activeSessionId ? loadVisibleMessages(sessionManager, activeSessionId) : [];
+      renderRawModeMessages(allMessages, mode);
+      return;
+    }
+
+    // Force full redraw on terminal resize to avoid stale wrapped rows.
+    writeRef.current("\u001B[2J\u001B[H");
+
+    setMessages([]);
+    setShowWelcome(false);
+    setWelcomeNonce((n) => n + 1);
+
+    const activeSessionId = sessionManager.getActiveSessionId();
+    const nextMessages =
+      activeSessionId && !busy ? loadVisibleMessages(sessionManager, activeSessionId) : messagesRef.current;
+    setTimeout(() => {
+      setMessages(nextMessages);
+      setShowWelcome(true);
+    }, 0);
+  }, [busy, mode, sessionManager, columns, stdout]);
+
+  const screenWidth = useMemo(() => columns ?? stdout?.columns ?? 80, [columns, stdout]);
+  const screenHeight = useMemo(() => rows ?? stdout?.rows ?? 24, [rows, stdout]);
+  const getSessionInfo = useCallback((): SessionInfo | null => {
+    const activeSessionId = sessionManager.getActiveSessionId();
+    const settings = resolveCurrentSettings(projectRoot);
+    const model = settings.model || "";
+    const thinkingEnabled = settings.thinkingEnabled;
+    const reasoningEffort = settings.reasoningEffort;
+    const maxContextTokens = settings.contextWindow;
+    if (!activeSessionId) {
+      return {
+        activeSessionId: null,
+        messageCount: 0,
+        requestCount: 0,
+        totalTokens: 0,
+        activeTokens: 0,
+        maxContextTokens,
+        model,
+        thinkingEnabled,
+        reasoningEffort,
+        toolUsage: {},
+      };
+    }
+    const session = sessionManager.getSession(activeSessionId);
+    const messages = sessionManager.listSessionMessages(activeSessionId);
+    const usage = session?.usage;
+    const totalTokens =
+      usage && typeof (usage as { total_tokens?: unknown }).total_tokens === "number"
+        ? ((usage as { total_tokens: number }).total_tokens ?? 0)
+        : 0;
+    const requestCount =
+      usage && typeof (usage as { total_reqs?: unknown }).total_reqs === "number"
+        ? ((usage as { total_reqs: number }).total_reqs ?? 0)
+        : 0;
+    const toolUsage: Record<string, number> = {};
+    for (const msg of messages) {
+      if (msg.role === "tool" && msg.meta?.function) {
+        const fn = msg.meta.function as { name?: string };
+        if (fn.name) {
+          toolUsage[fn.name] = (toolUsage[fn.name] || 0) + 1;
+        }
+      }
+    }
+    return {
+      activeSessionId,
+      messageCount: messages.length,
+      requestCount,
+      totalTokens,
+      activeTokens: session?.activeTokens ?? 0,
+      maxContextTokens,
+      model,
+      thinkingEnabled,
+      reasoningEffort,
+      toolUsage,
+    };
+  }, [sessionManager, projectRoot]);
+  const statusLineSegments = useStatusLine(resolvedSettings.statusline, projectRoot, getSessionInfo);
+  const promptHistory = useMemo(() => buildPromptHistory(messages), [messages]);
+  const expandedThinkingId = findExpandedThinkingId(messages);
+  const pendingQuestion = useMemo(() => findPendingAskUserQuestion(messages, activeStatus), [activeStatus, messages]);
+  const shouldShowQuestionPrompt = Boolean(pendingQuestion && !dismissedQuestionIds.has(pendingQuestion.messageId));
+  const loadingText = useMemo(
+    () =>
+      busy
+        ? buildLoadingText({
+            progress: streamProgress,
+            retry: retryEvent,
+            processes: runningProcesses,
+            screenWidth,
+            now: Date.now(),
+          })
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- nowTick forces periodic recalculation for spinner animation
+    [busy, streamProgress, retryEvent, runningProcesses, nowTick, screenWidth]
+  );
+
+  const welcomeItem: SessionMessage = useMemo(
+    () => ({
+      id: `__welcome__${welcomeNonce}`,
+      sessionId: "",
+      role: "system",
+      content: "",
+      contentParams: null,
+      messageParams: null,
+      compacted: false,
+      visible: true,
+      createTime: "",
+      updateTime: "",
+    }),
+    [welcomeNonce]
+  );
+  const staticItems = useMemo(() => {
+    if (mode === RawMode.Raw) {
+      return [];
+    }
+    if (showWelcome && view === "chat") {
+      return [welcomeItem, ...messages];
+    }
+    return messages;
+  }, [mode, showWelcome, view, messages, welcomeItem]);
+  const promptCursorLayoutKey = useMemo(() => {
+    const lastStaticItem = staticItems.at(-1);
+    return [
+      view,
+      busy ? "busy" : "idle",
+      statusLine,
+      errorLine ?? "",
+      showProcessStdout ? "stdout" : "main",
+      activeStatus ?? "",
+      staticItems.length,
+      lastStaticItem?.id ?? "",
+      lastStaticItem?.updateTime ?? "",
+      shouldShowQuestionPrompt ? (pendingQuestion?.messageId ?? "") : "",
+      activeAskPermissions?.length ?? 0,
+      pendingPermissionReply ? "pending-permission-reply" : "no-pending-permission-reply",
+    ].join("\u001E");
+  }, [
+    activeAskPermissions,
+    activeStatus,
+    busy,
+    errorLine,
+    pendingPermissionReply,
+    pendingQuestion,
+    shouldShowQuestionPrompt,
+    showProcessStdout,
+    staticItems,
+    statusLine,
+    view,
+  ]);
+
+  const handleQuestionAnswers = useCallback(
+    (answers: AskUserQuestionAnswers) => {
+      void handlePrompt({
+        text: formatAskUserQuestionAnswers(answers),
+        imageUrls: [],
+        isAnswers: true,
+      });
+    },
+    [handlePrompt]
+  );
+
+  const handleQuestionCancel = useCallback(() => {
+    if (!pendingQuestion) {
+      return;
+    }
+    setDismissedQuestionIds((prev) => new Set(prev).add(pendingQuestion.messageId));
+  }, [pendingQuestion]);
 
   const handlePermissionResult = useCallback(
     (result: PermissionPromptResult) => {
@@ -652,407 +958,30 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
   const handlePermissionCancel = useCallback(() => {
     sessionManager.interruptActiveSession();
     setActiveStatus("interrupted");
-    setAskPermissions([]);
-    setPendingPermissionReply(null);
+    setActiveAskPermissions(undefined);
     setPromptDraft(null);
     refreshSessionsList();
   }, [refreshSessionsList, sessionManager]);
 
-  const handleToggleProcessStdout = useCallback(() => {
-    setShowProcessStdout(true);
-  }, []);
-
-  const handleDismissProcessStdout = useCallback(() => {
-    setShowProcessStdout(false);
-  }, []);
-
-  const handleAdjustBashTimeout = useCallback(
-    (deltaMs: number) => sessionManager.adjustActiveBashTimeout(deltaMs),
-    [sessionManager]
-  );
-
-  const handleModelConfigChange = useCallback(
-    (selection: ModelConfigSelection): string => {
-      const current = resolveCurrentSettings(projectRoot);
-      const { changed } = writeModelConfigSelection(selection, current, projectRoot);
-      // Sync model change to credentials.json if active provider exists
-      const cred = getActiveCredential();
-      if (cred) {
-        setActiveCredential(
-          cred.providerId,
-          cred.apiKey,
-          selection.model,
-          cred.mode,
-          selection.thinkingEnabled,
-          selection.reasoningEffort
-        );
-      }
-      const next = resolveCurrentSettings(projectRoot);
-      setResolvedSettings(next);
-
-      if (!changed) {
-        return "Model settings unchanged";
-      }
-
-      const activeSessionId = sessionManager.getActiveSessionId();
-      const meta: MessageMeta = {
-        isModelChange: true,
-      };
-      const content = `/model\n└ Set model to ${selection.model} (${selection?.thinkingEnabled ? selection?.reasoningEffort : "no thinking"})`;
-
-      if (activeSessionId) {
-        sessionManager.addSessionSystemMessage(activeSessionId, content, true, meta);
-      } else {
-        const now = new Date().toISOString();
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            sessionId: "local",
-            role: "system" as const,
-            content,
-            contentParams: null,
-            messageParams: null,
-            compacted: false,
-            visible: true,
-            createTime: now,
-            updateTime: now,
-            meta,
-          },
-        ]);
-      }
-
-      return `Model settings updated: ${formatModelConfig(current)} → ${formatModelConfig(next)}`;
-    },
-    [projectRoot, sessionManager]
-  );
-
-  const hasProjectSettings = useMemo(() => fs.existsSync(getProjectSettingsPath(projectRoot)), [projectRoot]);
-
-  const handlePermissionsChange = useCallback(
-    (mode: PermissionDefaultMode, saveTarget: "user" | "project"): string => {
-      const target = saveTarget === "project" ? readProjectSettings(projectRoot) : readSettings();
-      const currentMode = target?.permissions?.defaultMode ?? "acceptEdits";
-      if (currentMode === mode) {
-        return "Permission mode unchanged";
-      }
-      const updated: CropcodeSettings = {
-        ...target,
-        permissions: {
-          ...target?.permissions,
-          defaultMode: mode,
-        },
-      };
-      if (saveTarget === "project") {
-        writeProjectSettings(updated, projectRoot);
-      } else {
-        writeSettings(updated);
-      }
-      const next = resolveCurrentSettings(projectRoot);
-      setResolvedSettings(next);
-
-      const activeSessionId = sessionManager.getActiveSessionId();
-      const content = `/permissions\n└ Set permission mode to ${mode} (${saveTarget}-level)`;
-      if (activeSessionId) {
-        sessionManager.addSessionSystemMessage(activeSessionId, content, true);
-      } else {
-        const now = new Date().toISOString();
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            sessionId: "local",
-            role: "system" as const,
-            content,
-            contentParams: null,
-            messageParams: null,
-            compacted: false,
-            visible: true,
-            createTime: now,
-            updateTime: now,
-          },
-        ]);
-      }
-      const effectiveMode = next.permissions.defaultMode;
-      if (effectiveMode !== mode) {
-        return `Saved ${mode} to ${saveTarget}-level, but effective mode is ${effectiveMode} (project-level overrides)`;
-      }
-      return `Permission mode: ${currentMode} → ${mode} (${saveTarget}-level)`;
-    },
-    [projectRoot, sessionManager]
-  );
-
-  const handleSubmit = useCallback(
-    (submission: PromptSubmission) => {
-      void handlePrompt(submission);
-    },
-    [handlePrompt]
-  );
-
-  const reloadActiveSessionView = useCallback(
-    (sessionId: string): void => {
-      resetStaticView(loadVisibleMessages(sessionManager, sessionId), { clearScreen: true });
-    },
-    [resetStaticView, sessionManager]
-  );
-
-  useEffect(() => {
-    if (initialPromptSubmittedRef.current || !initialPrompt || !initialPrompt.trim()) {
-      return;
-    }
-
-    initialPromptSubmittedRef.current = true;
-    handleSubmit({
-      text: initialPrompt,
-      imageUrls: [],
-      selectedSkills: undefined,
-    });
-  }, [handleSubmit, initialPrompt]);
-
-  const handleSelectSession = useCallback(
-    async (sessionId: string) => {
-      const currentSessionId = sessionManager.getActiveSessionId();
-      if (currentSessionId !== sessionId) {
-        process.stdout.write(ANSI_CLEAR_SCREEN);
-      }
-      sessionManager.setActiveSessionId(sessionId);
-      resetStaticView(loadVisibleMessages(sessionManager, sessionId));
-      const session = sessionManager.getSession(sessionId);
-      setStatusLine(session ? buildStatusLine(session) : "");
-      setRunningProcesses(session?.processes ?? null);
-      setActiveStatus(session?.status ?? null);
-      setAskPermissions(session?.askPermissions ?? []);
-      if (pendingPermissionReply && pendingPermissionReply.sessionId !== sessionId) {
-        setPendingPermissionReply(null);
-      }
-      await refreshSkills(sessionId);
-    },
-    [sessionManager, resetStaticView, pendingPermissionReply, refreshSkills]
-  );
-
-  const handleDeleteSession = useCallback(
-    (sessionId: string): void => {
-      const activeSessionId = sessionManager.getActiveSessionId();
-      sessionManager.deleteSession(sessionId);
-      if (sessionId === activeSessionId) {
-        sessionManager.setActiveSessionId(null);
-        setShowWelcome(true);
-        setView("chat");
-      }
-      refreshSessionsList();
-    },
-    [sessionManager, refreshSessionsList]
-  );
-
-  const handleUndoRestore = useCallback(
-    async (target: UndoTarget, restoreMode: UndoRestoreMode): Promise<void> => {
-      const sessionId = sessionManager.getActiveSessionId();
-      if (!sessionId) {
-        setErrorLine("No active session to undo.");
-        setView("chat");
-        setShowWelcome(true);
-        return;
-      }
-
-      const errors: string[] = [];
-      if (restoreMode === "code-and-conversation") {
-        try {
-          sessionManager.restoreSessionCode(sessionId, target.message.id);
-        } catch (error) {
-          errors.push(`Code restore failed: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      }
-
-      let conversationRestored = false;
-      try {
-        sessionManager.restoreSessionConversation(sessionId, target.message.id);
-        conversationRestored = true;
-      } catch (error) {
-        errors.push(`Conversation restore failed: ${error instanceof Error ? error.message : String(error)}`);
-      }
-
-      refreshSessionsList();
-      await refreshSkills(sessionId);
-      setErrorLine(errors.length > 0 ? errors.join(" ") : null);
-      if (conversationRestored) {
-        setPromptDraft(buildPromptDraftFromSessionMessage(target.message, Date.now()));
-      }
-      reloadActiveSessionView(sessionId);
-    },
-    [reloadActiveSessionView, refreshSessionsList, refreshSkills, sessionManager]
-  );
-
-  const handleRawModeChange = useCallback(
-    (nextMode: string) => {
-      const activeSessionId = sessionManager.getActiveSessionId();
-      setMode(nextMode as RawMode);
-      // Reset chat view state synchronously so the transition frame does not
-      // re-render a stale welcome screen before handleSelectSession runs.
-      setShowWelcome(false);
-      setMessages([]);
-      // Clear screen to remove stale formatted text.
-      process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
-
-      setTimeout(() => {
-        if (nextMode === RawMode.Raw) {
-          // Write all messages directly to stdout for raw scrollback mode.
-          const allMessages = activeSessionId ? loadVisibleMessages(sessionManager, activeSessionId) : [];
-          for (const msg of allMessages) {
-            process.stdout.write("\n");
-            process.stdout.write(renderMessageToStdout(msg, nextMode) + "\n\n");
-          }
-          if (allMessages.length > 0) {
-            process.stdout.write("\n\n");
-            process.stdout.write(chalk.dim("Press ESC to exit raw mode"));
-          } else {
-            process.stdout.write("\n");
-            process.stdout.write(chalk.dim("(No messages in this session yet. Start chatting to see them here.)"));
-            process.stdout.write("\n\n");
-            process.stdout.write(chalk.dim("Press ESC to exit raw mode"));
-          }
-        } else if (activeSessionId) {
-          // Switch to chat view to render messages.
-          handleSelectSession(activeSessionId);
-        } else {
-          // No active session: just show the welcome screen once.
-          setWelcomeNonce((n) => n + 1);
-          setShowWelcome(true);
-        }
-      }, 200);
-    },
-    [handleSelectSession, sessionManager, setMode]
-  );
-
-  useEffect(() => {
-    if (!stdout?.isTTY) {
-      return;
-    }
-    if (columns <= 0) {
-      return;
-    }
-    if (lastRenderedColumnsRef.current === null) {
-      lastRenderedColumnsRef.current = columns;
-      return;
-    }
-    if (lastRenderedColumnsRef.current === columns) {
-      return;
-    }
-    lastRenderedColumnsRef.current = columns;
-
-    if (mode === RawMode.Raw) {
-      // In raw mode, re-render all messages directly to stdout at the new width.
-      // Use process.stdout.write instead of writeRef to avoid Ink interference.
-      process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
-      const activeSessionId = sessionManager.getActiveSessionId();
-      const allMessages = activeSessionId ? loadVisibleMessages(sessionManager, activeSessionId) : [];
-      for (const msg of allMessages) {
-        process.stdout.write("\n");
-        process.stdout.write(renderMessageToStdout(msg, mode) + "\n\n");
-      }
-      if (allMessages.length > 0) {
-        process.stdout.write("\n\n");
-        process.stdout.write(chalk.dim("Press ESC to exit raw mode"));
-      } else {
-        process.stdout.write("\n");
-        process.stdout.write(chalk.dim("(No messages in this session yet. Start chatting to see them here.)"));
-        process.stdout.write("\n\n");
-        process.stdout.write(chalk.dim("Press ESC to exit raw mode"));
-      }
-      return;
-    }
-
-    // Force full redraw on terminal resize to avoid stale wrapped rows.
-    writeRef.current("\u001B[2J\u001B[H");
-
-    setMessages([]);
-    setShowWelcome(false);
-    setWelcomeNonce((n) => n + 1);
-
-    const activeSessionId = sessionManager.getActiveSessionId();
-    const nextMessages =
-      activeSessionId && !busy ? loadVisibleMessages(sessionManager, activeSessionId) : messagesRef.current;
-    setTimeout(() => {
-      setMessages(nextMessages);
-      setShowWelcome(true);
-    }, 0);
-  }, [busy, mode, sessionManager, columns, stdout]);
-
-  const screenWidth = useMemo(() => columns ?? stdout?.columns ?? 80, [columns, stdout]);
-  const screenHeight = useMemo(() => rows ?? stdout?.rows ?? 24, [rows, stdout]);
-  const totalTokens = useMemo(
-    () => sessions.reduce((sum, s) => sum + (typeof s.usage?.total_tokens === "number" ? s.usage.total_tokens : 0), 0),
-    [sessions]
-  );
-  const promptHistory = useMemo(() => {
-    return messages
-      .filter((message) => message.role === "user" && typeof message.content === "string")
-      .map((message) => (message.content ?? "").trim())
-      .filter((content) => content.length > 0);
-  }, [messages]);
-  const expandedThinkingId = findExpandedThinkingId(messages);
-  const pendingQuestion = useMemo(() => findPendingAskUserQuestion(messages, activeStatus), [activeStatus, messages]);
-  const shouldShowQuestionPrompt = Boolean(pendingQuestion && !dismissedQuestionIds.has(pendingQuestion.messageId));
-  // Flush any pending stream progress that was throttled
-  useEffect(() => {
-    if (streamProgressRef.current) {
-      setStreamProgress(streamProgressRef.current);
-    }
-  }, [nowTick]);
-
-  const loadingText = useMemo(
-    () => (busy ? buildLoadingText({ progress: streamProgress, processes: runningProcesses, now: Date.now() }) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- nowTick forces periodic recalculation for spinner animation
-    [busy, streamProgress, runningProcesses, nowTick]
-  );
-
-  const welcomeItem: SessionMessage = useMemo(
-    () => ({
-      id: `__welcome__${welcomeNonce}`,
-      sessionId: "",
-      role: "system",
-      content: "",
-      contentParams: null,
-      messageParams: null,
-      compacted: false,
-      visible: true,
-      createTime: "",
-      updateTime: "",
-    }),
-    [welcomeNonce]
-  );
-  const staticItems = useMemo(() => {
-    if (mode === RawMode.Raw) {
-      return [];
-    }
-    if (showWelcome && view === "chat") {
-      return [welcomeItem, ...messages];
-    }
-    return messages;
-  }, [mode, showWelcome, view, messages, welcomeItem]);
-
-  const handleQuestionAnswers = useCallback(
-    (answers: AskUserQuestionAnswers) => {
-      void handlePrompt({
-        text: formatAskUserQuestionAnswers(answers),
-        imageUrls: [],
-      });
-    },
-    [handlePrompt]
-  );
-
-  const handleQuestionCancel = useCallback(() => {
-    if (!pendingQuestion) {
-      return;
-    }
-    setDismissedQuestionIds((prev) => new Set(prev).add(pendingQuestion.messageId));
-  }, [pendingQuestion]);
+  if (view === "login") {
+    return (
+      <LoginScreen
+        width={screenWidth}
+        onCancel={() => setView("chat")}
+        onComplete={() => {
+          setResolvedSettings(resolveCurrentSettings(projectRoot));
+          void resetStaticView(messagesRef.current, { clearScreen: true });
+        }}
+      />
+    );
+  }
 
   if (mode === RawMode.Raw) {
     return <RawModeExitPrompt onExit={(prev) => handleRawModeChange(prev)} />;
   }
 
   return (
-    <Box flexDirection="column" width={screenWidth} minWidth={80} overflowX={"visible"}>
+    <Box flexDirection="column" width={screenWidth}>
       <Static items={staticItems}>
         {(item) => {
           if (item.id.startsWith("__welcome__")) {
@@ -1063,7 +992,6 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
                 settings={resolvedSettings}
                 skills={skills}
                 width={screenWidth}
-                totalTokens={totalTokens}
               />
             );
           }
@@ -1077,17 +1005,7 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           );
         }}
       </Static>
-      {busy && (streamingReasoning.length > 0 || streamingContent.length > 0) ? (
-        <Box flexDirection="column">
-          {streamingReasoning.length > 0 ? (
-            <Text dimColor>{"✧ " + streamingReasoning.split("\n").slice(-4).join("\n")}</Text>
-          ) : null}
-          {streamingContent.length > 0 ? (
-            <Text color="green">{"✦ " + streamingContent.split("\n").slice(-8).join("\n")}</Text>
-          ) : null}
-        </Box>
-      ) : null}
-      {busy || statusLine ? <StatusLine busy={busy} text={statusLine} /> : null}
+      {(busy || statusLine) && !isExiting ? <StatusLine busy={busy} text={statusLine} width={screenWidth} /> : null}
       {errorLine ? (
         <Box>
           <Text color="red">Error: {errorLine}</Text>
@@ -1107,25 +1025,25 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           sessions={sessions}
           onSelect={(id) => void handleSelectSession(id)}
           onCancel={() => setView("chat")}
-          onDelete={handleDeleteSession}
+          onDelete={(id) => {
+            void handleDeleteSession(id);
+          }}
+          onRename={(id, newName) => {
+            if (sessionManager.renameSession(id, newName)) {
+              refreshSessionsList();
+              setStatusLine(`Session renamed to "${newName}".`);
+            } else {
+              setErrorLine("Failed to rename session.");
+            }
+          }}
         />
       ) : view === "undo" ? (
         <UndoSelector
           targets={undoTargets}
           onSelect={(target, restoreMode) => void handleUndoRestore(target, restoreMode)}
           onCancel={() => {
+            setPromptDraft(null);
             setView("chat");
-            setShowWelcome(true);
-          }}
-        />
-      ) : view === "login" ? (
-        <LoginScreen
-          width={screenWidth}
-          onComplete={() => {
-            const fresh = resolveCurrentSettings(projectRoot);
-            setResolvedSettings(fresh);
-            setView("chat");
-            setShowWelcome(true);
           }}
         />
       ) : view === "mcp-status" ? (
@@ -1143,12 +1061,18 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           onSubmit={handleQuestionAnswers}
           onCancel={handleQuestionCancel}
         />
-      ) : activeStatus === "ask_permission" && askPermissions.length > 0 && !pendingPermissionReply && !busy ? (
+      ) : activeStatus === "ask_permission" &&
+        activeAskPermissions &&
+        activeAskPermissions.length > 0 &&
+        !pendingPermissionReply &&
+        !busy ? (
         <PermissionPrompt
-          requests={askPermissions}
+          requests={activeAskPermissions}
           onSubmit={handlePermissionResult}
           onCancel={handlePermissionCancel}
         />
+      ) : pendingPlanImplementation && !busy ? (
+        <PlanImplementationPrompt onSelect={handlePlanImplementationChoice} />
       ) : isExiting ? null : (
         <PromptInput
           projectRoot={projectRoot}
@@ -1157,97 +1081,25 @@ export function App({ projectRoot, initialPrompt, onRestart }: AppProps): React.
           modelConfig={resolvedSettings}
           promptHistory={promptHistory}
           busy={busy}
+          cursorLayoutKey={promptCursorLayoutKey}
           loadingText={loadingText}
           runningProcesses={runningProcesses}
           promptDraft={promptDraft}
           onSubmit={handleSubmit}
           onModelConfigChange={handleModelConfigChange}
-          onPermissionsChange={handlePermissionsChange}
-          currentPermissionMode={resolvedSettings.permissions.defaultMode}
-          hasProjectSettings={hasProjectSettings}
           onRawModeChange={handleRawModeChange}
           onInterrupt={handleInterrupt}
           onToggleProcessStdout={handleToggleProcessStdout}
+          onExitShortcut={handleExitShortcut}
           placeholder="Type your message..."
+          statusLineSegments={statusLineSegments}
+          statusLineSeparator={resolvedSettings.statusline.separator}
+          planMode={planMode}
+          onPlanModeChange={setPlanMode}
         />
       )}
     </Box>
   );
 }
 
-function isCollapsedThinking(message: SessionMessage, expandedId: string | null): boolean {
-  if (message.role !== "assistant") {
-    return false;
-  }
-  if (!message.meta?.asThinking) {
-    return false;
-  }
-  return message.id !== expandedId;
-}
-
-export function buildPromptDraftFromSessionMessage(message: SessionMessage, nonce: number): PromptDraft {
-  return {
-    nonce,
-    text: typeof message.content === "string" ? message.content : "",
-    imageUrls: extractImageUrlsFromContentParams(message.contentParams),
-  };
-}
-
-export function writeModelConfigSelection(
-  selection: ModelConfigSelection,
-  current: ModelConfigSelection = resolveCurrentSettings(),
-  projectRoot: string = process.cwd()
-): { changed: boolean; settings: CropcodeSettings } {
-  const projectSettingsPath = getProjectSettingsPath(projectRoot);
-  const shouldWriteProjectSettings = fs.existsSync(projectSettingsPath);
-  const rawSettings = shouldWriteProjectSettings ? readProjectSettings(projectRoot) : readSettings();
-  const result = applyModelConfigSelection(rawSettings, current, selection);
-
-  // When credentials are active, the model is stored in credentials.json,
-  // not settings.json. Skip writing to avoid polluting settings.json with
-  // stale model fields that would conflict with credential resolution.
-  if (result.changed && !hasCredentials()) {
-    if (shouldWriteProjectSettings) {
-      writeProjectSettings(result.settings, projectRoot);
-    } else {
-      writeSettings(result.settings);
-    }
-  }
-  return result;
-}
-
-export function resolveCurrentSettings(projectRoot: string = process.cwd()): ResolvedCropcodeSettings {
-  const credApiKey = getActiveApiKey();
-  const credBaseURL = getActiveBaseURL();
-  const credModel = getActiveModel();
-  const credThinkingEnabled = getActiveThinkingEnabled();
-  const credReasoningEffort = getActiveReasoningEffort();
-  const hasCred = hasCredentials();
-
-  // When credentials exist, use credential values as defaults so they
-  // flow through the entire resolution chain rather than a last-step overlay.
-  // This prevents stale settings.json model/apiKey fields from leaking through.
-  const base = resolveSettingsSources(
-    readSettings(),
-    readProjectSettings(projectRoot),
-    {
-      model: hasCred ? credModel : DEFAULT_MODEL,
-      baseURL: hasCred ? credBaseURL : DEFAULT_BASE_URL,
-    },
-    process.env
-  );
-
-  return {
-    ...base,
-    // Hard-override with credential values when active — credential login
-    // is an explicit user choice and must take priority over all other sources.
-    apiKey: hasCred ? credApiKey : base.apiKey,
-    baseURL: hasCred ? credBaseURL : base.baseURL,
-    model: hasCred ? credModel : base.model,
-    thinkingEnabled: hasCred && credThinkingEnabled !== undefined ? credThinkingEnabled : base.thinkingEnabled,
-    reasoningEffort: (hasCred && credReasoningEffort !== undefined
-      ? credReasoningEffort
-      : base.reasoningEffort) as ReasoningEffort,
-  };
-}
-export { createOpenAIClient } from "@YuanyuanMa03/cropcode-core";
+export default App;

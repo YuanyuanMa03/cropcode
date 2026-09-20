@@ -17,6 +17,19 @@ type McpToolEntry = {
   client: McpClient;
 };
 
+export type McpServerStatus = {
+  name: string;
+  status: "starting" | "ready" | "failed" | "reconnecting";
+  connected: boolean;
+  error?: string;
+  toolCount: number;
+  tools: string[];
+  promptCount: number;
+  prompts: string[];
+  resourceCount: number;
+  resources: string[];
+};
+
 function buildMcpNamespacedName(
   serverName: string,
   toolName: string,
@@ -42,45 +55,6 @@ function buildMcpNamespacedName(
     }
   }
 }
-
-function buildRawMcpNamespacedName(serverName: string, toolName: string): string {
-  return `mcp__${serverName}__${toolName}`;
-}
-
-function sanitizeApiToolNamePart(value: string): string {
-  const sanitized = value.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return sanitized || "unnamed";
-}
-
-function fitApiToolName(name: string, rawName: string): string {
-  if (API_TOOL_NAME_PATTERN.test(name) && name.length <= API_TOOL_NAME_MAX_LENGTH) {
-    return name;
-  }
-  return fitApiToolNameWithSuffix(name, `_${hashToolName(rawName)}`);
-}
-
-function fitApiToolNameWithSuffix(name: string, suffix: string): string {
-  const maxPrefixLength = API_TOOL_NAME_MAX_LENGTH - suffix.length;
-  const prefix = name.slice(0, Math.max(1, maxPrefixLength));
-  return `${prefix}${suffix}`;
-}
-
-function hashToolName(value: string): string {
-  return createHash("sha256").update(value).digest("hex").slice(0, 8);
-}
-
-export type McpServerStatus = {
-  name: string;
-  status: "starting" | "ready" | "failed" | "reconnecting";
-  connected: boolean;
-  error?: string;
-  toolCount: number;
-  tools: string[];
-  promptCount: number;
-  prompts: string[];
-  resourceCount: number;
-  resources: string[];
-};
 
 export class McpManager {
   private clients: McpClient[] = [];
@@ -521,4 +495,30 @@ export class McpManager {
     }
     return `${description}\nMCP source: ${source}`;
   }
+}
+
+function buildRawMcpNamespacedName(serverName: string, toolName: string): string {
+  return `mcp__${serverName}__${toolName}`;
+}
+
+function sanitizeApiToolNamePart(value: string): string {
+  const sanitized = value.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return sanitized || "unnamed";
+}
+
+function fitApiToolName(name: string, rawName: string): string {
+  if (API_TOOL_NAME_PATTERN.test(name) && name.length <= API_TOOL_NAME_MAX_LENGTH) {
+    return name;
+  }
+  return fitApiToolNameWithSuffix(name, `_${hashToolName(rawName)}`);
+}
+
+function fitApiToolNameWithSuffix(name: string, suffix: string): string {
+  const maxPrefixLength = API_TOOL_NAME_MAX_LENGTH - suffix.length;
+  const prefix = name.slice(0, Math.max(1, maxPrefixLength));
+  return `${prefix}${suffix}`;
+}
+
+function hashToolName(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 8);
 }

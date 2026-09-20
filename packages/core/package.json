@@ -1,17 +1,14 @@
 {
-  "name": "@YuanyuanMa03/cropcode-core",
-  "version": "2.1.0",
-  "description": "CropCode core library — LLM session management, tool execution, hooks, marketplace, and shared utilities for agricultural research agents",
+  "name": "@yuanyuanma03/cropcode-core",
+  "version": "2.2.0",
+  "description": "CropCode core library — LLM session management, tool execution, and shared utilities",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "engines": {
-    "node": ">=22"
-  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/YuanyuanMa03/cropcode.git"
+    "url": "git+https://github.com/YuanyuanMa03/cropcode.git"
   },
   "exports": {
     ".": {
@@ -36,7 +33,9 @@
     "gray-matter": "^4.0.3",
     "ignore": "^7.0.5",
     "openai": "^6.35.0",
-    "undici": "^7.25.0",
+    "sharp": "^0.35.4",
+    "undici": "^7.29.0",
     "zod": "^4.4.3"
-  }
+  },
+  "homepage": "https://github.com/YuanyuanMa03/cropcode"
 }

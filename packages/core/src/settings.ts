@@ -1,26 +1,27 @@
+import { DEEPSEEK_V4_MODELS, defaultsToThinkingMode, type MultimodalMode } from "./common/model-capabilities";
 import * as fs from "fs";
-import { z } from "zod";
+import {
+  getActiveCredential,
+  getActiveBaseURL,
+  setActiveCredential,
+  type ProviderCredential,
+} from "./common/providers";
 import * as os from "os";
 import * as path from "path";
-import { defaultsToThinkingMode } from "./common/model-capabilities";
-
-// Derive defaults from the first provider preset instead of hardcoding a specific vendor
-import { BUILTIN_PROVIDERS } from "./common/provider-presets";
-const FIRST_PROVIDER = BUILTIN_PROVIDERS[0];
-export const DEFAULT_MODEL = FIRST_PROVIDER?.models[0]?.id ?? "deepseek-v4-pro";
-export const DEFAULT_BASE_URL = FIRST_PROVIDER?.baseURL ?? "https://api.deepseek.com";
 
 export type CropcodeEnv = Record<string, string | undefined> & {
   MODEL?: string;
   BASE_URL?: string;
   API_KEY?: string;
+  TEMPERATURE?: string;
   THINKING_ENABLED?: string;
   REASONING_EFFORT?: string;
-  TEMPERATURE?: string;
   DEBUG_LOG_ENABLED?: string;
+  TELEMETRY_ENABLED?: string;
+  MULTIMODAL?: string;
 };
 
-export type ReasoningEffort = "low" | "medium" | "high" | "max";
+export type ReasoningEffort = "low" | "high" | "max";
 
 export type McpServerConfig = {
   command: string;
@@ -28,51 +29,12 @@ export type McpServerConfig = {
   env?: Record<string, string>;
 };
 
-export type EnabledSkillsSettings = Record<string, boolean>;
-
-export type CropcodeSettings = {
-  env?: CropcodeEnv;
-  model?: string;
-  temperature?: number;
-  thinkingEnabled?: boolean;
-  reasoningEffort?: ReasoningEffort;
-  debugLogEnabled?: boolean;
-  notify?: string;
-  webSearchTool?: string;
-  mcpServers?: Record<string, McpServerConfig>;
-  disabledSkills?: string[];
-  enabledSkills?: EnabledSkillsSettings;
-  permissions?: PermissionSettings;
-};
-
-export type ResolvedCropcodeSettings = {
-  env: Record<string, string>;
-  apiKey?: string;
-  baseURL: string;
-  model: string;
-  temperature?: number;
-  thinkingEnabled: boolean;
-  reasoningEffort: ReasoningEffort;
-  debugLogEnabled: boolean;
-  notify?: string;
-  webSearchTool?: string;
-  mcpServers?: Record<string, McpServerConfig>;
-  disabledSkills?: string[];
-  enabledSkills: EnabledSkillsSettings;
-  permissions: Required<PermissionSettings>;
-  hooks?: HooksSettings;
-};
-
-export type ModelConfigSelection = {
-  model: string;
-  thinkingEnabled: boolean;
-  reasoningEffort: ReasoningEffort;
-};
-
 export type PermissionScope =
   | "read-in-cwd"
+  | "read-in-tmp"
   | "read-out-cwd"
   | "write-in-cwd"
+  | "write-in-tmp"
   | "write-out-cwd"
   | "delete-in-cwd"
   | "delete-out-cwd"
@@ -81,73 +43,171 @@ export type PermissionScope =
   | "network"
   | "mcp";
 
-export type PermissionDefaultMode = "ask" | "acceptEdits" | "plan" | "bypassPermissions";
+export type PermissionDefaultMode = "allowAll" | "askAll";
 
 export type PermissionSettings = {
   allow?: PermissionScope[];
   deny?: PermissionScope[];
   ask?: PermissionScope[];
   defaultMode?: PermissionDefaultMode;
+  addWorkingDirs?: string[];
 };
 
-export type HookEvent =
-  | "PreToolUse"
-  | "PostToolUse"
-  | "PostToolUseFailure"
-  | "SessionStart"
-  | "SessionEnd"
-  | "Stop"
-  | "UserPromptSubmit"
-  | "PreCompact"
-  | "PostCompact";
+export type EnabledSkillsSettings = Record<string, boolean>;
 
-export type HookConfig = {
-  type: "command";
-  command: string;
-  timeout?: number;
+export type StatusLineProviderConfig =
+  | {
+      type: "command";
+      id?: string;
+      command: string;
+      cwd?: string;
+      timeoutMs?: number;
+      color?: string;
+      newLine?: boolean;
+      maxLength?: number;
+    }
+  | {
+      type: "module";
+      id?: string;
+      path: string;
+      timeoutMs?: number;
+      color?: string;
+      newLine?: boolean;
+      maxLength?: number;
+    };
+
+export type StatusLineSettings = {
+  enabled?: boolean;
+  refreshMs?: number;
+  separator?: string;
+  providers?: StatusLineProviderConfig[];
 };
 
-export type HookMatcher = {
-  matcher?: string;
-  hooks: HookConfig[];
+export type ResolvedStatusLineSettings = {
+  enabled: boolean;
+  refreshMs: number;
+  separator: string;
+  providers: StatusLineProviderConfig[];
 };
 
-export type HooksSettings = Partial<Record<HookEvent, HookMatcher[]>>;
+export type CropcodeSettings = {
+  env?: CropcodeEnv;
+  contextWindow?: number | string;
+  autoCompactWindow?: number | string;
+  model?: string;
+  temperature?: number;
+  thinkingEnabled?: boolean;
+  reasoningEffort?: ReasoningEffort;
+  debugLogEnabled?: boolean;
+  telemetryEnabled?: boolean;
+  notify?: string;
+  webSearchTool?: string;
+  multimodal?: MultimodalMode;
+  filesApiEnabled?: boolean;
+  filesApiTimeoutMs?: number;
+  fileExpiresAfterSeconds?: number;
+  fileRefreshMarginSeconds?: number;
+  fileQuotaCleanupBatch?: number;
+  maxRequestFilesBytes?: number;
+  mcpServers?: Record<string, McpServerConfig>;
+  permissions?: PermissionSettings;
+  enabledSkills?: EnabledSkillsSettings;
+  statusline?: StatusLineSettings;
+};
 
-const mcpServerConfigSchema = z.object({
-  command: z.string().min(1),
-  args: z.array(z.string()).optional(),
-  env: z.record(z.string(), z.string()).optional(),
-});
+export type ResolvedCropcodeSettings = {
+  env: Record<string, string>;
+  apiKey?: string;
+  baseURL: string;
+  model: string;
+  contextWindow: number;
+  autoCompactWindow: number;
+  temperature?: number;
+  thinkingEnabled: boolean;
+  reasoningEffort: ReasoningEffort;
+  debugLogEnabled: boolean;
+  telemetryEnabled: boolean;
+  notify?: string;
+  webSearchTool?: string;
+  multimodal: MultimodalMode;
+  filesApiEnabled: boolean;
+  filesApiTimeoutMs: number;
+  fileExpiresAfterSeconds: number;
+  fileRefreshMarginSeconds: number;
+  fileQuotaCleanupBatch: number;
+  maxRequestFilesBytes: number;
+  mcpServers?: Record<string, McpServerConfig>;
+  permissions: Required<PermissionSettings>;
+  enabledSkills: EnabledSkillsSettings;
+  statusline: ResolvedStatusLineSettings;
+};
 
-const permissionSettingsSchema = z.object({
-  allow: z.array(z.string()).optional(),
-  deny: z.array(z.string()).optional(),
-  ask: z.array(z.string()).optional(),
-  defaultMode: z.enum(["ask", "acceptEdits", "plan", "bypassPermissions"]).optional(),
-});
-
-const cropcodeSettingsSchema = z
-  .object({
-    env: z.record(z.string(), z.string().optional()).optional(),
-    model: z.string().optional(),
-    temperature: z.number().min(0).max(2).optional(),
-    thinkingEnabled: z.boolean().optional(),
-    reasoningEffort: z.enum(["low", "medium", "high", "max"]).optional(),
-    debugLogEnabled: z.boolean().optional(),
-    notify: z.string().optional(),
-    webSearchTool: z.string().optional(),
-    mcpServers: z.record(z.string(), mcpServerConfigSchema).optional(),
-    disabledSkills: z.array(z.string()).optional(),
-    enabledSkills: z.record(z.string(), z.boolean()).optional(),
-    permissions: permissionSettingsSchema.optional(),
-  })
-  .strict();
+export type ModelConfigSelection = {
+  model: string;
+  thinkingEnabled: boolean;
+  reasoningEffort: ReasoningEffort;
+};
 
 export type SettingsProcessEnv = Record<string, string | undefined>;
 
+const DEFAULT_CONTEXT_WINDOW = 256 * 1024;
+const DEEPSEEK_V4_CONTEXT_WINDOW = 1024 * 1024;
+export const DEFAULT_FILES_API_TIMEOUT_MS = 60_000;
+export const DEFAULT_FILE_EXPIRES_AFTER_SECONDS = 7 * 24 * 60 * 60;
+export const DEFAULT_FILE_REFRESH_MARGIN_SECONDS = 60 * 60;
+export const DEFAULT_FILE_QUOTA_CLEANUP_BATCH = 100;
+export const DEFAULT_MAX_REQUEST_FILES_BYTES = 128 * 1024 * 1024;
+export const MAX_FILES_API_TIMEOUT_MS = 10 * 60 * 1000;
+
+export function getDefaultContextWindow(model: string): number {
+  return DEEPSEEK_V4_MODELS.has(model) ? DEEPSEEK_V4_CONTEXT_WINDOW : DEFAULT_CONTEXT_WINDOW;
+}
+
+export function getDefaultAutoCompactWindow(model: string): number {
+  return getDefaultContextWindow(model) / 2;
+}
+
+function parseTokenWindow(value: unknown): number | undefined {
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const match = /^(\d+)([km])$/i.exec(value.trim());
+  if (!match) {
+    return undefined;
+  }
+  const amount = Number(match[1]);
+  const multiplier = match[2]?.toLowerCase() === "m" ? 1024 * 1024 : 1024;
+  const tokens = amount * multiplier;
+  return Number.isSafeInteger(tokens) && tokens > 0 ? tokens : undefined;
+}
+
+function firstTokenWindow(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    const parsed = parseTokenWindow(value);
+    if (parsed !== undefined) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
 function resolveReasoningEffort(value: unknown): ReasoningEffort | undefined {
-  return value === "low" || value === "medium" || value === "high" || value === "max" ? value : undefined;
+  return value === "low" || value === "high" || value === "max" ? value : undefined;
+}
+
+function resolveMultimodalMode(value: unknown): MultimodalMode | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "default" || normalized === "on" || normalized === "off") {
+    return normalized;
+  }
+  return undefined;
 }
 
 function parseBoolean(value: unknown): boolean | undefined {
@@ -176,8 +236,255 @@ function parseTemperature(value: unknown): number | undefined {
   return raw;
 }
 
+function parseIntegerInRange(value: unknown, minimum: number, maximum: number): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= minimum && value <= maximum
+    ? value
+    : undefined;
+}
+
+function firstIntegerInRange(minimum: number, maximum: number, ...values: unknown[]): number | undefined {
+  for (const value of values) {
+    const parsed = parseIntegerInRange(value, minimum, maximum);
+    if (parsed !== undefined) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
 function trimString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+const VALID_PERMISSION_SCOPES = new Set<PermissionScope>([
+  "read-in-cwd",
+  "read-in-tmp",
+  "read-out-cwd",
+  "write-in-cwd",
+  "write-in-tmp",
+  "write-out-cwd",
+  "delete-in-cwd",
+  "delete-out-cwd",
+  "query-git-log",
+  "mutate-git-log",
+  "network",
+  "mcp",
+]);
+
+function normalizePermissionList(value: unknown): PermissionScope[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const result: PermissionScope[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !VALID_PERMISSION_SCOPES.has(item as PermissionScope)) {
+      continue;
+    }
+    const scope = item as PermissionScope;
+    if (!result.includes(scope)) {
+      result.push(scope);
+    }
+  }
+  return result;
+}
+
+function mergePermissionLists(...lists: Array<PermissionScope[] | undefined>): PermissionScope[] {
+  const result: PermissionScope[] = [];
+  for (const list of lists) {
+    for (const scope of list ?? []) {
+      if (!result.includes(scope)) {
+        result.push(scope);
+      }
+    }
+  }
+  return result;
+}
+
+function normalizeWorkingDirectories(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const result: string[] = [];
+  for (const item of value) {
+    const directory = trimString(item);
+    if (directory && !result.includes(directory)) {
+      result.push(directory);
+    }
+  }
+  return result;
+}
+
+function normalizePermissionDefaultMode(value: unknown): PermissionDefaultMode | undefined {
+  return value === "allowAll" || value === "askAll" ? value : undefined;
+}
+
+function normalizePermissions(settings: PermissionSettings | null | undefined): Required<PermissionSettings> {
+  return {
+    allow: normalizePermissionList(settings?.allow),
+    deny: normalizePermissionList(settings?.deny),
+    ask: normalizePermissionList(settings?.ask),
+    defaultMode: normalizePermissionDefaultMode(settings?.defaultMode) ?? "allowAll",
+    addWorkingDirs: normalizeWorkingDirectories(settings?.addWorkingDirs),
+  };
+}
+
+function mergePermissions(
+  userSettings: CropcodeSettings | null | undefined,
+  projectSettings: CropcodeSettings | null | undefined
+): Required<PermissionSettings> {
+  const userPermissions = normalizePermissions(userSettings?.permissions);
+  const projectPermissions = normalizePermissions(projectSettings?.permissions);
+  return {
+    allow: mergePermissionLists(userPermissions.allow, projectPermissions.allow),
+    deny: mergePermissionLists(userPermissions.deny, projectPermissions.deny),
+    ask: mergePermissionLists(userPermissions.ask, projectPermissions.ask),
+    addWorkingDirs: [...new Set([...userPermissions.addWorkingDirs, ...projectPermissions.addWorkingDirs])],
+    defaultMode: projectSettings?.permissions
+      ? projectPermissions.defaultMode
+      : userSettings?.permissions
+        ? userPermissions.defaultMode
+        : "allowAll",
+  };
+}
+
+function normalizeEnabledSkills(value: unknown): EnabledSkillsSettings {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  const result: EnabledSkillsSettings = {};
+  for (const [name, enabled] of Object.entries(value)) {
+    if (!name || typeof enabled !== "boolean") {
+      continue;
+    }
+    result[name] = enabled;
+  }
+  return result;
+}
+
+function mergeEnabledSkills(
+  userSettings: CropcodeSettings | null | undefined,
+  projectSettings: CropcodeSettings | null | undefined
+): EnabledSkillsSettings {
+  return {
+    ...normalizeEnabledSkills(userSettings?.enabledSkills),
+    ...normalizeEnabledSkills(projectSettings?.enabledSkills),
+  };
+}
+
+const DEFAULT_STATUSLINE_REFRESH_MS = 2000;
+const MIN_STATUSLINE_REFRESH_MS = 500;
+const DEFAULT_STATUSLINE_SEPARATOR = " · ";
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeStatusLineProvider(value: unknown): StatusLineProviderConfig | null {
+  if (!isPlainObject(value)) {
+    return null;
+  }
+  const type = value["type"];
+  const idRaw = trimString(value["id"]);
+  const id = idRaw || undefined;
+  const timeoutRaw = value["timeoutMs"];
+  const timeoutMs =
+    typeof timeoutRaw === "number" && Number.isFinite(timeoutRaw) && timeoutRaw > 0
+      ? Math.floor(timeoutRaw)
+      : undefined;
+  const colorRaw = trimString(value["color"]);
+  const color = colorRaw || undefined;
+  const maxLengthRaw = value["maxLength"];
+  const maxLength =
+    typeof maxLengthRaw === "number" && Number.isFinite(maxLengthRaw) && maxLengthRaw > 0
+      ? Math.floor(maxLengthRaw)
+      : undefined;
+  const newLine = value["newLine"] === true ? true : undefined;
+
+  if (type === "command") {
+    const command = trimString(value["command"]);
+    if (!command) {
+      return null;
+    }
+    const cwdRaw = trimString(value["cwd"]);
+    return {
+      type: "command",
+      id,
+      command,
+      cwd: cwdRaw || undefined,
+      timeoutMs,
+      color,
+      newLine,
+      maxLength,
+    };
+  }
+  if (type === "module") {
+    const modulePath = trimString(value["path"]);
+    if (!modulePath) {
+      return null;
+    }
+    return {
+      type: "module",
+      id,
+      path: modulePath,
+      timeoutMs,
+      color,
+      newLine,
+      maxLength,
+    };
+  }
+  return null;
+}
+
+function normalizeStatusLine(value: unknown): StatusLineSettings | null {
+  if (!isPlainObject(value)) {
+    return null;
+  }
+  const result: StatusLineSettings = {};
+  const enabled = parseBoolean(value["enabled"]);
+  if (enabled !== undefined) {
+    result.enabled = enabled;
+  }
+  const refreshRaw = value["refreshMs"];
+  if (typeof refreshRaw === "number" && Number.isFinite(refreshRaw) && refreshRaw >= MIN_STATUSLINE_REFRESH_MS) {
+    result.refreshMs = Math.floor(refreshRaw);
+  }
+  const separator = value["separator"];
+  if (typeof separator === "string") {
+    result.separator = separator;
+  }
+  const providers = value["providers"];
+  if (Array.isArray(providers)) {
+    const normalized: StatusLineProviderConfig[] = [];
+    for (const entry of providers) {
+      const provider = normalizeStatusLineProvider(entry);
+      if (provider) {
+        normalized.push(provider);
+      }
+    }
+    result.providers = normalized;
+  }
+  return result;
+}
+
+function mergeStatusLine(
+  userSettings: CropcodeSettings | null | undefined,
+  projectSettings: CropcodeSettings | null | undefined
+): ResolvedStatusLineSettings {
+  const userConfig = normalizeStatusLine(userSettings?.statusline) ?? {};
+  const projectConfig = normalizeStatusLine(projectSettings?.statusline) ?? {};
+  const userProviders = userConfig.providers ?? [];
+  const projectProviders = projectConfig.providers ?? [];
+  const projectIds = new Set(projectProviders.map((p) => p.id));
+  const providers = [...userProviders.filter((p) => !projectIds.has(p.id)), ...projectProviders];
+  const enabled = projectConfig.enabled ?? userConfig.enabled ?? providers.length > 0;
+  const refreshMs = projectConfig.refreshMs ?? userConfig.refreshMs ?? DEFAULT_STATUSLINE_REFRESH_MS;
+  const separator = projectConfig.separator ?? userConfig.separator ?? DEFAULT_STATUSLINE_SEPARATOR;
+  return {
+    enabled,
+    refreshMs,
+    separator,
+    providers,
+  };
 }
 
 function normalizeEnv(env: CropcodeSettings["env"]): Record<string, string> {
@@ -272,93 +579,6 @@ function mergeMcpServers(
   return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
-function mergeDisabledSkills(
-  userSettings: CropcodeSettings | null | undefined,
-  projectSettings: CropcodeSettings | null | undefined
-): string[] | undefined {
-  const userSkills = userSettings?.disabledSkills ?? [];
-  const projectSkills = projectSettings?.disabledSkills ?? [];
-  const merged = [...new Set([...userSkills, ...projectSkills])].filter(Boolean);
-  return merged.length > 0 ? merged : undefined;
-}
-
-function normalizeEnabledSkills(value: unknown): EnabledSkillsSettings {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-  const result: EnabledSkillsSettings = {};
-  for (const [name, enabled] of Object.entries(value)) {
-    if (!name || typeof enabled !== "boolean") {
-      continue;
-    }
-    result[name] = enabled;
-  }
-  return result;
-}
-
-function mergeEnabledSkills(
-  userSettings: CropcodeSettings | null | undefined,
-  projectSettings: CropcodeSettings | null | undefined
-): EnabledSkillsSettings {
-  return {
-    ...normalizeEnabledSkills(userSettings?.enabledSkills),
-    ...normalizeEnabledSkills(projectSettings?.enabledSkills),
-  };
-}
-
-export function normalizePermissionList(scopes: PermissionScope[] | undefined): PermissionScope[] {
-  if (!Array.isArray(scopes) || scopes.length === 0) {
-    return [];
-  }
-  const seen = new Set<PermissionScope>();
-  const result: PermissionScope[] = [];
-  for (const scope of scopes) {
-    if (!seen.has(scope)) {
-      seen.add(scope);
-      result.push(scope);
-    }
-  }
-  return result;
-}
-
-export function normalizePermissionDefaultMode(value: unknown): PermissionDefaultMode {
-  if (value === "ask" || value === "acceptEdits" || value === "plan" || value === "bypassPermissions") {
-    return value;
-  }
-  // Legacy modes (allowAll/askAll) and invalid values fall back to the safe default.
-  return "acceptEdits";
-}
-
-export function normalizePermissions(permissions: PermissionSettings | undefined): Required<PermissionSettings> {
-  return {
-    allow: normalizePermissionList(permissions?.allow),
-    deny: normalizePermissionList(permissions?.deny),
-    ask: normalizePermissionList(permissions?.ask),
-    defaultMode: normalizePermissionDefaultMode(permissions?.defaultMode),
-  };
-}
-
-export function mergePermissionLists(user: PermissionScope[], project: PermissionScope[]): PermissionScope[] {
-  return normalizePermissionList([...user, ...project]);
-}
-
-export function mergePermissions(
-  userSettings: CropcodeSettings | null | undefined,
-  projectSettings: CropcodeSettings | null | undefined
-): Required<PermissionSettings> {
-  const user = normalizePermissions(userSettings?.permissions);
-  const project = normalizePermissions(projectSettings?.permissions);
-  // Project-level defaultMode takes precedence when explicitly set; otherwise fall back to user-level.
-  const projectHasDefaultMode = projectSettings?.permissions?.defaultMode !== undefined;
-
-  return {
-    allow: mergePermissionLists(user.allow, project.allow),
-    deny: mergePermissionLists(user.deny, project.deny),
-    ask: mergePermissionLists(user.ask, project.ask),
-    defaultMode: projectHasDefaultMode ? project.defaultMode : user.defaultMode,
-  };
-}
-
 export function resolveSettingsSources(
   userSettings: CropcodeSettings | null | undefined,
   projectSettings: CropcodeSettings | null | undefined,
@@ -381,6 +601,18 @@ export function resolveSettingsSources(
     trimString(userSettings?.model) ||
     trimString(userEnv.MODEL) ||
     defaults.model;
+  const baseURL = trimString(env.BASE_URL) || defaults.baseURL;
+
+  const contextWindow =
+    firstTokenWindow(systemEnv.CONTEXT_WINDOW, projectSettings?.contextWindow, userSettings?.contextWindow) ??
+    getDefaultContextWindow(model);
+  const configuredAutoCompactWindow = firstTokenWindow(
+    systemEnv.AUTO_COMPACT_WINDOW,
+    projectSettings?.autoCompactWindow,
+    userSettings?.autoCompactWindow
+  );
+  const defaultAutoCompactWindow = Math.max(1, Math.floor(contextWindow / 2));
+  const autoCompactWindow = Math.min(configuredAutoCompactWindow ?? defaultAutoCompactWindow, contextWindow);
 
   const thinkingEnabled =
     parseBoolean(systemEnv.THINKING_ENABLED) ??
@@ -396,7 +628,14 @@ export function resolveSettingsSources(
     resolveReasoningEffort(projectEnv.REASONING_EFFORT) ??
     resolveReasoningEffort(userSettings?.reasoningEffort) ??
     resolveReasoningEffort(userEnv.REASONING_EFFORT) ??
-    "high";
+    "max";
+
+  const temperature =
+    parseTemperature(systemEnv.TEMPERATURE) ??
+    parseTemperature(projectSettings?.temperature) ??
+    parseTemperature(projectEnv.TEMPERATURE) ??
+    parseTemperature(userSettings?.temperature) ??
+    parseTemperature(userEnv.TEMPERATURE);
 
   const debugLogEnabled =
     parseBoolean(systemEnv.DEBUG_LOG_ENABLED) ??
@@ -406,12 +645,13 @@ export function resolveSettingsSources(
     parseBoolean(userEnv.DEBUG_LOG_ENABLED) ??
     false;
 
-  const temperature =
-    parseTemperature(systemEnv.TEMPERATURE) ??
-    parseTemperature(projectSettings?.temperature) ??
-    parseTemperature(projectEnv.TEMPERATURE) ??
-    parseTemperature(userSettings?.temperature) ??
-    parseTemperature(userEnv.TEMPERATURE);
+  const telemetryEnabled =
+    parseBoolean(systemEnv.TELEMETRY_ENABLED) ??
+    parseBoolean(projectSettings?.telemetryEnabled) ??
+    parseBoolean(projectEnv.TELEMETRY_ENABLED) ??
+    parseBoolean(userSettings?.telemetryEnabled) ??
+    parseBoolean(userEnv.TELEMETRY_ENABLED) ??
+    true;
 
   const notify =
     trimString(systemEnv.NOTIFY) || trimString(projectSettings?.notify) || trimString(userSettings?.notify) || "";
@@ -421,23 +661,74 @@ export function resolveSettingsSources(
     trimString(userSettings?.webSearchTool) ||
     "";
 
-  const permissions = mergePermissions(userSettings, projectSettings);
+  const multimodal =
+    resolveMultimodalMode(systemEnv.MULTIMODAL) ??
+    resolveMultimodalMode(projectSettings?.multimodal) ??
+    resolveMultimodalMode(projectEnv.MULTIMODAL) ??
+    resolveMultimodalMode(userSettings?.multimodal) ??
+    resolveMultimodalMode(userEnv.MULTIMODAL) ??
+    "default";
+
+  const filesApiEnabled =
+    baseURL === DEFAULT_BASE_URL &&
+    (parseBoolean(projectSettings?.filesApiEnabled) ?? parseBoolean(userSettings?.filesApiEnabled) ?? false);
+  const filesApiTimeoutMs =
+    firstIntegerInRange(
+      1,
+      MAX_FILES_API_TIMEOUT_MS,
+      projectSettings?.filesApiTimeoutMs,
+      userSettings?.filesApiTimeoutMs
+    ) ?? DEFAULT_FILES_API_TIMEOUT_MS;
+  const fileExpiresAfterSeconds =
+    firstIntegerInRange(
+      3_600,
+      2_592_000,
+      projectSettings?.fileExpiresAfterSeconds,
+      userSettings?.fileExpiresAfterSeconds
+    ) ?? DEFAULT_FILE_EXPIRES_AFTER_SECONDS;
+  const fileRefreshMarginSeconds =
+    firstIntegerInRange(
+      0,
+      fileExpiresAfterSeconds - 1,
+      projectSettings?.fileRefreshMarginSeconds,
+      userSettings?.fileRefreshMarginSeconds
+    ) ?? Math.min(DEFAULT_FILE_REFRESH_MARGIN_SECONDS, fileExpiresAfterSeconds - 1);
+  const fileQuotaCleanupBatch =
+    firstIntegerInRange(1, 1_000, projectSettings?.fileQuotaCleanupBatch, userSettings?.fileQuotaCleanupBatch) ??
+    DEFAULT_FILE_QUOTA_CLEANUP_BATCH;
+  const maxRequestFilesBytes =
+    firstIntegerInRange(
+      1,
+      Number.MAX_SAFE_INTEGER,
+      projectSettings?.maxRequestFilesBytes,
+      userSettings?.maxRequestFilesBytes
+    ) ?? DEFAULT_MAX_REQUEST_FILES_BYTES;
 
   return {
     env,
     apiKey: trimString(env.API_KEY) || undefined,
-    baseURL: trimString(env.BASE_URL) || defaults.baseURL,
+    baseURL,
     model,
+    contextWindow,
+    autoCompactWindow,
     temperature,
     thinkingEnabled,
     reasoningEffort,
     debugLogEnabled,
+    telemetryEnabled,
     notify: notify || undefined,
     webSearchTool: webSearchTool || undefined,
+    multimodal,
+    filesApiEnabled,
+    filesApiTimeoutMs,
+    fileExpiresAfterSeconds,
+    fileRefreshMarginSeconds,
+    fileQuotaCleanupBatch,
+    maxRequestFilesBytes,
     mcpServers: mergeMcpServers(userSettings, projectSettings, userEnv, projectEnv, systemEnv),
-    disabledSkills: mergeDisabledSkills(userSettings, projectSettings),
+    permissions: mergePermissions(userSettings, projectSettings),
     enabledSkills: mergeEnabledSkills(userSettings, projectSettings),
-    permissions,
+    statusline: mergeStatusLine(userSettings, projectSettings),
   };
 }
 
@@ -480,6 +771,13 @@ export function applyModelConfigSelection(
 }
 
 // ---------------------------------------------------------------------------
+// Default constants
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_MODEL = "deepseek-flash";
+export const DEFAULT_BASE_URL = "https://api.deepseek.com";
+
+// ---------------------------------------------------------------------------
 // Settings file I/O
 // ---------------------------------------------------------------------------
 
@@ -487,8 +785,24 @@ export function getUserSettingsPath(): string {
   return path.join(os.homedir(), ".cropcode", "settings.json");
 }
 
+export function getCropcodePlusSettingsPath(): string {
+  return path.join(os.homedir(), ".deepcode-plus", "settings.json");
+}
+
 export function getProjectSettingsPath(projectRoot: string): string {
   return path.join(projectRoot, ".cropcode", "settings.json");
+}
+
+export function readCropcodePlusApiKey(settingsPath: string = getCropcodePlusSettingsPath()): string | undefined {
+  try {
+    const raw = fs.readFileSync(settingsPath, "utf8");
+    const settings = JSON.parse(raw) as { env?: { PLUS_API_KEY?: unknown } } | null;
+    return typeof settings?.env?.PLUS_API_KEY === "string"
+      ? trimString(settings.env.PLUS_API_KEY) || undefined
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function readSettingsFile(settingsPath: string): CropcodeSettings | null {
@@ -497,12 +811,7 @@ export function readSettingsFile(settingsPath: string): CropcodeSettings | null 
       return null;
     }
     const raw = fs.readFileSync(settingsPath, "utf8");
-    const parsed = JSON.parse(raw);
-    const result = cropcodeSettingsSchema.safeParse(parsed);
-    if (!result.success) {
-      return null;
-    }
-    return result.data as CropcodeSettings;
+    return JSON.parse(raw) as CropcodeSettings;
   } catch {
     return null;
   }
@@ -518,7 +827,8 @@ export function readProjectSettings(projectRoot: string = process.cwd()): Cropco
 
 function writeSettingsFile(settingsPath: string, settings: CropcodeSettings): void {
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-  fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+  fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  if (process.platform !== "win32") fs.chmodSync(settingsPath, 0o600);
 }
 
 export function writeSettings(settings: CropcodeSettings): void {
@@ -551,13 +861,55 @@ export function writeModelConfigSelection(
 }
 
 export function resolveCurrentSettings(projectRoot: string = process.cwd()): ResolvedCropcodeSettings {
+  const userPath = path.resolve(getUserSettingsPath());
+  const projectPath = path.resolve(getProjectSettingsPath(projectRoot));
+  const sameFile = userPath === projectPath;
+  const credential = getActiveCredential();
+  const rawUserSettings = readSettings();
+  const userSettings: CropcodeSettings = credential
+    ? {
+        model: credential.activeModel,
+        thinkingEnabled: credential.thinkingEnabled,
+        reasoningEffort: resolveReasoningEffort(credential.reasoningEffort),
+        ...rawUserSettings,
+        env: { API_KEY: credential.apiKey, BASE_URL: getActiveBaseURL(), ...rawUserSettings?.env },
+      }
+    : (rawUserSettings ?? {});
   return resolveSettingsSources(
-    readSettings(),
-    readProjectSettings(projectRoot),
+    userSettings,
+    sameFile ? null : readProjectSettings(projectRoot),
     {
       model: DEFAULT_MODEL,
       baseURL: DEFAULT_BASE_URL,
     },
     process.env
   );
+}
+
+/** Activate a provider while preserving unrelated user settings and project/env overrides. */
+export function activateProvider(credential: ProviderCredential): void {
+  const settings = readSettings() ?? {};
+  setActiveCredential(
+    credential.providerId,
+    credential.apiKey,
+    credential.activeModel,
+    credential.mode,
+    credential.thinkingEnabled,
+    credential.reasoningEffort
+  );
+  // Endpoint, key and model are updated together so credentials cannot cross providers.
+  writeSettings({
+    ...settings,
+    model: credential.activeModel,
+    thinkingEnabled: credential.thinkingEnabled,
+    reasoningEffort: resolveReasoningEffort(credential.reasoningEffort) ?? "high",
+    env: {
+      ...settings.env,
+      API_KEY: credential.apiKey,
+      BASE_URL: getActiveBaseURL(),
+      MODEL: undefined,
+      THINKING_ENABLED: undefined,
+      REASONING_EFFORT: undefined,
+    },
+  });
 }

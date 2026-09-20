@@ -1,39 +1,38 @@
 import { handleAskUserQuestionTool } from "./ask-user-question-handler";
 import { handleBashTool } from "./bash-handler";
 import { handleEditTool } from "./edit-handler";
-import { handleGlobTool } from "./glob-handler";
-import { handleGrepTool } from "./grep-handler";
+import { handleReadImageTool } from "./read-image-handler";
 import { handleReadTool } from "./read-handler";
+import { handleSkillTool } from "./skill-handler";
 import { handleUpdatePlanTool } from "./update-plan-handler";
+import { handleUnderstandImageTool } from "./understand-image-handler";
 import { handleWebSearchTool } from "./web-search-handler";
 import { handleWriteTool } from "./write-handler";
 import type { McpManager } from "../mcp/mcp-manager";
-import type { HooksSettings } from "../settings";
-import { executeHooks, aggregateHookResults, type HookInput } from "../hooks";
-
-// Re-export shared tool types from common/tool-types so existing consumers
-// (`from "./executor"` / `from "../tools/executor"`) keep working after the
-// types were extracted to break the runtime/validate → executor cycle.
-export type {
+import type {
   CreateOpenAIClient,
+  SharpLoader,
   ToolCall,
-  BackgroundProcessCompletion,
-  ToolExecutionContext,
   ToolExecutionHooks,
-  ProcessTimeoutInfo,
-  ProcessTimeoutControl,
   ToolExecutionResult,
-  ToolExecutionFollowUpMessage,
   ToolHandler,
   ToolCallExecution,
 } from "../common/tool-types";
-import type {
+
+export type {
   CreateOpenAIClient,
+  SharpLoader,
   ToolCall,
+  ToolExecutionContext,
   ToolExecutionHooks,
+  ToolExecutionResult,
   ToolHandler,
   ToolCallExecution,
-  ToolExecutionResult,
+  ProcessTimeoutInfo,
+  ProcessTimeoutControl,
+  BackgroundProcessCompletion,
+  ToolExecutionFollowUpMessage,
+  PluginRateLimitedTool,
 } from "../common/tool-types";
 
 const BUILT_IN_TOOL_NAME_ALIASES = new Map<string, string>([
@@ -47,27 +46,21 @@ export class ToolExecutor {
   private readonly projectRoot: string;
   private readonly createOpenAIClient?: CreateOpenAIClient;
   private readonly mcpManager?: McpManager;
+  private readonly loadSharp?: SharpLoader;
   private readonly toolHandlers = new Map<string, ToolHandler>();
-  private readonly hooksSettings?: HooksSettings;
-  private readonly sessionId: string;
 
   constructor(
     projectRoot: string,
     createOpenAIClient?: CreateOpenAIClient,
     mcpManager?: McpManager,
-    hooksSettings?: HooksSettings,
-    sessionId?: string
+    loadSharp?: SharpLoader
   ) {
     this.projectRoot = projectRoot;
     this.createOpenAIClient = createOpenAIClient;
     this.mcpManager = mcpManager;
-    this.hooksSettings = hooksSettings;
-    this.sessionId = sessionId ?? "";
+    this.loadSharp = loadSharp;
     this.registerToolHandlers();
   }
-
-  // Tools that are safe to run in parallel (read-only, no side effects)
-  private static readonly CONCURRENCY_SAFE_TOOLS = new Set(["read", "Read", "WebSearch", "grep", "glob"]);
 
   async executeToolCalls(
     sessionId: string,
@@ -78,53 +71,20 @@ export class ToolExecutor {
       .map((toolCall) => this.parseToolCall(toolCall))
       .filter((toolCall): toolCall is ToolCall => Boolean(toolCall));
 
-    // Partition into concurrent-safe batches and serial batches
-    const batches: ToolCall[][] = [];
-    let currentBatch: ToolCall[] = [];
-    for (const toolCall of parsedCalls) {
-      if (ToolExecutor.CONCURRENCY_SAFE_TOOLS.has(toolCall.function.name)) {
-        currentBatch.push(toolCall);
-      } else {
-        if (currentBatch.length > 0) {
-          batches.push(currentBatch);
-          currentBatch = [];
-        }
-        batches.push([toolCall]);
-      }
-    }
-    if (currentBatch.length > 0) {
-      batches.push(currentBatch);
-    }
-
     const executions: ToolCallExecution[] = [];
-    for (const batch of batches) {
-      if (hooks?.shouldStop?.()) break;
-      if (batch.length === 1) {
-        const result = await this.executeToolCall(sessionId, batch[0], hooks);
-        executions.push({
-          toolCallId: batch[0].id,
-          content: this.formatToolResult(result),
-          result,
-        });
-      } else {
-        // Run concurrent-safe tools in parallel
-        const results = await Promise.allSettled(
-          batch.map((toolCall) => this.executeToolCall(sessionId, toolCall, hooks))
-        );
-        for (let i = 0; i < batch.length; i++) {
-          const settled = results[i];
-          const result =
-            settled.status === "fulfilled"
-              ? settled.value
-              : { ok: false, name: batch[i].function.name, error: settled.reason?.message ?? "Unknown error" };
-          executions.push({
-            toolCallId: batch[i].id,
-            content: this.formatToolResult(result),
-            result,
-          });
-        }
+    for (const toolCall of parsedCalls) {
+      if (hooks?.shouldStop?.()) {
+        break;
       }
-      if (hooks?.shouldStop?.()) break;
+      const result = await this.executeToolCall(sessionId, toolCall, hooks);
+      executions.push({
+        toolCallId: toolCall.id,
+        content: this.formatToolResult(result),
+        result,
+      });
+      if (hooks?.shouldStop?.()) {
+        break;
+      }
     }
     return executions;
   }
@@ -132,13 +92,14 @@ export class ToolExecutor {
   private registerToolHandlers(): void {
     this.toolHandlers.set("bash", handleBashTool);
     this.toolHandlers.set("read", handleReadTool);
+    this.toolHandlers.set("ReadImage", handleReadImageTool);
     this.toolHandlers.set("write", handleWriteTool);
     this.toolHandlers.set("edit", handleEditTool);
+    this.toolHandlers.set("skill", handleSkillTool);
     this.toolHandlers.set("AskUserQuestion", handleAskUserQuestionTool);
     this.toolHandlers.set("UpdatePlan", handleUpdatePlanTool);
+    this.toolHandlers.set("UnderstandImage", handleUnderstandImageTool);
     this.toolHandlers.set("WebSearch", handleWebSearchTool);
-    this.toolHandlers.set("grep", handleGrepTool);
-    this.toolHandlers.set("glob", handleGlobTool);
   }
 
   private parseToolCall(toolCall: unknown): ToolCall | null {
@@ -182,11 +143,11 @@ export class ToolExecutor {
     toolCall: ToolCall,
     hooks?: ToolExecutionHooks
   ): Promise<ToolExecutionResult> {
+    hooks?.signal?.throwIfAborted();
     const toolName = toolCall.function.name;
     const handlerName = BUILT_IN_TOOL_NAME_ALIASES.get(toolName) ?? toolName;
     const handler = this.toolHandlers.get(handlerName);
     if (!handler) {
-      // Try MCP tools
       if (this.mcpManager?.isMcpTool(toolName)) {
         const parsedArgs = this.parseToolArguments(toolCall.function.arguments);
         const args = parsedArgs.ok ? parsedArgs.args : {};
@@ -208,32 +169,14 @@ export class ToolExecutor {
       };
     }
 
-    // PreToolUse hooks
-    if (this.hooksSettings) {
-      const hookInput: HookInput = {
-        event: "PreToolUse",
-        sessionId: sessionId || this.sessionId,
-        projectRoot: this.projectRoot,
-        toolName,
-        toolInput: parsedArgs.args,
-      };
-      const preResults = await executeHooks("PreToolUse", toolName, hookInput, this.hooksSettings);
-      const preAggregated = aggregateHookResults(preResults);
-      if (preAggregated.blocked) {
-        return {
-          ok: false,
-          name: toolName,
-          error: preAggregated.blockReason || "Hook blocked tool execution",
-        };
-      }
-    }
-
     try {
       const result = await handler(parsedArgs.args, {
+        signal: hooks?.signal,
         sessionId,
         projectRoot: this.projectRoot,
         toolCall,
         createOpenAIClient: this.createOpenAIClient,
+        loadSharp: this.loadSharp,
         onProcessStart: hooks?.onProcessStart,
         onProcessExit: hooks?.onProcessExit,
         onProcessStdout: hooks?.onProcessStdout,
@@ -241,43 +184,20 @@ export class ToolExecutor {
         onBackgroundProcessComplete: hooks?.onBackgroundProcessComplete,
         onBeforeFileMutation: hooks?.onBeforeFileMutation,
         onAfterFileMutation: hooks?.onAfterFileMutation,
+        onPluginRateLimitExceeded: hooks?.onPluginRateLimitExceeded,
+        onLoadSkill: hooks?.onLoadSkill,
       });
-
-      // PostToolUse hooks
-      if (this.hooksSettings) {
-        const hookInput: HookInput = {
-          event: result.ok ? "PostToolUse" : "PostToolUseFailure",
-          sessionId: sessionId || this.sessionId,
-          projectRoot: this.projectRoot,
-          toolName,
-          toolInput: parsedArgs.args,
-          toolOutput: result.output,
-          error: result.error,
-        };
-        await executeHooks(result.ok ? "PostToolUse" : "PostToolUseFailure", toolName, hookInput, this.hooksSettings);
-      }
-
-      return this.addTrustChainState(result);
+      hooks?.signal?.throwIfAborted();
+      return result;
     } catch (error) {
+      hooks?.signal?.throwIfAborted();
       const message = error instanceof Error ? error.message : String(error);
-      return this.addTrustChainState({
+      return {
         ok: false,
         name: toolName,
         error: message,
-      });
+      };
     }
-  }
-
-  private addTrustChainState(result: ToolExecutionResult): ToolExecutionResult {
-    const metadata = { ...(result.metadata ?? {}) };
-    if (!result.ok) {
-      metadata.tc = "TC_UNCERTAIN";
-    } else if (result.error) {
-      metadata.tc = "TC_CARRY";
-    } else {
-      metadata.tc = "TC_NONE";
-    }
-    return { ...result, metadata };
   }
 
   private parseToolArguments(

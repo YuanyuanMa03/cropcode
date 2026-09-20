@@ -1,14 +1,20 @@
 import chalk from "chalk";
 import { renderMessageToStdout } from "../components/MessageView/utils";
 import type { RawMode } from "../contexts";
-import type { ModelConfigSelection } from "@YuanyuanMa03/cropcode-core";
-import type { SessionEntry, SessionMessage } from "@YuanyuanMa03/cropcode-core";
-import type { SessionManager } from "@YuanyuanMa03/cropcode-core";
+import type { PromptDraft } from "../views/PromptInput";
+import type { ModelConfigSelection } from "@yuanyuanma03/cropcode-core";
+import type { SessionEntry, SessionMessage } from "@yuanyuanma03/cropcode-core";
+import type { SessionManager } from "@yuanyuanma03/cropcode-core";
+import type { MessageMeta } from "@yuanyuanma03/cropcode-core";
 
-export function renderRawModeMessages(allMessages: SessionMessage[], mode: RawMode): void {
+/**
+ * Render all messages directly to stdout for Raw mode display.
+ * Writes each message followed by the "Press ESC to exit raw mode" footer.
+ */
+export function renderRawModeMessages(allMessages: SessionMessage[], mode: string | RawMode): void {
   for (const msg of allMessages) {
     process.stdout.write("\n");
-    process.stdout.write(renderMessageToStdout(msg, mode) + "\n\n");
+    process.stdout.write(renderMessageToStdout(msg, mode as RawMode) + "\n\n");
   }
   if (allMessages.length > 0) {
     process.stdout.write("\n\n");
@@ -21,10 +27,10 @@ export function renderRawModeMessages(allMessages: SessionMessage[], mode: RawMo
   }
 }
 
-export function buildSyntheticUserMessage(content: string, imageCount: number): SessionMessage {
+export function buildSyntheticUserMessage(content: string, imageCount: number, meta?: MessageMeta): SessionMessage {
   const now = new Date().toISOString();
   return {
-    id: `local-${crypto.randomUUID()}`,
+    id: `local-${Math.random().toString(36).slice(2)}`,
     sessionId: "local",
     role: "user",
     content,
@@ -40,6 +46,25 @@ export function buildSyntheticUserMessage(content: string, imageCount: number): 
     visible: true,
     createTime: now,
     updateTime: now,
+    meta,
+  };
+}
+
+export function buildPromptHistory(messages: SessionMessage[]): string[] {
+  return messages
+    .filter((message) => message.role === "user" && message.visible && typeof message.content === "string")
+    .map((message) => (message.content ?? "").trim())
+    .filter((content) => content.length > 0);
+}
+
+export function buildPromptDraftFromSessionMessage(message: SessionMessage, nonce: number): PromptDraft {
+  const storedImageUrls = message.meta?.userPrompt?.imageUrls;
+  return {
+    nonce,
+    text: typeof message.content === "string" ? message.content : "",
+    imageUrls: Array.isArray(storedImageUrls)
+      ? storedImageUrls.filter((url): url is string => typeof url === "string" && url.length > 0)
+      : extractImageUrlsFromContentParams(message.contentParams),
   };
 }
 
@@ -64,47 +89,59 @@ export function isCurrentSessionEmpty(sessionManager: SessionManager): boolean {
   return !activeSessionId || !sessionManager.getSession(activeSessionId);
 }
 
-export function buildStatusLine(entry: SessionEntry): string {
-  const parts: string[] = [];
-  const statusMap: Record<string, string> = {
-    pending: "就绪",
-    processing: "运行中",
-    waiting_for_user: "等待输入",
-    completed: "已完成",
-    interrupted: "已中断",
-    failed: "失败",
-    ask_permission: "请求权限",
-    permission_denied: "权限拒绝",
-  };
-  parts.push(statusMap[entry.status] ?? entry.status);
-  if (typeof entry.activeTokens === "number" && entry.activeTokens > 0) {
-    parts.push(`${formatTokenCount(entry.activeTokens)} tokens`);
+const CONTEXT_BAR_WIDTH = 10;
+
+export function formatTokenCount(tokens: number): string {
+  if (!Number.isFinite(tokens) || tokens <= 0) {
+    return "0";
   }
-  if (entry.failReason) {
-    parts.push(`原因: ${entry.failReason}`);
+  if (tokens < 1024) {
+    return String(Math.round(tokens));
   }
-  return parts.join(" · ");
+
+  const unit = tokens >= 1024 * 1024 ? "M" : "K";
+  const divisor = unit === "M" ? 1024 * 1024 : 1024;
+  return `${Number((tokens / divisor).toFixed(1))}${unit}`;
 }
 
-function formatTokenCount(tokens: number): string {
-  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
-  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}k`;
-  return String(tokens);
+export function formatContextUsage(activeTokens: number, contextWindow: number): string {
+  const safeActiveTokens = Number.isFinite(activeTokens) ? Math.max(0, activeTokens) : 0;
+  const ratio = Number.isFinite(contextWindow) && contextWindow > 0 ? safeActiveTokens / contextWindow : 0;
+  const cappedRatio = Math.min(1, ratio);
+  const filledBlocks = Math.round(cappedRatio * CONTEXT_BAR_WIDTH);
+  const bar = `${"▓".repeat(filledBlocks)}${"░".repeat(CONTEXT_BAR_WIDTH - filledBlocks)}`;
+  const percent = Math.min(100, Math.round(ratio * 100));
+  return `${formatTokenCount(safeActiveTokens)}/${formatTokenCount(contextWindow)} [${bar}] ${percent}%`;
+}
+
+export function buildStatusLine(
+  entry: SessionEntry,
+  settings: Pick<ModelConfigSelection, "model" | "thinkingEnabled" | "reasoningEffort"> & {
+    contextWindow: number;
+  }
+): string {
+  const parts: string[] = [];
+  parts.push(`status: ${entry.status}`);
+  if (typeof entry.activeTokens === "number" && entry.activeTokens > 0) {
+    parts.push(formatContextUsage(entry.activeTokens, settings.contextWindow));
+  }
+  const model = settings.model.trim();
+  if (model) {
+    parts.push(settings.thinkingEnabled ? `${model} ${settings.reasoningEffort}` : model);
+  }
+  if (entry.failReason) {
+    parts.push(`fail: ${entry.failReason}`);
+  }
+  return parts.join(" · ");
 }
 
 export function formatThinkingMode(
   settings: Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">
 ): string {
   if (!settings.thinkingEnabled) {
-    return "关闭";
+    return "no thinking";
   }
-  const effortMap: Record<string, string> = {
-    low: "低",
-    medium: "中",
-    high: "高",
-    max: "最强",
-  };
-  return `深度思考 · ${effortMap[settings.reasoningEffort] ?? settings.reasoningEffort}`;
+  return `thinking ${settings.reasoningEffort}`;
 }
 
 export function formatModelConfig(settings: ModelConfigSelection): string {

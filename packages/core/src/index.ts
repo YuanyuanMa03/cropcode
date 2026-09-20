@@ -1,8 +1,4 @@
-// Core library public API — used by the CLI package (and future IDE companions).
-//
-// Mirrors the deepcode-core public-surface discipline: a single barrel that
-// declares the public/private boundary so consumers import from the package
-// root (`@YuanyuanMa03/cropcode-core`) instead of reaching into internal paths.
+// Core library public API — used by both CLI and VSCode companion.
 
 // Settings
 export {
@@ -18,28 +14,34 @@ export {
   modelConfigKey,
   getUserSettingsPath,
   getProjectSettingsPath,
+  readCropcodePlusApiKey,
+  getDefaultContextWindow,
+  getDefaultAutoCompactWindow,
   DEFAULT_MODEL,
   DEFAULT_BASE_URL,
+  DEFAULT_FILES_API_TIMEOUT_MS,
+  DEFAULT_FILE_EXPIRES_AFTER_SECONDS,
+  DEFAULT_FILE_REFRESH_MARGIN_SECONDS,
+  DEFAULT_FILE_QUOTA_CLEANUP_BATCH,
+  DEFAULT_MAX_REQUEST_FILES_BYTES,
+  MAX_FILES_API_TIMEOUT_MS,
 } from "./settings";
 export type {
   CropcodeSettings,
   ResolvedCropcodeSettings,
-  CropcodeEnv,
   ModelConfigSelection,
   PermissionScope,
   PermissionSettings,
   PermissionDefaultMode,
   McpServerConfig,
   ReasoningEffort,
-  EnabledSkillsSettings,
-  HookEvent,
-  HookConfig,
-  HookMatcher,
-  HooksSettings,
+  StatusLineSettings,
+  ResolvedStatusLineSettings,
+  StatusLineProviderConfig,
 } from "./settings";
 
 // Session
-export { SessionManager, getProjectCode } from "./session";
+export { SessionManager, getProjectCode, getCompactPromptTokenThreshold } from "./session";
 export type {
   SessionMessage,
   SessionEntry,
@@ -54,7 +56,8 @@ export type {
   SessionProcessEntry,
   BashTimeoutAdjustment,
   LlmStreamProgress,
-  LlmStreamDelta,
+  LlmRetryEvent,
+  SessionManagerOptions,
 } from "./session";
 
 // Prompt utilities
@@ -62,11 +65,12 @@ export {
   getSystemPrompt,
   getCompactPrompt,
   getRuntimeContext,
-  getDefaultSkillPrompt,
+  getPlanModePrompt,
+  getExtensionRoot,
   getTools,
   buildSkillDocumentsPrompt,
 } from "./prompt";
-export type { ToolDefinition, SkillPromptDocument } from "./prompt";
+export type { ToolDefinition, SkillPromptDocument, PromptToolOptions } from "./prompt";
 
 // Tools
 export { ToolExecutor } from "./tools/executor";
@@ -82,97 +86,50 @@ export type {
   ProcessTimeoutControl,
   BackgroundProcessCompletion,
   ToolExecutionFollowUpMessage,
+  PluginRateLimitedTool,
+  SharpLoader,
 } from "./common/tool-types";
 
 // Tool handlers
 export { handleBashTool, clearSessionWorkingDir } from "./tools/bash-handler";
 export { handleReadTool } from "./tools/read-handler";
+export { handleReadImageTool } from "./tools/read-image-handler";
 export { handleWriteTool } from "./tools/write-handler";
 export { handleEditTool } from "./tools/edit-handler";
 export { handleUpdatePlanTool } from "./tools/update-plan-handler";
+export { handleUnderstandImageTool } from "./tools/understand-image-handler";
 export { handleWebSearchTool } from "./tools/web-search-handler";
 export { handleAskUserQuestionTool } from "./tools/ask-user-question-handler";
-export { handleGlobTool } from "./tools/glob-handler";
-export { handleGrepTool } from "./tools/grep-handler";
 
 // MCP
 export { McpManager } from "./mcp/mcp-manager";
 export { McpClient } from "./mcp/mcp-client";
 export type { McpServerStatus } from "./mcp/mcp-manager";
 
-// Multi-provider system (cropcode-specific)
-export {
-  BUILTIN_PROVIDERS,
-  findProviderById,
-  findModelInProvider,
-  resolveProviderBaseURL,
-} from "./common/provider-presets";
-export type { ProviderPreset, ProviderModel } from "./common/provider-presets";
-export {
-  getActiveCredential,
-  setActiveCredential,
-  getActiveBaseURL,
-  getActiveApiKey,
-  getActiveModel,
-  getActiveThinkingEnabled,
-  getActiveReasoningEffort,
-  hasCredentials,
-  getActiveProviderLabel,
-  getActiveModelLabel,
-} from "./common/providers";
-export type { ProviderCredential } from "./common/providers";
-
-// Dynamic model discovery (cropcode-specific)
-export { fetchAvailableModels, mergeDiscoveredModels, discoverModels } from "./common/model-discovery";
-export type { DiscoveredModel } from "./common/model-discovery";
-
-// Hooks engine (cropcode-specific, Claude-Code-style command hooks)
-export { executeHooks, aggregateHookResults, getMatchingHooks } from "./hooks";
-export type { HookInput, HookResult } from "./hooks";
-
-// Marketplace (cropcode-specific, Claude-format plugin marketplace)
-export {
-  addMarketplace,
-  removeMarketplace,
-  listMarketplaces,
-  getMarketplaceManifest,
-  installPlugin,
-  removePlugin,
-  listInstalledPlugins,
-} from "./marketplace";
-
 // Common utilities
-export { createOpenAIClient } from "./common/openai-client";
-export { buildThinkingRequestOptions } from "./common/openai-thinking";
+export { createOpenAIClient, resolveOpenAIConnection, CROPCODE_PLUS_BASE_URL } from "./common/openai-client";
+export { buildThinkingRequestOptions, getReasoningEfforts } from "./common/openai-thinking";
 export { readTextFileWithMetadata, writeTextFile, buildDiffPreview, ensureParentDirectory } from "./common/file-utils";
 export { normalizeFilePath, getSnippet, clearSessionState, recordFileState, getFileState } from "./common/state";
 export { GitFileHistory } from "./common/file-history";
 export { killProcessTree } from "./common/process-tree";
+export { TENCENT_MIRROR_REGISTRY } from "./common/npm-registry";
 export { launchNotifyScript } from "./common/notify";
-export { withRetry } from "./common/retry";
-export {
-  MICROCOMPACT_TRIGGER_THRESHOLD,
-  MICROCOMPACT_KEEP_RECENT,
-  MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES,
-  getEffectiveContextWindow,
-  getCompactPromptTokenThreshold,
-  getMaxOutputTokens,
-  supportsMultimodal,
-  supportsThinking,
-} from "./common/model-capabilities";
+export { reportNewPrompt } from "./common/telemetry";
+export { DEEPSEEK_V4_MODELS, supportsMultimodal, defaultsToThinkingMode } from "./common/model-capabilities";
+export type { MultimodalMode } from "./common/model-capabilities";
 export { findGitBashPath, resolveShellPath, setShellIfWindows } from "./common/shell-utils";
 export { logApiError } from "./common/error-logger";
+export { logOpenAIChatCompletionDebug } from "./common/debug-logger";
 export { describeLlmError, getLlmErrorDetails } from "./common/llm-error";
 export type { LlmErrorDetails } from "./common/llm-error";
-export { logOpenAIChatCompletionDebug } from "./common/debug-logger";
-export { truncateWithTail, maybePersistToolResult, BASH_PERSIST_THRESHOLD } from "./common/tool-result-storage";
 export {
   clampBashTimeoutMs,
   DEFAULT_BASH_TIMEOUT_MS,
   BASH_TIMEOUT_INCREMENT_MS,
   BASH_TIMEOUT_DECREMENT_MS,
 } from "./common/bash-timeout";
-export { executeValidatedTool, semanticBoolean } from "./common/runtime";
+export { executeValidatedTool, semanticBoolean } from "./common/validate";
 export { OpenAIMessageConverter } from "./common/openai-message-converter";
 export {
   computeToolCallPermissions,
@@ -195,3 +152,23 @@ export type {
 // State types
 export type { FileState, FileSnippet, FileLineEnding } from "./common/state";
 export type { FileReadMetadata } from "./common/file-utils";
+
+export { activateProvider } from "./settings";
+export {
+  BUILTIN_PROVIDERS,
+  findProviderById,
+  findModelInProvider,
+  findProviderByBaseURL,
+  resolveProviderBaseURL,
+} from "./common/provider-presets";
+export type { ProviderPreset, ProviderModel } from "./common/provider-presets";
+export {
+  getActiveCredential,
+  getActiveProviderLabel,
+  getActiveModelLabel,
+  setActiveCredential,
+  readCredentials,
+} from "./common/providers";
+export type { ProviderCredential } from "./common/providers";
+export { discoverModels, mergeDiscoveredModels } from "./common/model-discovery";
+export type { DiscoveredModel } from "./common/model-discovery";

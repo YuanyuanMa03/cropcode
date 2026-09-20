@@ -1,3 +1,4 @@
+import { bindProcessAbort } from "../common/process-abort";
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
 import * as fs from "fs";
@@ -5,7 +6,6 @@ import * as os from "os";
 import * as path from "path";
 import { DEFAULT_BASH_TIMEOUT_MS, clampBashTimeoutMs } from "../common/bash-timeout";
 import { killProcessTree } from "../common/process-tree";
-import { truncateWithTail, maybePersistToolResult, BASH_PERSIST_THRESHOLD } from "../common/tool-result-storage";
 import type { ProcessTimeoutControl, ProcessTimeoutInfo, ToolExecutionContext, ToolExecutionResult } from "./executor";
 import {
   buildDisableExtglobCommand,
@@ -16,11 +16,16 @@ import {
   toNativeCwd,
 } from "../common/shell-utils";
 
-const MAX_OUTPUT_CHARS = 50_000;
+const MAX_OUTPUT_CHARS = 30000;
 const MAX_CAPTURE_CHARS = 10 * 1024 * 1024;
 const BACKGROUND_OUTPUT_DIR = path.join(os.tmpdir(), "cropcode-background");
 const TRAILING_BACKGROUND_OPERATOR_PATTERN = /(^|[^\\&])\s*&\s*$/;
 const sessionWorkingDirs = new Map<string, string>();
+// Process completion and output EOF are separate: descendants may retain pipes.
+// Bound output draining after exit, and completion after a timeout kill attempt.
+const IO_DRAIN_TIMEOUT_MS = 2_000;
+const HELD_PIPE_NOTE =
+  "[cropcode] Output streams did not close within the drain deadline; later output may not have been collected. Use run_in_background: true for detached work.";
 
 export function clearSessionWorkingDir(sessionId: string): void {
   if (!sessionId) {
@@ -47,6 +52,7 @@ export async function handleBashTool(
   args: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
+  context.signal?.throwIfAborted();
   const rawCommand = typeof args.command === "string" ? args.command : "";
   const runInBackground = isTrue(args.run_in_background);
   const command = runInBackground ? stripTrailingBackgroundOperator(rawCommand) : rawCommand;
@@ -66,6 +72,7 @@ export async function handleBashTool(
   }
 
   const execution = await executeShellCommand(shellPath, shellArgs, startCwd, command, context);
+  context.signal?.throwIfAborted();
   const result = buildToolCommandResult(
     execution.stdout,
     execution.stderr,
@@ -78,14 +85,17 @@ export async function handleBashTool(
     execution.timeoutMs,
     execution.deadlineAtMs
   );
+  if (execution.outputDrainTimedOut) {
+    result.output = `${result.output}${result.output && !result.output.endsWith("\n") ? "\n" : ""}${HELD_PIPE_NOTE}`;
+  }
   updateSessionCwd(context.sessionId, startCwd, result.cwd);
 
-  if (execution.error || result.exitCode !== 0 || result.signal !== null) {
+  if (execution.timedOut || execution.error || result.exitCode !== 0 || result.signal !== null) {
     const errorMessage = buildErrorMessage(result.exitCode, result.signal, execution.error, execution.timedOut);
-    return formatResult({ ...result, ok: false }, "bash", errorMessage, context.projectRoot);
+    return formatResult({ ...result, ok: false }, "bash", errorMessage);
   }
 
-  return formatResult(result, "bash", undefined, context.projectRoot);
+  return formatResult(result, "bash");
 }
 
 function isTrue(value: unknown): boolean {
@@ -97,12 +107,37 @@ function stripTrailingBackgroundOperator(command: string): string {
 }
 
 function getSessionCwd(sessionId: string, fallback: string): string {
-  return sessionWorkingDirs.get(sessionId) ?? fallback;
+  const stored = sessionWorkingDirs.get(sessionId);
+  if (stored && isUsableCwd(stored)) {
+    return stored;
+  }
+  // If the stored cwd is no longer valid (e.g. Git Bash's virtual /tmp path does not exist after Windows conversion),
+  // fall back to projectRoot and clear the stale entry to prevent spawn ENOENT errors from breaking the bash tool.
+  if (stored) {
+    sessionWorkingDirs.delete(sessionId);
+  }
+  return fallback;
 }
 
 function updateSessionCwd(sessionId: string, fallback: string, cwd: string | null): void {
   const nextCwd = cwd ?? fallback;
-  sessionWorkingDirs.set(sessionId, nextCwd);
+  // Only store valid directories; an invalid cwd (e.g. Git Bash's /tmp converted to \tmp) would cause the next spawn to fail.
+  if (isUsableCwd(nextCwd)) {
+    sessionWorkingDirs.set(sessionId, nextCwd);
+  } else {
+    sessionWorkingDirs.delete(sessionId);
+  }
+}
+
+function isUsableCwd(cwd: string): boolean {
+  if (!cwd) {
+    return false;
+  }
+  try {
+    return fs.statSync(cwd).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function buildShellCommand(command: string): {
@@ -115,6 +150,9 @@ function buildShellCommand(command: string): {
   const initCommand = buildShellInitCommand(shellPath);
   const disableExtglobCommand = buildDisableExtglobCommand(shellPath);
   const normalizedCommand = rewriteWindowsNullRedirect(command);
+  // Git Bash mounts such as /tmp and /usr cannot be mapped by replacing
+  // separators or drive prefixes. Ask Bash for the native path while it is alive.
+  const cwdExpression = process.platform === "win32" ? '"$(builtin pwd -W)"' : '"$PWD"';
   const wrappedParts = [];
   if (initCommand) {
     wrappedParts.push(initCommand);
@@ -125,7 +163,7 @@ function buildShellCommand(command: string): {
   wrappedParts.push(
     normalizedCommand,
     "__CROPCODE_STATUS__=$?",
-    `printf '%s%s\\n' "${marker}" "$PWD"`,
+    `printf '%s%s\\n' "${marker}" ${cwdExpression}`,
     "exit $__CROPCODE_STATUS__"
   );
   const wrappedCommand = `{ ${wrappedParts.join("; ")}; } < /dev/null`;
@@ -147,7 +185,9 @@ async function executeShellCommand(
   timedOut: boolean;
   timeoutMs: number;
   deadlineAtMs: number;
+  outputDrainTimedOut: boolean;
 }> {
+  context.signal?.throwIfAborted();
   return new Promise((resolve) => {
     const detached = process.platform !== "win32";
     const configuredEnv = context.createOpenAIClient?.().env ?? {};
@@ -158,6 +198,11 @@ async function executeShellCommand(
     let deadlineAtMs = startedAtMs + timeoutMs;
     let timedOut = false;
     let settled = false;
+    let childExit: { code: number | null; signal: string | null } | null = null;
+    let stdout = "";
+    let stderr = "";
+    let error: string | undefined;
+    let timeoutControlRegistered = false;
     let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
     const child = spawn(shellPath, shellArgs, {
       cwd,
@@ -166,6 +211,7 @@ async function executeShellCommand(
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
+    bindProcessAbort(child, context.signal);
     const pid = child.pid;
 
     const getTimeoutInfo = (): ProcessTimeoutInfo => ({
@@ -180,17 +226,80 @@ async function executeShellCommand(
         timeoutTimer = null;
       }
     };
+    let forceSettleTimer: ReturnType<typeof setTimeout> | null = null;
+    const cancelForceSettleTimer = () => {
+      if (forceSettleTimer) {
+        clearTimeout(forceSettleTimer);
+        forceSettleTimer = null;
+      }
+    };
+    const unregisterTimeoutControl = () => {
+      if (timeoutControlRegistered && typeof pid === "number") {
+        timeoutControlRegistered = false;
+        context.onProcessTimeoutControl?.(pid, null);
+      }
+    };
+    const finish = (outputDrainTimedOut = false) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cancelForceSettleTimer();
+      stopTimeoutTimer();
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      unregisterTimeoutControl();
+      if (typeof pid === "number") {
+        context.onProcessExit?.(pid);
+      }
+      resolve({
+        stdout,
+        stderr,
+        exitCode: timedOut ? null : (childExit?.code ?? null),
+        signal: timedOut ? null : (childExit?.signal ?? null),
+        error,
+        timedOut,
+        timeoutMs,
+        deadlineAtMs,
+        outputDrainTimedOut,
+      });
+    };
+    const startDrainTimer = () => {
+      // An exit after timeout must not extend the original completion deadline.
+      if (!forceSettleTimer) {
+        forceSettleTimer = setTimeout(
+          () =>
+            finish(
+              Boolean((child.stdout && !child.stdout.readableEnded) || (child.stderr && !child.stderr.readableEnded))
+            ),
+          IO_DRAIN_TIMEOUT_MS
+        );
+      }
+    };
     const triggerTimeout = () => {
-      if (settled || timedOut || typeof pid !== "number") {
+      if (settled || timedOut || childExit || typeof pid !== "number") {
         return;
       }
       timedOut = true;
       stopTimeoutTimer();
+      startDrainTimer();
+      unregisterTimeoutControl();
+      // Unix process groups can outlive their leader. Regardless of kill success,
+      // completion must not depend on either exit or pipe EOF arriving.
       killProcessTree(pid, "SIGKILL");
     };
+    child.on("exit", (code, signal) => {
+      if (settled || childExit) {
+        return;
+      }
+      childExit = { code, signal };
+      stopTimeoutTimer();
+      startDrainTimer();
+      unregisterTimeoutControl();
+    });
     const scheduleTimeout = () => {
       stopTimeoutTimer();
-      if (settled) {
+      if (settled || timedOut || childExit) {
         return;
       }
       const remainingMs = Math.max(0, deadlineAtMs - Date.now());
@@ -199,6 +308,9 @@ async function executeShellCommand(
     const timeoutControl: ProcessTimeoutControl = {
       getInfo: getTimeoutInfo,
       setTimeoutMs: (nextTimeoutMs) => {
+        if (settled || timedOut || childExit) {
+          return getTimeoutInfo();
+        }
         timeoutMs = clampBashTimeoutMs(nextTimeoutMs, minTimeoutMs);
         deadlineAtMs = startedAtMs + timeoutMs;
         if (deadlineAtMs <= Date.now()) {
@@ -210,49 +322,37 @@ async function executeShellCommand(
       },
     };
 
-    if (typeof pid === "number") {
-      context.onProcessStart?.(pid, command);
-      context.onProcessTimeoutControl?.(pid, timeoutControl);
-      scheduleTimeout();
-    }
-
-    let stdout = "";
-    let stderr = "";
-    let error: string | undefined;
-
     child.stdout?.on("data", (chunk: string | Buffer) => {
+      if (settled) return;
       stdout = appendChunk(stdout, chunk);
       const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
       context.onProcessStdout?.(pid as number, text);
     });
     child.stderr?.on("data", (chunk: string | Buffer) => {
+      if (settled) return;
       stderr = appendChunk(stderr, chunk);
       const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
       context.onProcessStdout?.(pid as number, text);
     });
 
     child.on("error", (spawnError) => {
+      if (settled) return;
       error = spawnError.message;
+      finish();
     });
 
     child.on("close", (code, signal) => {
-      settled = true;
-      stopTimeoutTimer();
-      if (typeof pid === "number") {
-        context.onProcessTimeoutControl?.(pid, null);
-        context.onProcessExit?.(pid);
-      }
-      resolve({
-        stdout,
-        stderr,
-        exitCode: typeof code === "number" ? code : null,
-        signal: signal ?? null,
-        error,
-        timedOut,
-        timeoutMs,
-        deadlineAtMs,
-      });
+      if (settled) return;
+      childExit ??= { code, signal };
+      finish();
     });
+
+    if (typeof pid === "number") {
+      context.onProcessStart?.(pid, command);
+      timeoutControlRegistered = true;
+      context.onProcessTimeoutControl?.(pid, timeoutControl);
+      scheduleTimeout();
+    }
   });
 }
 
@@ -264,6 +364,7 @@ function startBackgroundShellCommand(
   marker: string,
   context: ToolExecutionContext
 ): ToolExecutionResult {
+  context.signal?.throwIfAborted();
   fs.mkdirSync(BACKGROUND_OUTPUT_DIR, { recursive: true });
   const taskId = `bash-${randomUUID()}`;
   const outputPath = path.join(BACKGROUND_OUTPUT_DIR, `${taskId}.log`);
@@ -277,6 +378,7 @@ function startBackgroundShellCommand(
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
+  bindProcessAbort(child, context.signal);
   const pid = child.pid;
   const processId = typeof pid === "number" ? pid : -1;
   const stopCommand = typeof pid === "number" ? buildStopBackgroundProcessCommand(pid) : null;
@@ -319,6 +421,8 @@ function startBackgroundShellCommand(
   });
 
   child.on("close", (code, signal) => {
+    const markerResult = stripMarker(stdout, marker);
+    const finalOutput = joinOutput(markerResult.output, stderr);
     const result = buildToolCommandResult(
       stdout,
       stderr,
@@ -328,8 +432,8 @@ function startBackgroundShellCommand(
       shellPath,
       cwd
     );
-    updateSessionCwd(context.sessionId, cwd, result.cwd);
-    writeFinalBackgroundOutput(outputPath, joinOutput(stripMarker(stdout, marker).output, stderr));
+    if (!context.signal?.aborted) updateSessionCwd(context.sessionId, cwd, result.cwd);
+    writeFinalBackgroundOutput(outputPath, finalOutput);
     if (typeof pid === "number") {
       context.onProcessExit?.(pid);
     }
@@ -387,7 +491,7 @@ function writeFinalBackgroundOutput(outputPath: string, output: string | undefin
   try {
     fs.writeFileSync(outputPath, output ?? "", "utf8");
   } catch {
-    // Ignore output persistence failures.
+    // Ignore notification/output persistence failures; the tool result already returned.
   }
 }
 
@@ -421,7 +525,7 @@ function buildToolCommandResult(
   const combined = joinOutput(cleanedStdout, stderr);
   const { text, truncated } = truncateOutput(combined);
   return {
-    ok: exitCode === 0 && signal === null,
+    ok: !timedOut && exitCode === 0 && signal === null,
     output: text,
     cwd,
     exitCode,
@@ -473,15 +577,15 @@ function truncateOutput(output: string): { text: string; truncated: boolean } {
   if (output.length <= MAX_OUTPUT_CHARS) {
     return { text: output, truncated: false };
   }
-  return { text: truncateWithTail(output, MAX_OUTPUT_CHARS), truncated: true };
+  return { text: output.slice(0, MAX_OUTPUT_CHARS), truncated: true };
 }
 
 function buildErrorMessage(exitCode: number | null, signal: string | null, error?: string, timedOut = false): string {
-  if (error) {
-    return error;
-  }
   if (timedOut) {
     return "Command timed out.";
+  }
+  if (error) {
+    return error;
   }
   if (signal) {
     return `Command terminated by signal ${signal}.`;
@@ -492,12 +596,7 @@ function buildErrorMessage(exitCode: number | null, signal: string | null, error
   return "Command failed.";
 }
 
-function formatResult(
-  result: ToolCommandResult,
-  name: string,
-  errorMessage?: string,
-  projectRoot?: string
-): ToolExecutionResult {
+function formatResult(result: ToolCommandResult, name: string, errorMessage?: string): ToolExecutionResult {
   const metadata: Record<string, unknown> = {
     exitCode: result.exitCode,
     signal: result.signal,
@@ -516,10 +615,7 @@ function formatResult(
     metadata.deadlineAt = result.deadlineAt;
   }
 
-  let outputValue = result.output ? result.output : undefined;
-  if (outputValue && projectRoot && outputValue.length >= BASH_PERSIST_THRESHOLD) {
-    outputValue = maybePersistToolResult(outputValue, BASH_PERSIST_THRESHOLD, projectRoot);
-  }
+  const outputValue = result.output ? result.output : undefined;
 
   return {
     ok: result.ok,

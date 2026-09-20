@@ -7,6 +7,7 @@ On Windows, Bash runs through Git Bash. Use POSIX commands and quote Windows pat
 IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO NOT use it for file operations (reading, writing, editing, searching, finding files) - use the specialized tools for this instead.
 
 IMPORTANT: Before reaching for generic shell pipelines, prefer purpose-built CLI tools when they make the task more accurate, safer, faster, or easier to understand:
+
 - Use `ripgrep` (`rg`) when you need to search file contents by text or regex across the workspace; prefer it over slower tools like `grep`.
 - Use `jq` when you need to inspect, filter, or transform JSON output; prefer it over ad-hoc parsing with `sed`, `awk`, or Python one-liners.
 
@@ -27,33 +28,38 @@ Before executing the command, please follow these steps:
    - Capture the output of the command.
 
 Usage notes:
-  - The command argument is required.
-  - The `sideEffects` parameter is required for every bash call. Choose the permission scope that best describes what the command does.
-  - The `run_in_background` parameter is optional. Set to true to run this command in the background. You will be notified when it finishes. Only use this if you don't need the result immediately and are OK being notified when it completes. You do not need to use '&' at the end of the command when using this parameter.
-    - If the command is long running and you would like to be notified when it finishes — use `run_in_background`.
-    - Do not retry failing commands in a sleep loop — diagnose the root cause.
-    - If waiting for a background task, you will be notified when it completes — do not poll.
-    - If you must poll an external process, use a check command (e.g. `gh run view`) rather than sleeping first.
-    - If you must sleep, keep the duration short to avoid blocking the user.
-  - It is very helpful if you write a clear, concise description of what this command does. For simple commands, keep it brief (5-10 words). For complex commands (piped commands, obscure flags, or anything hard to understand at a glance), add enough context to clarify what it does.
-  - If the output exceeds 30000 characters, output will be truncated before being returned to you.
-  - Always prefer using the dedicated tools for these commands:
-    - Read files: Use Read (NOT cat/head/tail)
-    - Edit files: Use Edit (NOT sed/awk)
-    - Write files: Use Write (NOT echo >/cat <<EOF)
-    - Communication: Output text directly (NOT echo/printf)
-  - When issuing multiple commands:
-    - If the commands are independent and can run in parallel, make multiple Bash tool calls in a single message. For example, if you need to run "git status" and "git diff", send a single message with two Bash tool calls in parallel.
-    - If the commands depend on each other and must run sequentially, use a single Bash call with '&&' to chain them together (e.g., `git add . && git commit -m "message" && git push`). For instance, if one operation must complete before another starts (like mkdir before cp, Write before Bash for git operations, or git add before git commit), run these operations sequentially instead.
-    - Use ';' only when you need to run commands sequentially but don't care if earlier commands fail
-    - DO NOT use newlines to separate commands (newlines are ok in quoted strings)
-  - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it.
-    <good-example>
-    pytest /foo/bar/tests
-    </good-example>
-    <bad-example>
-    cd /foo/bar && pytest tests
-    </bad-example>
+
+- The command argument is required.
+- The sideEffects argument is required. Declare the minimum permission scopes the command may need.
+- You can use `run_in_background: true` to run a command in the background. Only use this if you need to perform a blocking task, like running a server for the upcoming test scripts.
+- When using `run_in_background`, do NOT add `&` to the command. Output is written to a log file.
+- Before your final response, stop background tasks that has not reported a completed state, unless the user explicitly asks to keep it running.
+- To stop a background command, use the `stopCommand` returned in the tool result metadata.
+- Use `sideEffects: []` only for commands that do not read, write, delete, query Git history, mutate Git history, or access the network, such as `date` or `node --version`.
+- Use `*-out-cwd` when the command accesses paths outside the current workspace and additional working dirs. For example, `cat /etc/hosts` requires `["read-out-cwd"]`.
+- Treat the root path and additional working dirs from the runtime context as `*-cwd`.
+- Use `*-in-tmp` for system temporary directories: `/tmp` and `/private/tmp`.
+- Use `query-git-log` for commands such as `git log`, `git show HEAD`, `git blame`, or history diffs. Use `mutate-git-log` for commands such as `git commit`, `git reset`, `git rebase`, `git merge`, `git cherry-pick`, or `git tag`.
+- Use `["unknown"]` when you cannot classify the command safely.
+- It is very helpful if you write a clear, concise description of what this command does. For simple commands, keep it brief (5-10 words). For complex commands (piped commands, obscure flags, or anything hard to understand at a glance), add enough context to clarify what it does.
+- If the output exceeds 30000 characters, output will be truncated before being returned to you.
+- Always prefer using the dedicated tools for these commands:
+  - Read files: Use Read (NOT cat/head/tail)
+  - Edit files: Use Edit (NOT sed/awk)
+  - Write files: Use Write (NOT echo >/cat <<EOF)
+  - Communication: Output text directly (NOT echo/printf)
+- When issuing multiple commands:
+  - If the commands are independent and can run in parallel, make multiple Bash tool calls in a single message. For example, if you need to run "git status" and "git diff", send a single message with two Bash tool calls in parallel.
+  - If the commands depend on each other and must run sequentially, use a single Bash call with '&&' to chain them together (e.g., `git add . && git commit -m "message" && git push`). For instance, if one operation must complete before another starts (like mkdir before cp, Write before Bash for git operations, or git add before git commit), run these operations sequentially instead.
+  - Use ';' only when you need to run commands sequentially but don't care if earlier commands fail
+  - DO NOT use newlines to separate commands (newlines are ok in quoted strings)
+- Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it.
+  <good-example>
+  pytest /foo/bar/tests
+  </good-example>
+  <bad-example>
+  cd /foo/bar && pytest tests
+  </bad-example>
 
 ```json
 {
@@ -69,14 +75,16 @@ Usage notes:
       "type": "string"
     },
     "sideEffects": {
-      "description": "Permission scopes required by this bash command. Use [] only for commands that do not read, write, delete, or access the network. Use [\"unknown\"] when the effects cannot be classified safely. Required for every bash call.",
+      "description": "Permission scopes required by this bash command. Use [] only for commands that do not read, write, delete, or access the network. Use [\"unknown\"] when the effects cannot be classified safely.",
       "type": "array",
       "items": {
         "type": "string",
         "enum": [
           "read-in-cwd",
+          "read-in-tmp",
           "read-out-cwd",
           "write-in-cwd",
+          "write-in-tmp",
           "write-out-cwd",
           "delete-in-cwd",
           "delete-out-cwd",
@@ -85,21 +93,15 @@ Usage notes:
           "network",
           "unknown"
         ]
-      }
+      },
+      "uniqueItems": true
     },
     "run_in_background": {
-      "description": "Set to true to run this command in the background. You will be notified when it finishes. Only use this if you don't need the result immediately and are OK being notified when it completes. You do not need to use '&' at the end of the command when using this parameter.",
+      "description": "Set to true to run the command in the background. Use this only when you do not need the result immediately and can wait for a completion notification.",
       "type": "boolean"
-    },
-    "stopCommand": {
-      "description": "If run_in_background is true, an optional command to stop the background process (e.g. 'Ctrl+C', 'kill %1').",
-      "type": "string"
     }
   },
-  "required": [
-    "command",
-    "sideEffects"
-  ],
+  "required": ["command", "sideEffects"],
   "additionalProperties": false
 }
 ```

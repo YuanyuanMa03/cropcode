@@ -3,6 +3,7 @@
 Updates the current task plan and progress display.
 
 Usage:
+
 - Use this tool for non-trivial multi-step tasks when a task list helps track execution progress.
 - Pass the complete current task list every time. The latest call replaces the previous visible plan.
 - The `plan` argument is a markdown string, not an array of step objects. If the requirement is in Chinese, then use Chinese for the markdown as well.
@@ -25,9 +26,7 @@ Usage:
       "type": "string"
     }
   },
-  "required": [
-    "plan"
-  ],
+  "required": ["plan"],
   "additionalProperties": false
 }
 ```

@@ -1,28 +1,34 @@
-node_modules/
-dist/
-dist-portable/
-release/
-*.log
-*.tgz
+# OS metadata
 .DS_Store
-# macOS resource fork files
-._*
-# monorepo 子包构建产物
-packages/*/dist/
-packages/*/*.tsbuildinfo
-# 自动生成的版本信息（build 时生成）
-packages/cli/src/generated/
+Thumbs.db
+
+# Dependency directory
+node_modules/
+# Ignore built ts files
+dist/
+out/
+
+
+# Editors
 .idea/
 .vscode/
-__pycache__/
-.superpowers/
-.openclaw/
-.agents/
+*.tgz
+*.log
+*.vsix
 .cropcode/settings.json
-CLAUDE.md
-AGENTS.md
-HEARTBEAT.md
-IDENTITY.md
-SOUL.md
-TOOLS.md
-USER.md
+
+# TypeScript build info files
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+
+# Generated files
+packages/cli/src/generated/
+packages/core/src/generated/
+packages/vscode-ide-companion/*.vsix
+packages/vscode-ide-companion/templates/
+# Local distribution artifacts
+release/
+dist-portable/

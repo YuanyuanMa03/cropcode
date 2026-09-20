@@ -43,20 +43,18 @@ export function UpdatePrompt({ currentVersion, latestVersion, installCommand, on
       return;
     }
     if (key.return) {
-      const choice = options[selectedIndex]?.value ?? "ignore-once";
-      onSelect(choice);
-      setImmediate(() => exit());
+      onSelect(options[selectedIndex]?.value ?? "ignore-once");
+      exit();
       return;
     }
     if (key.escape || (key.ctrl && (input === "c" || input === "C"))) {
       onSelect("ignore-once");
-      setImmediate(() => exit());
+      exit();
       return;
     }
     if (/^[1-3]$/.test(input)) {
-      const choice = options[Number(input) - 1]?.value ?? "ignore-once";
-      onSelect(choice);
-      setImmediate(() => exit());
+      onSelect(options[Number(input) - 1]?.value ?? "ignore-once");
+      exit();
     }
   });
 

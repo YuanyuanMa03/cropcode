@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Box, Text } from "ink";
 import { useTerminalInput } from "../hooks";
-import type { AskPermissionRequest, AskPermissionScope, UserToolPermission } from "@YuanyuanMa03/cropcode-core";
-import type { PermissionScope } from "@YuanyuanMa03/cropcode-core";
+import type { AskPermissionRequest, AskPermissionScope, UserToolPermission } from "@yuanyuanma03/cropcode-core";
+import type { PermissionScope } from "@yuanyuanma03/cropcode-core";
 
 export type PermissionPromptResult = {
   permissions: UserToolPermission[];
@@ -30,8 +30,10 @@ type PromptOption = {
 
 const ALWAYS_ALLOWED_SCOPES = new Set<AskPermissionScope>([
   "read-in-cwd",
+  "read-in-tmp",
   "read-out-cwd",
   "write-in-cwd",
+  "write-in-tmp",
   "write-out-cwd",
   "delete-in-cwd",
   "delete-out-cwd",
@@ -138,7 +140,7 @@ export function PermissionPrompt({ requests, onSubmit, onCancel }: Props): React
       </Box>
       <Text bold>{prompt.request.name}</Text>
       <Text>{prompt.request.command}</Text>
-      {prompt.request.description ? <Text dimColor>{prompt.request.description}</Text> : null}
+      {prompt.request.description ? <Text color="cyanBright">{prompt.request.description}</Text> : null}
       <Box marginTop={1}>
         <Text>Do you want to proceed?</Text>
       </Box>
@@ -229,6 +231,8 @@ function isAlwaysAllowedScope(scope: AskPermissionScope): scope is PermissionSco
 export function getScopeRiskColor(scope: AskPermissionScope): string {
   switch (scope) {
     case "read-in-cwd":
+    case "read-in-tmp":
+    case "write-in-tmp":
     case "query-git-log":
       return "#22c55e";
     case "read-out-cwd":
@@ -251,10 +255,14 @@ function describeScope(scope: PermissionScope): string {
   switch (scope) {
     case "read-in-cwd":
       return "reads inside this workspace";
+    case "read-in-tmp":
+      return "reads inside system temporary directories";
     case "read-out-cwd":
       return "reads outside this workspace";
     case "write-in-cwd":
       return "writes inside this workspace";
+    case "write-in-tmp":
+      return "writes inside system temporary directories";
     case "write-out-cwd":
       return "writes outside this workspace";
     case "delete-in-cwd":

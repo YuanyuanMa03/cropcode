@@ -8,14 +8,13 @@ import {
   readTextFileWithMetadata,
   writeTextFile,
 } from "../common/file-utils";
-import { executeValidatedTool, semanticBoolean } from "../common/runtime";
+import { executeValidatedTool, semanticBoolean } from "../common/validate";
 import {
   createSnippet,
   getFileState,
   getSnippet,
   hasSnippetOutdatedFileVersion,
   isAbsoluteFilePath,
-  isFullFileView,
   normalizeFilePath,
   recordFileState,
 } from "../common/state";
@@ -59,7 +58,7 @@ type CorrectedEditStrings = {
 
 const editSchema = z.strictObject({
   file_path: z.string().optional(),
-  snippet_id: z.string().optional(),
+  snippet_id: z.string().min(1, "snippet_id is required."),
   old_string: z.string(),
   new_string: z.string(),
   replace_all: semanticBoolean(false).optional(),
@@ -84,19 +83,19 @@ export async function handleEditTool(
     args,
     context,
     async (input) => {
-      const snippetId = input.snippet_id?.trim() ?? "";
-      const snippet = snippetId ? getSnippet(context.sessionId, snippetId) : null;
+      const snippetId = input.snippet_id.trim();
+      const snippet = getSnippet(context.sessionId, snippetId);
 
       let filePath = input.file_path?.trim() ?? "";
-      if (!filePath && !snippet) {
+      if (!snippet) {
         return {
           ok: false,
           name: "edit",
-          error: 'Missing required "file_path" string or "snippet_id" string.',
+          error: `Unknown snippet_id: ${snippetId}`,
         };
       }
 
-      if (!filePath && snippet) {
+      if (!filePath) {
         filePath = snippet.filePath;
       }
 
@@ -109,27 +108,11 @@ export async function handleEditTool(
         };
       }
 
-      if (snippetId && !snippet) {
-        return {
-          ok: false,
-          name: "edit",
-          error: `Unknown snippet_id: ${snippetId}`,
-        };
-      }
-
-      if (snippet && snippet.filePath !== filePath) {
+      if (snippet.filePath !== filePath) {
         return {
           ok: false,
           name: "edit",
           error: "snippet_id does not belong to the provided file_path.",
-        };
-      }
-
-      if (input.old_string === "") {
-        return {
-          ok: false,
-          name: "edit",
-          error: "old_string must not be empty.",
         };
       }
 
@@ -153,6 +136,7 @@ export async function handleEditTool(
       try {
         stat = fs.statSync(filePath);
       } catch (error) {
+        context.signal?.throwIfAborted();
         const message = error instanceof Error ? error.message : String(error);
         return {
           ok: false,
@@ -178,14 +162,6 @@ export async function handleEditTool(
         };
       }
 
-      if (!snippet && !isFullFileView(fileState)) {
-        return {
-          ok: false,
-          name: "edit",
-          error: "File was only partially read. Use snippet_id or read the full file before editing.",
-        };
-      }
-
       if (hasFileChangedSinceState(filePath, fileState)) {
         return {
           ok: false,
@@ -201,11 +177,35 @@ export async function handleEditTool(
         const newString = input.new_string;
         const replaceAll = input.replace_all ?? false;
         const lineIndex = buildLineIndex(raw);
-        const scope = buildSearchScope(filePath, raw, lineIndex, snippet ?? null);
-        let matches = findOccurrences(raw, oldString, scope);
-        let matchedVia: "exact" | "line_leading_tab_correction" | "loose_escape" | "llm_escape_correction" = "exact";
+        const scope = buildSearchScope(filePath, raw, lineIndex, snippet);
+        let matches: MatchOccurrence[] = [];
+        let matchedVia: "exact" | "empty_file" | "line_leading_tab_correction" | "llm_escape_correction" = "exact";
         let replacementOldString = oldString;
         let replacementNewString = newString;
+
+        if (oldString === "") {
+          if (raw !== "") {
+            return {
+              ok: false,
+              name: "edit",
+              error: "old_string must not be empty unless the file is empty.",
+              metadata: {
+                scope: formatScopeMetadata(scope),
+              },
+            };
+          }
+          matches = [
+            {
+              startOffset: 0,
+              endOffset: 0,
+              startLine: 1,
+              endLine: 1,
+            },
+          ];
+          matchedVia = "empty_file";
+        } else {
+          matches = findOccurrences(raw, oldString, scope);
+        }
 
         if (matches.length === 0) {
           const tabStrippedOldString = stripReadResultLineTabs(oldString);
@@ -224,7 +224,10 @@ export async function handleEditTool(
           const looseEscapeMatches = findLooseEscapeMatches(raw, oldString, scope);
           if (looseEscapeMatches.length === 1 && looseEscapeMatches[0]?.score === 1) {
             const correctedStrings = await correctEscapedStringsWithLLM(
-              raw.slice(scope.startOffset, scope.endOffset),
+              raw.slice(
+                Math.min(scope.startOffset, looseEscapeMatches[0].startOffset),
+                Math.max(scope.endOffset, looseEscapeMatches[0].endOffset)
+              ),
               oldString,
               newString,
               looseEscapeMatches[0].text,
@@ -232,18 +235,10 @@ export async function handleEditTool(
             );
 
             if (correctedStrings) {
-              const correctedMatches = findOccurrences(raw, correctedStrings.oldString, scope);
-              if (correctedMatches.length > 0) {
-                matches = correctedMatches;
-                matchedVia = "llm_escape_correction";
-                replacementOldString = correctedStrings.oldString;
-                replacementNewString = correctedStrings.newString;
-              }
-            }
-
-            if (matches.length === 0) {
               matches = [looseEscapeMatches[0]];
-              matchedVia = "loose_escape";
+              matchedVia = "llm_escape_correction";
+              replacementOldString = correctedStrings.oldString;
+              replacementNewString = correctedStrings.newString;
             }
           }
         }
@@ -313,7 +308,9 @@ export async function handleEditTool(
 
         const updated = applyReplacement(raw, replacementOldString, replacementNewString, matches, replaceAll);
         const diffPreview = buildDiffPreview(filePath, raw, updated);
+        context.signal?.throwIfAborted();
         context.onBeforeFileMutation?.(filePath);
+        context.signal?.throwIfAborted();
         writeTextFile(filePath, updated, metadata.encoding, metadata.lineEndings);
         context.onAfterFileMutation?.(filePath);
         const freshMetadata = readTextFileWithMetadata(filePath);
@@ -338,7 +335,7 @@ export async function handleEditTool(
             replaced_count: replacedCount,
             matched_via: matchedVia,
             cache_refreshed: true,
-            read_scope_type: snippet ? "snippet" : "full",
+            read_scope_type: snippet.scopeType,
             encoding: freshMetadata.encoding,
             line_endings: freshMetadata.lineEndings,
             diff_preview: diffPreview,
@@ -346,6 +343,7 @@ export async function handleEditTool(
           },
         };
       } catch (error) {
+        context.signal?.throwIfAborted();
         const message = error instanceof Error ? error.message : String(error);
         return {
           ok: false,
@@ -428,7 +426,7 @@ function findOccurrences(raw: string, needle: string, scope: SearchScope): Match
     return [];
   }
 
-  const scopeText = raw.slice(scope.startOffset, scope.endOffset);
+  const scopeText = raw;
   const matches: MatchOccurrence[] = [];
   let searchIndex = 0;
 
@@ -437,8 +435,12 @@ function findOccurrences(raw: string, needle: string, scope: SearchScope): Match
     if (found === -1) {
       break;
     }
-    const startOffset = scope.startOffset + found;
+    const startOffset = found;
     const endOffset = startOffset + needle.length;
+    if (startOffset >= scope.endOffset || endOffset <= scope.startOffset) {
+      searchIndex = found + needle.length;
+      continue;
+    }
     matches.push({
       startOffset,
       endOffset,
@@ -446,6 +448,41 @@ function findOccurrences(raw: string, needle: string, scope: SearchScope): Match
       endLine: offsetToLine(raw, Math.max(startOffset, endOffset - 1)),
     });
     searchIndex = found + needle.length;
+  }
+
+  return matches;
+}
+
+function findLooseEscapeMatches(raw: string, needle: string, scope: SearchScope): LooseEscapeMatch[] {
+  if (!raw || !needle) {
+    return [];
+  }
+
+  const scopeText = raw;
+  const looseEscapeRegex = buildLooseEscapeRegex(needle);
+  if (!looseEscapeRegex) {
+    return [];
+  }
+
+  const normalizedNeedle = normalizeLooseText(needle);
+  const matches: LooseEscapeMatch[] = [];
+  for (const match of scopeText.matchAll(looseEscapeRegex)) {
+    if (typeof match.index !== "number") {
+      continue;
+    }
+
+    const text = match[0];
+    const startOffset = match.index;
+    const endOffset = startOffset + text.length;
+    if (startOffset >= scope.endOffset || endOffset <= scope.startOffset) continue;
+    matches.push({
+      text,
+      score: similarityScore(normalizedNeedle, normalizeLooseText(text)),
+      startOffset,
+      endOffset,
+      startLine: offsetToLine(raw, startOffset),
+      endLine: offsetToLine(raw, Math.max(startOffset, endOffset - 1)),
+    });
   }
 
   return matches;
@@ -559,40 +596,6 @@ function formatWithLineNumbers(lines: string[], startLine: number): string {
   return lines.map((line, index) => `${String(startLine + index).padStart(6, " ")}\t${line}`).join("\n");
 }
 
-function findLooseEscapeMatches(raw: string, needle: string, scope: SearchScope): LooseEscapeMatch[] {
-  if (!raw || !needle) {
-    return [];
-  }
-
-  const scopeText = raw.slice(scope.startOffset, scope.endOffset);
-  const looseEscapeRegex = buildLooseEscapeRegex(needle);
-  if (!looseEscapeRegex) {
-    return [];
-  }
-
-  const normalizedNeedle = normalizeLooseText(needle);
-  const matches: LooseEscapeMatch[] = [];
-  for (const match of scopeText.matchAll(looseEscapeRegex)) {
-    if (typeof match.index !== "number") {
-      continue;
-    }
-
-    const text = match[0];
-    const startOffset = scope.startOffset + match.index;
-    const endOffset = startOffset + text.length;
-    matches.push({
-      text,
-      score: similarityScore(normalizedNeedle, normalizeLooseText(text)),
-      startOffset,
-      endOffset,
-      startLine: offsetToLine(raw, startOffset),
-      endLine: offsetToLine(raw, Math.max(startOffset, endOffset - 1)),
-    });
-  }
-
-  return matches;
-}
-
 function buildLooseEscapeRegex(source: string): RegExp | null {
   if (!source) {
     return null;
@@ -608,7 +611,7 @@ function buildLooseEscapeRegex(source: string): RegExp | null {
 
       if (slashEnd < source.length) {
         pattern += "\\\\*";
-        pattern += escapeRegExp(source[slashEnd]);
+        pattern += buildLooseCharacterPattern(source[slashEnd]);
         index = slashEnd;
         continue;
       }
@@ -618,10 +621,20 @@ function buildLooseEscapeRegex(source: string): RegExp | null {
       continue;
     }
 
-    pattern += escapeRegExp(source[index]);
+    pattern += buildLooseCharacterPattern(source[index]);
   }
 
   return new RegExp(pattern, "g");
+}
+
+function buildLooseCharacterPattern(character: string): string {
+  if (character === '"' || character === "“" || character === "”") {
+    return '["“”]';
+  }
+  if (character === "'" || character === "‘" || character === "’") {
+    return "['‘’]";
+  }
+  return escapeRegExp(character);
 }
 
 async function inferOldStringNotFoundReasonWithLLM(
@@ -637,7 +650,7 @@ async function inferOldStringNotFoundReasonWithLLM(
     return null;
   }
 
-  const { client, model, thinkingEnabled, reasoningEffort } = clientFactory();
+  const { client, model, baseURL, thinkingEnabled, reasoningEffort } = clientFactory();
   if (!client) {
     return null;
   }
@@ -648,39 +661,45 @@ async function inferOldStringNotFoundReasonWithLLM(
   const contentAfterSnippet = getLinesAfterScope(lineIndex, scope, contextLineLimit);
 
   try {
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You diagnose failed file edits when old_string was not found. " +
-            "Return XML only using <response><reason>...</reason></response>. " +
-            "Be concise and specific. Explain the likely mismatch between old_string and the <snippet_text/> content. " +
-            "Do not suggest unrelated changes.",
-        },
-        {
-          role: "user",
-          content:
-            "<request>\n" +
-            `  <content_before_snippet><![CDATA[${contentBeforeSnippet}]]></content_before_snippet>\n` +
-            `  <snippet_text><![CDATA[${snippetText}]]></snippet_text>\n` +
-            `  <content_after_snippet><![CDATA[${contentAfterSnippet}]]></content_after_snippet>\n` +
-            `  <old_string><![CDATA[${oldString}]]></old_string>\n` +
-            `  <new_string><![CDATA[${newString}]]></new_string>\n` +
-            "</request>\n" +
-            "<output_format>\n" +
-            "  <response>\n" +
-            "    <reason><![CDATA[...]]></reason>\n" +
-            "  </response>\n" +
-            "</output_format>",
-        },
-      ],
-      ...buildThinkingRequestOptions(thinkingEnabled, model, reasoningEffort),
-    });
+    context.signal?.throwIfAborted();
+    const response = await client.chat.completions.create(
+      {
+        model,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You diagnose failed file edits when old_string was not found. " +
+              "Return XML only using <response><reason>...</reason></response>. " +
+              "Be concise and specific. Explain the likely mismatch between old_string and the <snippet_text/> content. " +
+              "Do not suggest unrelated changes.",
+          },
+          {
+            role: "user",
+            content:
+              "<request>\n" +
+              `  <content_before_snippet><![CDATA[${contentBeforeSnippet}]]></content_before_snippet>\n` +
+              `  <snippet_text><![CDATA[${snippetText}]]></snippet_text>\n` +
+              `  <content_after_snippet><![CDATA[${contentAfterSnippet}]]></content_after_snippet>\n` +
+              `  <old_string><![CDATA[${oldString}]]></old_string>\n` +
+              `  <new_string><![CDATA[${newString}]]></new_string>\n` +
+              "</request>\n" +
+              "<output_format>\n" +
+              "  <response>\n" +
+              "    <reason><![CDATA[...]]></reason>\n" +
+              "  </response>\n" +
+              "</output_format>",
+          },
+        ],
+        ...buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort),
+      },
+      { signal: context.signal }
+    );
+    context.signal?.throwIfAborted();
 
     return parseOldStringNotFoundReason(response.choices?.[0]?.message?.content ?? "");
   } catch {
+    context.signal?.throwIfAborted();
     return null;
   }
 }
@@ -721,41 +740,47 @@ async function correctEscapedStringsWithLLM(
     return null;
   }
 
-  const { client, model, thinkingEnabled, reasoningEffort } = clientFactory();
+  const { client, model, baseURL, thinkingEnabled, reasoningEffort } = clientFactory();
   if (!client) {
     return null;
   }
 
   try {
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You correct file-edit strings when the only problem is escaping. " +
-            "Return XML only using <response><corrected_old_string>...</corrected_old_string><corrected_new_string>...</corrected_new_string></response>. " +
-            "Do not change semantics; only fix quoting or escaping so corrected_old_string matches the snippet exactly.",
-        },
-        {
-          role: "user",
-          content:
-            "<request>\n" +
-            `  <snippet_text><![CDATA[${snippetText}]]></snippet_text>\n` +
-            `  <old_string><![CDATA[${oldString}]]></old_string>\n` +
-            `  <new_string><![CDATA[${newString}]]></new_string>\n` +
-            `  <matched_text><![CDATA[${matchedText}]]></matched_text>\n` +
-            "</request>\n" +
-            "<output_format>\n" +
-            "  <response>\n" +
-            "    <corrected_old_string><![CDATA[...]]></corrected_old_string>\n" +
-            "    <corrected_new_string><![CDATA[...]]></corrected_new_string>\n" +
-            "  </response>\n" +
-            "</output_format>",
-        },
-      ],
-      ...buildThinkingRequestOptions(thinkingEnabled, model, reasoningEffort),
-    });
+    const problemDescription = describeCorrectionProblems(oldString, matchedText);
+    context.signal?.throwIfAborted();
+    const response = await client.chat.completions.create(
+      {
+        model,
+        messages: [
+          {
+            role: "system",
+            content:
+              `You correct file-edit strings when ${problemDescription}. ` +
+              "Return XML only using <response><corrected_old_string>...</corrected_old_string><corrected_new_string>...</corrected_new_string></response>. " +
+              "Do not change semantics; only fix quoting or escaping so corrected_old_string matches the snippet exactly.",
+          },
+          {
+            role: "user",
+            content:
+              "<request>\n" +
+              `  <snippet_text><![CDATA[${snippetText}]]></snippet_text>\n` +
+              `  <old_string><![CDATA[${oldString}]]></old_string>\n` +
+              `  <new_string><![CDATA[${newString}]]></new_string>\n` +
+              `  <matched_text><![CDATA[${matchedText}]]></matched_text>\n` +
+              "</request>\n" +
+              "<output_format>\n" +
+              "  <response>\n" +
+              "    <corrected_old_string><![CDATA[...]]></corrected_old_string>\n" +
+              "    <corrected_new_string><![CDATA[...]]></corrected_new_string>\n" +
+              "  </response>\n" +
+              "</output_format>",
+          },
+        ],
+        ...buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort),
+      },
+      { signal: context.signal }
+    );
+    context.signal?.throwIfAborted();
 
     const content = response.choices?.[0]?.message?.content ?? "";
     const parsed = parseCorrectedEditStrings(content);
@@ -771,12 +796,16 @@ async function correctEscapedStringsWithLLM(
     if (normalizeLooseText(parsed.newString) !== normalizedNew) {
       return null;
     }
+    if (parsed.oldString !== matchedText) {
+      return null;
+    }
     if (parsed.oldString === parsed.newString) {
       return null;
     }
 
     return parsed;
   } catch {
+    context.signal?.throwIfAborted();
     return null;
   }
 }
@@ -814,9 +843,32 @@ function escapeRegExp(value: string): string {
 function normalizeLooseText(value: string): string {
   return value
     .replace(/\r\n?/g, "\n")
-    .replace(/\\+(?=["'`\\])/g, "")
+    .replace(/\\+(?=["'`\\“”‘’])/g, "")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
     .replace(/[ \t]+/g, " ")
     .trim();
+}
+
+function describeCorrectionProblems(oldString: string, matchedText: string): string {
+  const hasEscapingProblem = normalizeQuotationMarks(oldString) !== normalizeQuotationMarks(matchedText);
+  const hasQuotationMarkProblem = normalizeEscaping(oldString) !== normalizeEscaping(matchedText);
+
+  if (hasEscapingProblem && hasQuotationMarkProblem) {
+    return "the problems are escaping and quotation mark";
+  }
+  if (hasQuotationMarkProblem) {
+    return "the only problem is quotation mark";
+  }
+  return "the only problem is escaping";
+}
+
+function normalizeEscaping(value: string): string {
+  return value.replace(/\\+(?=["'`\\“”‘’])/g, "");
+}
+
+function normalizeQuotationMarks(value: string): string {
+  return value.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
 }
 
 function similarityScore(left: string, right: string): number {

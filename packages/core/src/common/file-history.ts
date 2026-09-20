@@ -69,6 +69,24 @@ export class GitFileHistory {
     }
   }
 
+  forkSession(sourceSessionId: string, targetSessionId: string): string | undefined {
+    const targetRef = this.getSessionBranchRef(targetSessionId);
+    if (!targetRef) {
+      return undefined;
+    }
+
+    try {
+      const sourceHash = this.getCurrentCheckpointHash(sourceSessionId);
+      if (!sourceHash) {
+        return this.ensureSession(targetSessionId);
+      }
+      this.runGit(["update-ref", targetRef, sourceHash]);
+      return sourceHash;
+    } catch {
+      return undefined;
+    }
+  }
+
   recordCheckpoint(sessionId: string, filePaths: string[], message: string): string | undefined {
     const branchRef = this.getSessionBranchRef(sessionId);
     if (!branchRef) {
@@ -185,7 +203,7 @@ export class GitFileHistory {
 
     for (const [key, entry] of Object.entries(currentManifest.files)) {
       if (!targetManifest.files[key]) {
-        this.restoreFirstKnownEntry(checkpointHash, key, entry.path);
+        this.restoreFirstKnownEntry(currentHash, key, entry.path);
       }
     }
 
@@ -201,8 +219,8 @@ export class GitFileHistory {
     this.runGit(["update-ref", branchRef, checkpointHash]);
   }
 
-  private restoreFirstKnownEntry(checkpointHash: string, key: string, fallbackPath: string): void {
-    const firstEntry = this.findFirstKnownEntry(checkpointHash, key);
+  private restoreFirstKnownEntry(currentHash: string | undefined, key: string, fallbackPath: string): void {
+    const firstEntry = currentHash ? this.findFirstKnownEntry(currentHash, key) : undefined;
     const entry = firstEntry ?? { path: fallbackPath, blob: null, mode: "100644" as const };
     if (!entry.blob) {
       removeTrackedFile(entry.path);
@@ -357,6 +375,13 @@ function normalizeManifest(manifest: FileHistoryManifest): FileHistoryManifest {
   return { version: 2, files };
 }
 
+function isSameFileHistoryEntry(left: FileHistoryEntry, right: FileHistoryEntry | undefined): boolean {
+  if (!right) {
+    return false;
+  }
+  return left.path === right.path && left.blob === right.blob && left.mode === right.mode;
+}
+
 function uniqueAbsolutePaths(filePaths: string[]): string[] {
   return Array.from(new Set(filePaths.map((filePath) => path.resolve(filePath))));
 }
@@ -388,11 +413,4 @@ function getFileHistoryGitEnv(): NodeJS.ProcessEnv {
 
 function isCommitHash(value: string): boolean {
   return /^[0-9a-f]{40}$/i.test(value);
-}
-
-function isSameFileHistoryEntry(left: FileHistoryEntry, right: FileHistoryEntry | undefined): boolean {
-  if (!right) {
-    return false;
-  }
-  return left.path === right.path && left.blob === right.blob && left.mode === right.mode;
 }

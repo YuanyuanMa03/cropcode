@@ -1,27 +1,22 @@
-// Shared tool-execution type definitions.
-//
-// Extracted from tools/executor.ts to break the circular dependency where
-// common/runtime.ts and common/validate.ts needed ToolExecutionContext /
-// ToolExecutionResult but could not import from tools/executor.ts without
-// creating a cycle (executor.ts imports runtime/validate for input validation).
-//
-// executor.ts re-exports these types so existing consumers
-// (`from "./executor"` / `from "../tools/executor"`) keep working unchanged.
-
 import type OpenAI from "openai";
+import type sharp from "sharp";
+import type { ReasoningEffort } from "../settings";
 
 export type CreateOpenAIClient = () => {
   client: OpenAI | null;
+  apiKey?: string;
   model: string;
   baseURL?: string;
   temperature?: number;
   thinkingEnabled: boolean;
-  reasoningEffort?: string;
+  reasoningEffort?: ReasoningEffort;
   debugLogEnabled?: boolean;
+  telemetryEnabled?: boolean;
   notify?: string;
   webSearchTool?: string;
   env?: Record<string, string>;
   machineId?: string;
+  plusApiKey?: string;
 };
 
 export type ToolCall = {
@@ -31,6 +26,44 @@ export type ToolCall = {
     name: string;
     arguments: string;
   };
+};
+
+export type PluginRateLimitedTool = "UnderstandImage" | "WebSearch";
+
+export type SharpLoader = () => Promise<typeof sharp>;
+
+export type ToolExecutionContext = {
+  signal?: AbortSignal;
+  sessionId: string;
+  projectRoot: string;
+  toolCall: ToolCall;
+  createOpenAIClient?: CreateOpenAIClient;
+  loadSharp?: SharpLoader;
+  onProcessStart?: (processId: string | number, command: string) => void;
+  onProcessExit?: (processId: string | number) => void;
+  onProcessStdout?: (processId: string | number, chunk: string) => void;
+  onProcessTimeoutControl?: (processId: string | number, control: ProcessTimeoutControl | null) => void;
+  onBackgroundProcessComplete?: (completion: BackgroundProcessCompletion) => void;
+  onBeforeFileMutation?: (filePath: string) => void;
+  onAfterFileMutation?: (filePath: string) => void;
+  onPluginRateLimitExceeded?: (tool: PluginRateLimitedTool) => void;
+  onLoadSkill?: (skillName: string) => Promise<ToolExecutionResult>;
+  bashTimeoutMs?: number;
+  bashMinTimeoutMs?: number;
+};
+
+export type ToolExecutionHooks = {
+  signal?: AbortSignal;
+  onProcessStart?: (processId: string | number, command: string) => void;
+  onProcessExit?: (processId: string | number) => void;
+  onProcessStdout?: (processId: string | number, chunk: string) => void;
+  onProcessTimeoutControl?: (processId: string | number, control: ProcessTimeoutControl | null) => void;
+  onBackgroundProcessComplete?: (completion: BackgroundProcessCompletion) => void;
+  onBeforeFileMutation?: (filePath: string) => void;
+  onAfterFileMutation?: (filePath: string) => void;
+  onPluginRateLimitExceeded?: (tool: PluginRateLimitedTool) => void;
+  onLoadSkill?: (skillName: string) => Promise<ToolExecutionResult>;
+  shouldStop?: () => boolean;
 };
 
 export type BackgroundProcessCompletion = {
@@ -71,36 +104,10 @@ export type ToolExecutionResult = {
 };
 
 export type ToolExecutionFollowUpMessage = {
-  role: "system";
+  role: "system" | "user";
   content: string;
   contentParams?: unknown | null;
-};
-
-export type ToolExecutionContext = {
-  sessionId: string;
-  projectRoot: string;
-  toolCall: ToolCall;
-  createOpenAIClient?: CreateOpenAIClient;
-  onProcessStart?: (processId: string | number, command: string) => void;
-  onProcessExit?: (processId: string | number) => void;
-  onProcessStdout?: (processId: string | number, chunk: string) => void;
-  onProcessTimeoutControl?: (processId: string | number, control: ProcessTimeoutControl | null) => void;
-  onBackgroundProcessComplete?: (completion: BackgroundProcessCompletion) => void;
-  onBeforeFileMutation?: (filePath: string) => void;
-  onAfterFileMutation?: (filePath: string) => void;
-  bashTimeoutMs?: number;
-  bashMinTimeoutMs?: number;
-};
-
-export type ToolExecutionHooks = {
-  onProcessStart?: (processId: string | number, command: string) => void;
-  onProcessExit?: (processId: string | number) => void;
-  onProcessStdout?: (processId: string | number, chunk: string) => void;
-  onProcessTimeoutControl?: (processId: string | number, control: ProcessTimeoutControl | null) => void;
-  onBackgroundProcessComplete?: (completion: BackgroundProcessCompletion) => void;
-  onBeforeFileMutation?: (filePath: string) => void;
-  onAfterFileMutation?: (filePath: string) => void;
-  shouldStop?: () => boolean;
+  visible?: boolean;
 };
 
 export type ToolHandler = (

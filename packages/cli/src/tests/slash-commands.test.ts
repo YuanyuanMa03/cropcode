@@ -7,7 +7,7 @@ import {
   formatSlashCommandDescription,
   formatSlashCommandLabel,
 } from "../ui";
-import type { SkillInfo } from "@YuanyuanMa03/cropcode-core";
+import type { SkillInfo } from "@yuanyuanma03/cropcode-core";
 
 const skills: SkillInfo[] = [
   { name: "skill-writer", path: "~/.agents/skills/skill-writer/SKILL.md", description: "Write a SKILL.md" },
@@ -20,18 +20,17 @@ test("buildSlashCommands prefixes skills before built-ins", () => {
   assert.equal(items[0].name, "skill-writer");
   const builtinNames = items.filter((i) => i.kind !== "skill").map((i) => i.name);
   assert.deepEqual(builtinNames, [
+    "login",
     "skills",
     "model",
-    "permissions",
-    "login",
+    "plan",
     "new",
     "init",
     "resume",
+    "fork",
     "continue",
     "undo",
     "mcp",
-    "marketplace",
-    "plugin",
     "raw",
     "exit",
   ]);
@@ -102,6 +101,13 @@ test("findExactSlashCommand returns built-in /model", () => {
   assert.equal(item?.kind, "model");
 });
 
+test("findExactSlashCommand returns built-in /plan", () => {
+  const items = buildSlashCommands(skills);
+  const item = findExactSlashCommand(items, "/plan");
+  assert.ok(item);
+  assert.equal(item?.kind, "plan");
+});
+
 test("findExactSlashCommand returns built-in /raw", () => {
   const items = buildSlashCommands(skills);
   const item = findExactSlashCommand(items, "/raw");
@@ -129,33 +135,4 @@ test("formatSlashCommandLabel marks loaded skills", () => {
 
   assert.equal(formatSlashCommandLabel(items[0]), "/loaded ✓");
   assert.equal(formatSlashCommandLabel(items[1]), "/fresh");
-});
-
-test("formatSlashCommandLabel marks disabled skills with ✕", () => {
-  const items = buildSlashCommands([
-    { name: "disabled", path: "/skills/disabled/SKILL.md", description: "Disabled skill", disabled: true },
-    { name: "normal", path: "/skills/normal/SKILL.md", description: "Normal skill" },
-  ]);
-
-  assert.equal(formatSlashCommandLabel(items[0]), "/disabled ✕");
-  assert.equal(formatSlashCommandLabel(items[1]), "/normal");
-});
-
-test("formatSlashCommandLabel prefers disabled over loaded indicator", () => {
-  const items = buildSlashCommands([
-    { name: "both", path: "/skills/both/SKILL.md", description: "Both", isLoaded: true, disabled: true },
-  ]);
-
-  assert.equal(formatSlashCommandLabel(items[0]), "/both ✕");
-});
-
-test("buildSlashCommands includes disabled skills in the list", () => {
-  const skillsWithDisabled: SkillInfo[] = [
-    { name: "active", path: "/a/SKILL.md", description: "Active" },
-    { name: "off", path: "/b/SKILL.md", description: "Off", disabled: true },
-  ];
-  const items = buildSlashCommands(skillsWithDisabled);
-  const skillItems = items.filter((i) => i.kind === "skill");
-  assert.equal(skillItems.length, 2);
-  assert.equal(skillItems[1].skill?.disabled, true);
 });

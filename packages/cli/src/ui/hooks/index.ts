@@ -8,6 +8,8 @@ export {
   usePromptTerminalCursor,
   useTerminalFocusReporting,
   getPromptCursorPlacement,
+  isPromptCursorAtWrapBoundary,
+  resolvePromptTerminalCursorPosition,
 } from "./cursor";
 
 export { usePasteHandling } from "./usePasteHandling";
@@ -15,3 +17,5 @@ export type { PasteRegion, PasteHandlingState, PasteHandlingActions } from "./us
 
 export { useHistoryNavigation } from "./useHistoryNavigation";
 export type { HistoryNavigationState, HistoryNavigationActions } from "./useHistoryNavigation";
+
+export { useStatusLine } from "./useStatusLine";

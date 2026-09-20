@@ -1,21 +1,20 @@
-import type { SkillInfo } from "@YuanyuanMa03/cropcode-core";
+import type { SkillInfo } from "@yuanyuanma03/cropcode-core";
 
 export type SlashCommandKind =
   | "skill"
   | "skills"
   | "model"
-  | "permissions"
+  | "login"
+  | "plan"
   | "new"
   | "init"
   | "resume"
+  | "fork"
   | "continue"
   | "undo"
   | "mcp"
   | "raw"
-  | "exit"
-  | "marketplace"
-  | "plugin"
-  | "login";
+  | "exit";
 
 export type SlashCommandItem = {
   kind: SlashCommandKind;
@@ -27,6 +26,7 @@ export type SlashCommandItem = {
 };
 
 export const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
+  { kind: "login", name: "login", label: "/login", description: "选择模型供应商和接入方式" },
   {
     kind: "skills",
     name: "skills",
@@ -40,16 +40,10 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
     description: "Select model, thinking mode and effort control",
   },
   {
-    kind: "permissions",
-    name: "permissions",
-    label: "/permissions",
-    description: "View and change permission mode",
-  },
-  {
-    kind: "login",
-    name: "login",
-    label: "/login",
-    description: "Login with API credentials",
+    kind: "plan",
+    name: "plan",
+    label: "/plan",
+    description: "Switch the input to Plan Mode",
   },
   {
     kind: "new",
@@ -70,6 +64,12 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
     description: "Pick a previous conversation to continue",
   },
   {
+    kind: "fork",
+    name: "fork",
+    label: "/fork",
+    description: "Fork the current conversation",
+  },
+  {
     kind: "continue",
     name: "continue",
     label: "/continue",
@@ -86,18 +86,6 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
     name: "mcp",
     label: "/mcp",
     description: "Show MCP server status and available tools",
-  },
-  {
-    kind: "marketplace",
-    name: "marketplace",
-    label: "/marketplace",
-    description: "Browse and install skill marketplaces",
-  },
-  {
-    kind: "plugin",
-    name: "plugin",
-    label: "/plugin",
-    description: "Manage installed plugins",
   },
   {
     kind: "raw",
@@ -150,14 +138,5 @@ export function formatSlashCommandDescription(description: string): string {
 }
 
 export function formatSlashCommandLabel(item: SlashCommandItem): string {
-  if (item.kind !== "skill" || !item.skill) {
-    return item.label;
-  }
-  if (item.skill.disabled) {
-    return `${item.label} ✕`;
-  }
-  if (item.skill.isLoaded) {
-    return `${item.label} ✓`;
-  }
-  return item.label;
+  return item.kind === "skill" && item.skill?.isLoaded ? `${item.label} ✓` : item.label;
 }

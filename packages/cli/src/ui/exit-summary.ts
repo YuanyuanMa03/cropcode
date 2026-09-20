@@ -1,12 +1,13 @@
 import chalk from "chalk";
 import gradientString from "gradient-string";
-import type { ModelUsage, SessionEntry } from "@YuanyuanMa03/cropcode-core";
+import type { ModelUsage, SessionEntry } from "@yuanyuanma03/cropcode-core";
 
 type ExitSummaryInput = {
   session: SessionEntry | null;
+  sessionId?: string;
 };
 
-const ANSI_RE = /\[[0-9;]*[a-zA-Z]/g;
+const ANSI_RE = /\u001b\[[0-9;]*[a-zA-Z]/g;
 
 function visibleLength(text: string): number {
   return text.replace(ANSI_RE, "").length;
@@ -56,6 +57,7 @@ function extractUsageFields(usage: ModelUsage | null): UsageFields {
     }
   }
 
+  // Some providers use prompt_cache_hit_tokens directly
   if (cachedTokens === 0 && typeof record.prompt_cache_hit_tokens === "number") {
     cachedTokens = record.prompt_cache_hit_tokens;
   }
@@ -69,13 +71,13 @@ export function buildExitSummaryText(input: ExitSummaryInput): string {
   const { session } = input;
 
   const innerWidth = 98;
-  const contentWidth = innerWidth - 4;
+  const contentWidth = innerWidth - 4; // "│  " prefix + "  │" suffix → 4 chars padding
 
-  const borderColor = chalk.hex("#229ac3e6");
+  const borderColor = chalk.dim;
   const titleColor = gradientString("#229ac3e6", "rgb(125 51 247 / 0.7)");
   const line = (text: string) => `${borderColor("│")}  ${padRight(text, contentWidth)}  ${borderColor("│")}`;
 
-  const header = chalk.bold(titleColor("Goodbye from CropCode"));
+  const header = chalk.bold(titleColor("Goodbye!"));
 
   const rows: string[] = ["", `${header}`, ""];
 
@@ -112,7 +114,7 @@ export function buildExitSummaryText(input: ExitSummaryInput): string {
       padLeft("Output Tokens", colOutput) +
       padLeft("Cached Tokens", colCached);
     rows.push(chalk.bold(headerRow));
-    rows.push(divider);
+    rows.push(chalk.gray(divider));
 
     for (const { modelName, usage } of usageRows) {
       const reqsStr = formatNumber(usage.totalReqs).padStart(colReqs);
@@ -140,4 +142,23 @@ export function buildExitSummaryText(input: ExitSummaryInput): string {
   const body = rows.map((row) => line(row)).join("\n");
 
   return [top, body, bottom].join("\n");
+}
+
+export function buildResumeHintText(sessionId?: string): string | null {
+  if (!sessionId) {
+    return null;
+  }
+  return chalk.dim(`To continue this session, run `) + chalk.hex("#229ac3")(`cropcode --resume ${sessionId}`);
+}
+
+export function buildPluginRateLimitHintText(session: SessionEntry | null): string | null {
+  const tool = session?.pluginRateLimitedTool;
+  if (!tool) {
+    return null;
+  }
+  return (
+    chalk.dim(`This conversation just exceeded the ${tool} tool rate limit. Visit `) +
+    chalk.hex("#229ac3")("https://deepcode.vegamo.cn/plus/packages") +
+    chalk.dim(" for more details.")
+  );
 }

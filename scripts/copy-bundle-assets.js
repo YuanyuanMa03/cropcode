@@ -11,9 +11,6 @@ if (!existsSync(distDir)) {
   mkdirSync(distDir, { recursive: true });
 }
 
-// Copy core/templates/ → dist/templates/, excluding skills/bundled/.
-// Bundled skills are copied separately to dist/bundled/ and resolved from
-// there at runtime.
 const templatesSrc = join(root, "packages", "core", "templates");
 const templatesDest = join(distDir, "templates");
 
@@ -22,6 +19,9 @@ if (!existsSync(templatesSrc)) {
   process.exit(1);
 }
 
+// 1. Copy core/templates/ → dist/templates/, excluding skills/bundled/.
+//    Bundled skills are copied separately to dist/bundled/ (see step 2) and
+//    getBundledSkillsRoot() resolves them from there at runtime.
 rmSync(templatesDest, { recursive: true, force: true });
 cpSync(templatesSrc, templatesDest, {
   recursive: true,
@@ -32,9 +32,9 @@ cpSync(templatesSrc, templatesDest, {
     return !(rel === join("skills", "bundled") || rel.startsWith(join("skills", "bundled") + "/"));
   },
 });
-console.log("\n✅  Copied templates/ → dist/templates/ (excluding skills/bundled/)");
+console.log("\n✅  Copied core/templates/ → dist/templates/ (excluding skills/bundled/)");
 
-// Copy bundled skills to dist/bundled/
+// 2. Copy bundled skills to dist/bundled/
 const bundledSkillsSrc = join(templatesSrc, "skills", "bundled");
 const bundledSkillsDest = join(distDir, "bundled");
 

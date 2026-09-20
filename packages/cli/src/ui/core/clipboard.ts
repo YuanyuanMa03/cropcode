@@ -74,13 +74,12 @@ function readMacClipboardImage(): ClipboardImage | null {
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cropcode-clipboard-"));
   const screenshotPath = path.join(tempDir, "clipboard.png");
-  const escapedPath = screenshotPath.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   try {
     const saved = tryRunStatus("osascript", [
       "-e",
       "set png_data to (the clipboard as «class PNGf»)",
       "-e",
-      `set fp to open for access POSIX file "${escapedPath}" with write permission`,
+      `set fp to open for access POSIX file "${screenshotPath}" with write permission`,
       "-e",
       "write png_data to fp",
       "-e",
@@ -144,10 +143,16 @@ export function readClipboardImage(): ClipboardImage | null {
   return null;
 }
 
-export function readClipboardImageAsync(): Promise<ClipboardImage | null> {
-  try {
-    return Promise.resolve(readClipboardImage());
-  } catch (error) {
-    return Promise.reject(error);
-  }
+export async function readClipboardImageAsync(): Promise<ClipboardImage | null> {
+  return new Promise((resolve, reject) => {
+    // Use setImmediate to avoid blocking the event loop
+    setImmediate(() => {
+      try {
+        const result = readClipboardImage();
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
 }

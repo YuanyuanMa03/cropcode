@@ -1,6 +1,6 @@
-# CropCode MCP 配置指南
+# CropCode CLI MCP 配置指南
 
-CropCode 支持 MCP（Model Context Protocol），让 AI 助手能够连接外部工具和服务，如 GitHub、浏览器、数据库等。
+CropCode CLI 支持 MCP（Model Context Protocol），让 AI 助手能够连接外部工具和服务，如 GitHub、浏览器、数据库等。
 
 ## 概述
 
@@ -151,7 +151,7 @@ MCP 工具在 CropCode 中的命名格式为 `mcp__<服务名>__<工具名>`，�
 在对话中直接使用 MCP 工具名称即可调用，例如：
 
 ```
-帮我搜索 GitHub 上 cropcode 仓库的 issues
+帮我搜索 GitHub 上 cropcode-cli 仓库的 issues
 ```
 
 AI 会自动调用 `mcp__github__search_issues` 工具完成操作。
@@ -187,7 +187,7 @@ MCP 工具名称由三部分组成：`mcp__<服务名>__<工具名>`
 
 ### Windows 用户
 
-在 Windows 上，CropCode 会自动为 `.cmd` 命令添加 shell 支持。如果你的 MCP 命令是批处理脚本，确保文件名以 `.cmd` 结尾。
+在 Windows 上，CropCode CLI 会自动为 `.cmd` 命令添加 shell 支持。如果你的 MCP 命令是批处理脚本，确保文件名以 `.cmd` 结尾。
 
 ## 编写你自己的 MCP 服务器
 

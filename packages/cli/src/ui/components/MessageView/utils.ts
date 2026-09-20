@@ -1,7 +1,8 @@
 import type { DiffPreviewLine, ToolSummary } from "./types";
-import type { SessionMessage } from "@YuanyuanMa03/cropcode-core";
+import type { SessionMessage } from "@yuanyuanma03/cropcode-core";
 import { RawMode } from "../../contexts";
 import chalk from "chalk";
+import { renderMarkdown } from "./markdown";
 
 /** Type guard that checks whether a value is a plain object (not null, not an array). */
 export function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -54,10 +55,28 @@ export function buildThinkingSummary(content: string, messageParams: unknown | n
   return "";
 }
 
-/** Formats a tool's parameters for status display, preserving full bash commands but truncating others. */
+/** Formats multi-line Bash params as first line, a placeholder, and the final line. */
+export function formatBashStatusParams(params: string): string {
+  const value = params.trim();
+  if (!value) {
+    return "";
+  }
+
+  const lines = value.split(/\r?\n/);
+  if (lines.length <= 1) {
+    return value;
+  }
+
+  return `${lines[0]} ... ${lines[lines.length - 1].trimStart()}`;
+}
+
+/** Formats a tool's parameters for status display, compacting multi-line Bash commands and truncating others. */
 export function formatToolStatusParams(summary: ToolSummary): string {
+  if (summary.name.toLowerCase() === "bash") {
+    return formatBashStatusParams(summary.params);
+  }
   const params = firstNonEmptyLine(summary.params);
-  return summary.name.toLowerCase() === "bash" ? params : truncate(params, 120);
+  return truncate(params, 120);
 }
 
 /** Builds a structured summary (name, params, ok, metadata) from a tool session message. */
@@ -209,7 +228,8 @@ export function renderMessageToStdout(message: SessionMessage, mode: RawMode): s
   }
 
   if (message.role === "user") {
-    const text = message.content || "(no content)";
+    const content = message.content || "(no content)";
+    const text = message.meta?.isAnswers ? renderMarkdown(content) : content;
     return chalk(`> ${text}`);
   }
 
@@ -225,26 +245,18 @@ export function renderMessageToStdout(message: SessionMessage, mode: RawMode): s
     return `${chalk("✦")} ${content}`;
   }
 
+  if ((message.role === "system" || message.role === "tool") && message.meta?.skill) {
+    return chalk(`⚡ Loaded skill: ${message.meta.skill.name}`);
+  }
+
   if (message.role === "tool") {
-    const payload = parseToolPayload(message.content);
-    const metaFunctionName =
-      message.meta?.function && typeof (message.meta.function as { name?: unknown }).name === "string"
-        ? (message.meta.function as { name: string }).name
-        : null;
-    const name = payload.name || metaFunctionName || "tool";
-    const metaParams = typeof message.meta?.paramsMd === "string" ? message.meta.paramsMd.trim() : "";
-    const params = name.toLowerCase() === "bash" ? metaParams : truncate(metaParams, 120);
-    const statusLine = `${chalk("✧")} ${chalk(formatStatusName(name))}${params ? ` ${chalk(params)}` : ""}`;
+    const summary = buildToolSummary(message);
+    const params = formatToolStatusParams(summary);
+    const statusLine = `${chalk("✧")} ${chalk(formatStatusName(summary.name))}${params ? ` ${chalk(params)}` : ""}`;
 
     const metaResultMd = typeof message.meta?.resultMd === "string" ? message.meta.resultMd.trim() : "";
     const result = metaResultMd ? `\n${chalk.dim("  └ Result")}\n${metaResultMd}` : "";
 
-    const summary: ToolSummary = {
-      name,
-      params,
-      ok: payload.ok !== false,
-      metadata: payload.metadata,
-    };
     const planLines = getUpdatePlanPreviewLines(summary);
     if (planLines.length > 0) {
       const planText = planLines.map((line) => `  ${line}`).join("\n");
@@ -257,10 +269,6 @@ export function renderMessageToStdout(message: SessionMessage, mode: RawMode): s
   if (message.role === "system") {
     if (message.meta?.isModelChange) {
       return chalk(`> ${message.content}`);
-    }
-    if (message.meta?.skill && typeof message.meta.skill === "object") {
-      const skillName = (message.meta.skill as { name?: unknown }).name;
-      return chalk(`⚡ Loaded skill: ${typeof skillName === "string" ? skillName : ""}`);
     }
     if (message.meta?.isSummary) {
       return chalk.dim.italic("(conversation summary inserted)");

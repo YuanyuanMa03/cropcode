@@ -1,5 +1,12 @@
-import type { SessionMessage } from "@YuanyuanMa03/cropcode-core";
+import type { SessionMessage } from "@yuanyuanma03/cropcode-core";
 
+/**
+ * Returns the message id of the assistant "thinking" message that should stay
+ * expanded — i.e. the most recent thinking message after the most recent
+ * non-thinking assistant message. Mirrors the VS Code extension's bubble
+ * collapse logic: at most one thinking bubble is open, and it is closed once a
+ * regular assistant reply arrives.
+ */
 export function findExpandedThinkingId(messages: SessionMessage[]): string | null {
   let expanded: string | null = null;
   for (const message of messages) {
@@ -15,6 +22,11 @@ export function findExpandedThinkingId(messages: SessionMessage[]): string | nul
   return expanded;
 }
 
+/**
+ * Returns whether a message's thinking block should be rendered collapsed.
+ * A thinking message is collapsed when its id does not match the currently
+ * expanded thinking id.
+ */
 export function isCollapsedThinking(message: SessionMessage, expandedId: string | null): boolean {
   if (message.role !== "assistant") {
     return false;

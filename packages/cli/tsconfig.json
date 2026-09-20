@@ -17,8 +17,8 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@YuanyuanMa03/cropcode-core": ["../core/src/index.ts"],
-      "@YuanyuanMa03/cropcode-core/*": ["../core/src/*"]
+      "@yuanyuanma03/cropcode-core": ["../core/src/index.ts"],
+      "@yuanyuanma03/cropcode-core/*": ["../core/src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "../core/src/**/*.ts"],

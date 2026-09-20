@@ -1,13 +1,15 @@
-// Cross-platform test runner: finds all *.test.ts files and runs them via tsx.
-// Uses the glob package for reliable cross-platform pattern expansion (Node 20+).
-/* eslint-disable */
-
+// Test runner for @yuanyuanma03/cropcode-cli
 import { globSync } from "glob";
 import { spawnSync } from "child_process";
+import { fileURLToPath } from "url";
+import * as path from "path";
 
-const cwd = new URL("../..", import.meta.url);
-const testFiles = globSync("src/tests/*.test.ts", { cwd });
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const testFiles = globSync("*.test.ts", { cwd: __dirname });
 
-const result = spawnSync(process.execPath, ["--import", "tsx", "--test", ...testFiles], { stdio: "inherit", cwd });
+const result = spawnSync(process.execPath, ["--import", "tsx", "--test", ...testFiles], {
+  stdio: "inherit",
+  cwd: __dirname,
+});
 
 process.exit(result.status ?? 1);

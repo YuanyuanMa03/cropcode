@@ -11,16 +11,27 @@ export type PasteRegion = {
 };
 
 export type PasteHandlingState = {
+  /** Ref holding all paste content keyed by paste ID. */
   pastesRef: React.RefObject<Map<number, string>>;
+  /** Ref holding expanded paste regions for Ctrl+O toggle. */
   expandedRegionsRef: React.RefObject<Map<number, PasteRegion>>;
+  /** Counter for generating unique paste IDs. */
   pasteCounterRef: React.RefObject<number>;
+  /** Whether any paste marker is currently collapsed. */
   hasCollapsedMarkers: boolean;
+  /** Whether any paste region has been expanded. */
   hasExpandedRegions: boolean;
 };
 
 export type PasteHandlingActions = {
+  /**
+   * Process pasted text. Short pastes (<1000 chars, ≤9 newlines) are inserted
+   * inline. Larger pastes receive a collapsible marker.
+   */
   handlePaste: (pastedText: string) => void;
+  /** Expand a collapsed paste marker at the cursor, or collapse an expanded region. */
   expandPasteMarkerAtCursor: () => void;
+  /** Reset all paste-related state. */
   resetPastes: () => void;
 };
 
@@ -32,22 +43,16 @@ export function usePasteHandling(
   const pastesRef = useRef<Map<number, string>>(new Map());
   const pasteCounterRef = useRef<number>(0);
   const expandedRegionsRef = useRef<Map<number, PasteRegion>>(new Map());
-  const mountedRef = useRef(true);
   const [hasCollapsedMarkers, setHasCollapsedMarkers] = useState(false);
   const [hasExpandedRegions, setHasExpandedRegions] = useState(false);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
 
   function refreshDerivedFlags(): void {
     setHasCollapsedMarkers(hasActivePasteMarkers(buffer.text, pastesRef.current));
     setHasExpandedRegions(expandedRegionsRef.current.size > 0);
   }
 
+  // Recompute derived flags whenever the buffer text changes, so they stay
+  // in sync after any state update (e.g. large paste, expand/collapse, undo).
   useEffect(() => {
     refreshDerivedFlags();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -68,6 +73,7 @@ export function usePasteHandling(
       }
     }
 
+    // Large paste: store raw text, insert marker.
     const lineCount = (pastedText.match(/\n/g) ?? []).length + 1;
     pasteCounterRef.current += 1;
     const pasteId = pasteCounterRef.current;
@@ -81,12 +87,12 @@ export function usePasteHandling(
   }
 
   function expandPasteMarkerAtCursor(): void {
+    // Collapse an already-expanded region at the cursor.
     for (const [id, region] of expandedRegionsRef.current) {
       if (buffer.cursor >= region.start && buffer.cursor <= region.end) {
         expandedRegionsRef.current.delete(id);
         pastesRef.current.set(id, region.content);
         setTimeout(() => {
-          if (!mountedRef.current) return;
           updateBuffer((s) => {
             const text = s.text.slice(0, region.start) + region.marker + s.text.slice(region.end);
             return { text, cursor: region.start + region.marker.length };
@@ -98,6 +104,7 @@ export function usePasteHandling(
       }
     }
 
+    // Expand a paste marker.
     const marker = findPasteMarkerContaining(buffer);
     if (!marker) {
       setStatusMessage("No paste marker at cursor");
@@ -114,7 +121,6 @@ export function usePasteHandling(
     pastesRef.current.delete(pasteId);
 
     setTimeout(() => {
-      if (!mountedRef.current) return;
       updateBuffer((s) => {
         const text = s.text.slice(0, marker.start) + cleanPasteContent(content) + s.text.slice(marker.end);
         const newEnd = marker.start + content.length;

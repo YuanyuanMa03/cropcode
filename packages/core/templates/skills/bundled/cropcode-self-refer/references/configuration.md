@@ -27,13 +27,27 @@ CropCode 使用 `settings.json` 设置文件进行持久化配置，支持两个
 | 字段                 | 类型      | 说明                                                                |
 | -------------------- | --------- | ------------------------------------------------------------------- |
 | `env`                | object    | 环境变量分组（见下方子字段表）                                       |
+| `contextWindow`     | number/string | 上下文窗口上限，可使用精确 token 数或 `128K`、`1M` 等格式          |
+| `autoCompactWindow` | number/string | 自动压缩阈值，默认取最终上下文窗口的 50%                           |
 | `model`              | string    | 模型名称。优先级高于 `env.MODEL`                                    |
 | `thinkingEnabled`    | boolean   | 是否启用思考模式（DeepSeek V4 系列默认启用）                         |
-| `reasoningEffort`    | string    | 推理强度，可选 `"high"` 或 `"max"`（默认 `"max"`）                  |
+| `reasoningEffort`    | string    | 推理强度，可选 `"low"`、`"high"` 或 `"max"`（默认 `"max"`）        |
+| `multimodal`         | string    | 多模态（图片）能力开关，可选 `"default"`、`"on"` 或 `"off"`（默认 `"default"`） |
+| `filesApiEnabled`    | boolean   | 是否通过 DeepSeek Files API 发送图片（默认 `false`）                       |
+| `filesApiTimeoutMs`  | number    | 单张图片 Files API 处理超时，默认 `60000`，最大 `600000` 毫秒              |
+| `fileExpiresAfterSeconds` | number | 远端文件有效期，默认 `604800` 秒                                      |
+| `fileRefreshMarginSeconds` | number | 剩余有效期低于该值时刷新缓存，默认 `3600` 秒                         |
+| `fileQuotaCleanupBatch` | number | 配额不足时清理的最旧 CropCode 文件数，默认 `100`                         |
+| `maxRequestFilesBytes` | number | 单次请求内图片原始字节总上限，默认 `134217728`（128 MiB）                    |
 | `debugLogEnabled`    | boolean   | 是否启用调试日志输出（默认 `false`）                                 |
+| `telemetryEnabled`   | boolean   | 是否启用匿名使用数据上报（默认 `true`）                              |
 | `notify`             | string    | 任务完成通知脚本的完整路径（如 Slack 通知脚本）                      |
 | `webSearchTool`      | string    | 自定义联网搜索脚本的完整路径                                         |
 | `mcpServers`         | object    | MCP 服务器配置（键为服务名，值为 McpServerConfig 对象）              |
+| `temperature`        | number    | 模型采样温度，范围 `0` 到 `2`                           |
+| `permissions`        | object    | 权限策略及 `addWorkingDirs` 额外工作目录配置（参见 [permission.md](./permission.md)） |
+| `enabledSkills`      | object    | 按 skill 名称启用或禁用 skill 的配置                                 |
+| `statusline`         | object    | 状态栏插件配置(参见 [statusline.md](./statusline.md))               |
 
 #### `env` 子字段
 
@@ -42,16 +56,32 @@ CropCode 使用 `settings.json` 设置文件进行持久化配置，支持两个
 | `MODEL`    | string | 模型名称。例如 `"deepseek-v4-pro"`、`"deepseek-v4-flash"`          |
 | `BASE_URL` | string | API 请求的基础 URL。例如 `"https://api.deepseek.com"`              |
 | `API_KEY`  | string | API 密钥                                                          |
+| `TEMPERATURE`  | string | Chat Completions 采样温度，范围 `"0"` 到 `"2"`              |
 | `THINKING_ENABLED`  | string | 是否启用思考模式                                         |
 | `REASONING_EFFORT`  | string | 推理强度                                                |
+| `MULTIMODAL`  | string | 多模态（图片）能力开关，可选 `"default"`、`"on"` 或 `"off"`         |
 | `DEBUG_LOG_ENABLED`  | string | 是否启用调试日志输出                                     |
+| `TELEMETRY_ENABLED`  | string | 是否启用匿名使用数据上报                                   |
 | `<其他任意KEY>` | string | 自定义环境变量 |
+
+#### 上下文窗口
+
+`contextWindow` 和 `autoCompactWindow` 是 `settings.json` 的顶层字段。number 必须是正整数，表示精确 token 数；string 使用大小写不敏感的 `K` 或 `M` 后缀，按 `1K = 1024`、`1M = 1024²` 换算：
+
+```json
+{
+  "contextWindow": "1M",
+  "autoCompactWindow": "512K"
+}
+```
+
+普通模型的默认上下文窗口为 `256K`，DeepSeek V4 系列为 `1M`。未设置自动压缩阈值时取最终上下文窗口的 50%；无效值会被忽略，自动压缩阈值超过上下文窗口时会限制为上下文窗口。
 
 #### `thinkingEnabled` — 思考模式
 
 是否启用 DeepSeek 思考模式。设置为 `true` 启用、`false` 禁用。
 
-- 对于 `deepseek-v4-pro` 和 `deepseek-v4-flash`，思考模式**默认启用**。
+- 对于 `deepseek-flash`、`deepseek-v4-pro`、`deepseek-v4-flash` 和 `deepseek-v4-flash-vision-exp`，思考模式**默认启用**。
 - 对于其他模型，思考模式**默认关闭**。
 
 #### `reasoningEffort` — 推理强度
@@ -62,6 +92,36 @@ CropCode 使用 `settings.json` 设置文件进行持久化配置，支持两个
 | ------ | --------------------------------- |
 | `max`  | 最大推理深度（默认值）              |
 | `high` | 较高推理深度，token消耗相对较小      |
+| `low`  | 较低推理深度，token消耗更少          |
+
+#### `multimodal` — 多模态（图片）能力
+
+控制是否将当前模型视为支持图片输入的多模态模型：
+
+| 值         | 说明                                                         |
+| ---------- | ------------------------------------------------------------ |
+| `default`  | 按内置模型列表自动判定（默认值）                              |
+| `on`       | 强制视为多模态模型，图片以 `image_url` 形式直接内联发送        |
+| `off`      | 强制视为非多模态模型，由模型通过识图工具按需读取      |
+
+当使用的模型未内置在已知模型列表中、或其实际能力与默认判定不符时，可通过该配置覆盖。
+
+#### DeepSeek Files API
+
+当 `BASE_URL` 为 `https://api.deepseek.com` 时，设置 `filesApiEnabled: true` 后，CropCode 会将图片上传到固定的 `https://api.deepseek.com/files`，并在聊天请求中使用 `file_id`。其他 API 地址不会启用该功能。上传或缓存刷新失败时，本次请求直接失败；关闭开关时图片处理逻辑保持不变。
+
+```json
+{
+  "filesApiEnabled": true,
+  "filesApiTimeoutMs": 60000,
+  "fileExpiresAfterSeconds": 604800,
+  "fileRefreshMarginSeconds": 3600,
+  "fileQuotaCleanupBatch": 100,
+  "maxRequestFilesBytes": 134217728
+}
+```
+
+单个文件最大 64 MiB，上传超时不能超过 DeepSeek 规定的 10 分钟。远端文件 ID 会缓存在 `~/.cropcode/files-api-cache.json`；缓存不保存明文 API Key。遇到远端存储配额错误时，只会清理文件名以 `cropcode-` 开头的最旧文件，然后重试一次。
 
 #### `notify` — 任务完成通知
 
@@ -87,7 +147,9 @@ CropCode 使用 `settings.json` 设置文件进行持久化配置，支持两个
 
 #### `webSearchTool` — 自定义联网搜索
 
-CropCode 内置免费可用的 Web Search 工具。如果需要自定义搜索逻辑，可将 `webSearchTool` 设为一个可执行脚本的完整路径：
+未配置 `webSearchTool` 时，如果 `BASE_URL` 是 `https://api.deepseek.com`，CropCode 会调用 DeepSeek Responses API 的 `web_search` 工具，并固定使用 `deepseek-v4-flash`，不受 `MODEL` 配置影响。其他 API 地址仍使用 CropCode Web Search API。
+
+如果需要自定义搜索逻辑，可将 `webSearchTool` 设为一个可执行脚本的完整路径。自定义脚本始终优先于内置搜索：
 
 ```json
 {
@@ -96,6 +158,23 @@ CropCode 内置免费可用的 Web Search 工具。如果需要自定义搜索�
 ```
 
 脚本接收一个搜索查询参数，输出 JSON 格式的结果供 AI 使用。
+
+#### `enabledSkills` — Skill 启用配置
+
+控制 skill 扫描时是否包含指定 skill。键是解析后的 skill 名称，值必须是布尔值：
+
+```json
+{
+  "enabledSkills": {
+    "skill-writer": false,
+    "code-review": true
+  }
+}
+```
+
+- 未配置的 skill 默认启用。
+- 将某个 skill 设置为 `false` 后，所有项目级和用户级目录中解析名称相同的 skill 都会被隐藏。
+- 项目设置会按 skill 覆盖用户设置。如果项目设置没有配置某个 skill，则使用用户设置。
 
 #### `mcpServers` — MCP 服务器
 
@@ -129,6 +208,16 @@ MCP（Model Context Protocol）服务器配置。值是键值对，键为服务�
 #### `debugLogEnabled` — 调试日志
 
 设为 `true` 可让程序输出详细的调试日志（默认 `false`），用于排查 API 调用和工具执行的问题。
+
+#### `telemetryEnabled` — 匿名使用数据上报
+
+设为 `false` 可关闭匿名使用数据上报（默认 `true`）。上报仅包含匿名的机器标识，不包含对话内容、代码或 API 密钥。
+
+也可以通过环境变量关闭：
+
+```bash
+CROPCODE_TELEMETRY_ENABLED=0 cropcode
+```
 
 ## 环境变量优先级
 

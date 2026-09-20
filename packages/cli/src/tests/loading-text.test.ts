@@ -1,10 +1,27 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import stringWidth from "string-width";
 import { buildLoadingText } from "../ui";
 
-test("buildLoadingText returns a loading message when no progress", () => {
-  const text = buildLoadingText({ progress: null, now: Date.now() });
-  assert.ok(typeof text === "string" && text.length > 0);
+test("buildLoadingText returns plain Thinking... when no progress", () => {
+  assert.equal(buildLoadingText({ progress: null, now: Date.now() }), "Thinking...");
+});
+
+test("buildLoadingText shows reconnect attempt before stream progress", () => {
+  assert.equal(
+    buildLoadingText({
+      progress: null,
+      retry: {
+        requestId: "request-1",
+        error: "HTTP 502: Bad Gateway",
+        attempt: 2,
+        maxRetries: 5,
+        delayMs: 1600,
+      },
+      now: Date.now(),
+    }),
+    "Reconnecting... 2/5 (esc to interrupt)"
+  );
 });
 
 test("buildLoadingText shows running process elapsed time before thinking progress", () => {
@@ -22,15 +39,14 @@ test("buildLoadingText shows running process elapsed time before thinking progre
     },
     now,
   });
-  assert.ok(text.includes("yarn install"));
+  assert.equal(text, "(5s) yarn install");
 });
 
 test("buildLoadingText formats long-running process time with minutes", () => {
   const startedAt = "2026-04-28T00:00:00.000Z";
   const now = Date.parse(startedAt) + 65_250;
   const processes = new Map([["web-search", { startTime: startedAt, command: "WebSearch: latest node release" }]]);
-  const text2 = buildLoadingText({ processes, progress: null, now });
-  assert.match(text2, /\(1m5s\) WebSearch: latest node release/);
+  assert.equal(buildLoadingText({ processes, progress: null, now }), "(1m5s) WebSearch: latest node release");
 });
 
 test("buildLoadingText returns plain Thinking... while elapsed below 3s", () => {
@@ -46,7 +62,7 @@ test("buildLoadingText returns plain Thinking... while elapsed below 3s", () => 
     },
     now,
   });
-  assert.ok(typeof text === "string" && text.length > 0);
+  assert.equal(text, "Thinking...");
 });
 
 test("buildLoadingText shows elapsed seconds and tokens once past the threshold", () => {
@@ -62,7 +78,7 @@ test("buildLoadingText shows elapsed seconds and tokens once past the threshold"
     },
     now,
   });
-  assert.match(text, /\(5s\) · ↓ 850 tokens/);
+  assert.equal(text, "Thinking... (5s) · ↓ 850 tokens");
 });
 
 test("buildLoadingText falls back to '0' when formattedTokens is missing", () => {
@@ -78,7 +94,7 @@ test("buildLoadingText falls back to '0' when formattedTokens is missing", () =>
     },
     now,
   });
-  assert.match(text, /\(4s\) · ↓ 0 tokens/);
+  assert.equal(text, "Thinking... (4s) · ↓ 0 tokens");
 });
 
 test("buildLoadingText falls back to Thinking... when timestamp is unparseable", () => {
@@ -92,5 +108,62 @@ test("buildLoadingText falls back to Thinking... when timestamp is unparseable",
     },
     now: Date.now(),
   });
-  assert.ok(typeof text === "string" && text.length > 0);
+  assert.equal(text, "Thinking...");
+});
+
+const previewProgress = {
+  requestId: "preview",
+  startedAt: "2026-04-28T00:00:00.000Z",
+  estimatedTokens: 1501,
+  formattedTokens: "1.5k",
+  phase: "update" as const,
+  previewText: "latest text",
+};
+const previewNow = Date.parse(previewProgress.startedAt) + 5000;
+const previewStatus = "Thinking... (5s) · ↓ 1.5k tokens";
+
+test("loading preview requires more than 1500 tokens and preserves status priority", () => {
+  const input = { progress: previewProgress, now: previewNow, screenWidth: 100 };
+  assert.equal(buildLoadingText(input), `${previewStatus} [latest text]`);
+  assert.equal(buildLoadingText({ ...input, progress: { ...previewProgress, estimatedTokens: 1500 } }), previewStatus);
+  assert.equal(buildLoadingText({ ...input, progress: { ...previewProgress, previewText: "" } }), previewStatus);
+  assert.equal(buildLoadingText({ ...input, now: previewNow - 4000 }), "Thinking...");
+  assert.equal(
+    buildLoadingText({
+      ...input,
+      processes: new Map([["p", { startTime: previewProgress.startedAt, command: "cmd" }]]),
+    }),
+    "(5s) cmd"
+  );
+  assert.equal(
+    buildLoadingText({ ...input, retry: { requestId: "r", error: "err", attempt: 1, maxRetries: 5, delayMs: 800 } }),
+    "Reconnecting... 1/5 (esc to interrupt)"
+  );
+});
+
+test("loading preview keeps the newest complete graphemes within the reserved boundary", () => {
+  const previewText = "old ".repeat(100) + "中文👨‍👩‍👧‍👦é";
+  for (const screenWidth of [35, 60, 70, 80, 100, 200]) {
+    const text = buildLoadingText({ progress: { ...previewProgress, previewText }, now: previewNow, screenWidth });
+    if (text !== previewStatus) {
+      assert.ok(stringWidth(text) <= screenWidth - 28);
+      assert.ok(text.startsWith(`${previewStatus} [...`));
+      assert.ok(text.endsWith("é]"));
+      const tail = text.slice(previewStatus.length + 5, -1);
+      assert.ok(previewText.endsWith(tail));
+      assert.ok(!tail.startsWith("\u200d"));
+    }
+  }
+  assert.equal(buildLoadingText({ progress: previewProgress, now: previewNow, screenWidth: 40 }), previewStatus);
+});
+
+test("loading preview hides below 80 columns and returns when the terminal grows", () => {
+  const input = { progress: previewProgress, now: previewNow };
+  for (const screenWidth of [40, 60, 70, 79, 0]) {
+    assert.equal(buildLoadingText({ ...input, screenWidth }), previewStatus);
+  }
+  assert.equal(buildLoadingText(input), previewStatus);
+  for (const screenWidth of [80, 100, 160]) {
+    assert.equal(buildLoadingText({ ...input, screenWidth }), `${previewStatus} [latest text]`);
+  }
 });

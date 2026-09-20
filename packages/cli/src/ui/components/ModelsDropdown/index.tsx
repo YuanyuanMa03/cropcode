@@ -1,9 +1,14 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useInput } from "ink";
-import DropdownMenu from "../../DropdownMenu";
-import type { ModelConfigSelection, ReasoningEffort, DiscoveredModel } from "@YuanyuanMa03/cropcode-core";
-import { findProviderById, findModelInProvider, discoverModels, supportsThinking } from "@YuanyuanMa03/cropcode-core";
-import { getActiveCredential } from "@YuanyuanMa03/cropcode-core";
+import DropdownMenu from "../DropdownMenu";
+import type { ModelConfigSelection, ReasoningEffort } from "@yuanyuanma03/cropcode-core";
+
+import {
+  resolveCurrentSettings,
+  discoverModels,
+  findProviderByBaseURL,
+  getReasoningEfforts,
+} from "@yuanyuanma03/cropcode-core";
 
 type ModelStep = "model" | "thinking";
 
@@ -13,60 +18,28 @@ type ThinkingModeOption = {
   reasoningEffort?: ReasoningEffort;
 };
 
-/**
- * Build thinking-mode options dynamically from the selected model's preset.
- * All providers share the same unified effort tiers: low/medium/high/max.
- * Falls back to the full four-tier set if the model has no declared efforts.
- * Unknown/discovered models without a preset get the full set.
- */
-const FALLBACK_EFFORTS: ReasoningEffort[] = ["max", "high", "medium", "low"];
+export const MODEL_COMMAND_MODELS = [
+  "deepseek-flash",
+  "deepseek-v4-pro",
+  "deepseek-v4-flash",
+  "deepseek-v4-flash-vision-exp",
+] as const;
 
-function buildThinkingOptions(modelId: string): ThinkingModeOption[] {
-  const options: ThinkingModeOption[] = [];
-  if (supportsThinking(modelId)) {
-    const cred = getActiveCredential();
-    let efforts: string[] | undefined;
-    if (cred) {
-      const match = findModelInProvider(cred.providerId, modelId);
-      efforts = match?.reasoningEfforts;
-    }
-    // Fallback for models that support thinking but have no declared efforts,
-    // or for unknown/discovered models without a preset.
-    const effortList = (efforts?.length ? efforts : FALLBACK_EFFORTS) as ReasoningEffort[];
-    for (const effort of effortList) {
-      options.push({
-        label: `Thinking mode [${effort}]`,
-        thinkingEnabled: true,
-        reasoningEffort: effort,
-      });
-    }
-  }
-  options.push({ label: "No thinking", thinkingEnabled: false });
-  return options;
-}
+export const MODEL_COMMAND_THINKING_OPTIONS: ThinkingModeOption[] = [
+  { label: "Thinking mode [max]", thinkingEnabled: true, reasoningEffort: "max" },
+  { label: "Thinking mode [high]", thinkingEnabled: true, reasoningEffort: "high" },
+  { label: "Thinking mode [low]", thinkingEnabled: true, reasoningEffort: "low" },
+  { label: "No thinking", thinkingEnabled: false },
+];
 
-function getThinkingOptionIndex(
-  config: Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">,
-  options: ThinkingModeOption[]
-): number {
-  const index = options.findIndex((option) => {
+function getThinkingOptionIndex(config: Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">): number {
+  const index = MODEL_COMMAND_THINKING_OPTIONS.findIndex((option) => {
     if (!config.thinkingEnabled) {
       return !option.thinkingEnabled;
     }
     return option.thinkingEnabled && option.reasoningEffort === config.reasoningEffort;
   });
   return index >= 0 ? index : 0;
-}
-
-function resolvePresetModels(): DiscoveredModel[] {
-  const cred = getActiveCredential();
-  if (cred) {
-    const provider = findProviderById(cred.providerId);
-    if (provider) {
-      return provider.models.map((preset) => ({ id: preset.id, preset, unknown: false }));
-    }
-  }
-  return [];
 }
 
 type Props = {
@@ -86,44 +59,56 @@ const ModelsDropdown: React.FC<Props> = ({
   onModelConfigChange,
   onStatusMessage,
 }) => {
-  const [step, setStep] = useState<ModelStep | null>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
   const [pendingModel, setPendingModel] = useState<string | null>(null);
-  const [models, setModels] = useState<DiscoveredModel[]>(resolvePresetModels);
-
-  // Thinking options are built from the selected model's preset reasoningEfforts.
-  const thinkingOptions = useMemo(
-    () => buildThinkingOptions(pendingModel ?? modelConfig.model),
-    [pendingModel, modelConfig.model]
+  const settings = resolveCurrentSettings();
+  const [models, setModels] = useState<string[]>(() =>
+    Array.from(
+      new Set([
+        ...(findProviderByBaseURL(settings.baseURL)?.models.map((model) => model.id) ?? MODEL_COMMAND_MODELS),
+        modelConfig.model,
+      ])
+    )
   );
-
-  // Dynamic model discovery: when the dropdown opens, fetch the provider's
-  // actual available models via GET /models and merge with presets. Newly
-  // released models not yet in provider-presets.ts appear as "unknown" entries.
+  const efforts = getReasoningEfforts(pendingModel ?? modelConfig.model, settings.baseURL);
+  const thinkingOptions: ThinkingModeOption[] = [
+    ...(efforts.length
+      ? efforts.map((effort) => ({
+          label: `Thinking mode [${effort}]`,
+          thinkingEnabled: true,
+          reasoningEffort: effort,
+        }))
+      : [{ label: "Thinking mode", thinkingEnabled: true }]),
+    { label: "No thinking", thinkingEnabled: false },
+  ];
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    void discoverModels().then((discovered) => {
-      if (!cancelled && discovered.length > 0) {
-        setModels(discovered);
-      }
+    void discoverModels().then((items) => {
+      if (!cancelled) setModels(items.map((item) => item.id));
     });
     return () => {
       cancelled = true;
     };
   }, [open]);
+  const [step, setStep] = useState<ModelStep | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
 
+  // Initialize state when opened
   useEffect(() => {
     if (open) {
-      const currentIndex = models.findIndex((m) => m.id === modelConfig.model);
+      const presetIds =
+        findProviderByBaseURL(resolveCurrentSettings().baseURL)?.models.map((model) => model.id) ??
+        MODEL_COMMAND_MODELS;
+      const currentIndex = presetIds.findIndex((m) => m === modelConfig.model);
       setPendingModel(null);
       setStep("model");
       setActiveIndex(currentIndex >= 0 ? currentIndex : 0);
     } else {
       setStep(null);
     }
-  }, [open, modelConfig.model, models]);
+  }, [open, modelConfig.model]);
 
+  // Validate activeIndex bounds
   useEffect(() => {
     if (!step) {
       return;
@@ -134,12 +119,21 @@ const ModelsDropdown: React.FC<Props> = ({
     }
   }, [activeIndex, step, models.length, thinkingOptions.length]);
 
+  function getSelectedThinkingIndex(): number {
+    const index = thinkingOptions.findIndex(
+      (option) =>
+        option.thinkingEnabled === modelConfig.thinkingEnabled &&
+        (!option.thinkingEnabled || !option.reasoningEffort || option.reasoningEffort === modelConfig.reasoningEffort)
+    );
+    return Math.max(0, index);
+  }
+
   function selectItem(): void {
     if (step === "model") {
-      const model = models[activeIndex]?.id ?? modelConfig.model;
+      const model = models[activeIndex] ?? modelConfig.model;
       setPendingModel(model);
       setStep("thinking");
-      setActiveIndex(getThinkingOptionIndex(modelConfig, thinkingOptions));
+      setActiveIndex(getSelectedThinkingIndex());
       return;
     }
 
@@ -197,16 +191,16 @@ const ModelsDropdown: React.FC<Props> = ({
   const items =
     step === "model"
       ? models.map((model) => ({
-          key: model.id,
-          label: model.unknown ? `${model.id} (new)` : model.preset?.label || model.id,
-          description: model.id === modelConfig.model ? "current" : "",
-          selected: model.id === (pendingModel ?? modelConfig.model),
+          key: model,
+          label: model,
+          description: model === modelConfig.model ? "current model" : "",
+          selected: model === (pendingModel ?? modelConfig.model),
         }))
       : thinkingOptions.map((option, i) => ({
           key: option.label,
           label: option.label,
           description: option.thinkingEnabled ? `reasoningEffort: ${option.reasoningEffort}` : "thinking disabled",
-          selected: getThinkingOptionIndex(modelConfig, thinkingOptions) === i,
+          selected: getSelectedThinkingIndex() === i,
         }));
 
   return (

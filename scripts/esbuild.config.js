@@ -21,14 +21,13 @@ await build({
   banner: { js: "#!/usr/bin/env node" },
   jsx: "automatic",
   jsxImportSource: "react",
-  // Bundle everything including the local core package so the CLI ships as a
-  // self-contained dist/cli.js (deepcode uses the same setting).
   packages: "bundle",
+  external: ["sharp"],
   inject: [join(__dirname, "esbuild-shims.js")],
   alias: {
     // react-devtools-core is a browser-only package pulled in by ink's
-    // devtools support. It cannot run in a Node.js CLI, so replace it with an
-    // empty shim so esbuild doesn't bundle the real (broken) code.
+    // devtools support.  It cannot run in a Node.js CLI, so we replace it
+    // with an empty shim so esbuild doesn't bundle the real (broken) code.
     "react-devtools-core": join(__dirname, "empty-shim.js"),
   },
   define: {

@@ -1,6 +1,6 @@
-# CropCode MCP Configuration Guide
+# CropCode CLI MCP Configuration Guide
 
-CropCode supports MCP (Model Context Protocol), enabling AI assistants to connect with external tools and services such as GitHub, browsers, databases, and more.
+CropCode CLI supports MCP (Model Context Protocol), enabling AI assistants to connect with external tools and services such as GitHub, browsers, databases, and more.
 
 ## Overview
 
@@ -151,7 +151,7 @@ After configuration, start `cropcode` and type `/mcp` in the chat to view the st
 Simply use the MCP tool name in your conversation to invoke it, for example:
 
 ```
-Help me search for issues in the cropcode repository on GitHub
+Help me search for issues in the cropcode-cli repository on GitHub
 ```
 
 The AI will automatically invoke the `mcp__github__search_issues` tool to complete the action.
@@ -187,7 +187,7 @@ If an MCP server fails to start, check:
 
 ### Windows Users
 
-On Windows, CropCode automatically adds shell support for `.cmd` commands. If your MCP command is a batch script, ensure the filename ends with `.cmd`.
+On Windows, CropCode CLI automatically adds shell support for `.cmd` commands. If your MCP command is a batch script, ensure the filename ends with `.cmd`.
 
 ## Writing Your Own MCP Server
 

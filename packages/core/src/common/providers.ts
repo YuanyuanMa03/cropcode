@@ -32,7 +32,15 @@ export function readCredentials(): CredentialsFile | null {
     }
     const raw = fs.readFileSync(filePath, "utf8").trim();
     if (!raw) return null;
-    return JSON.parse(raw) as CredentialsFile;
+    const parsed = JSON.parse(raw) as CredentialsFile;
+    if (
+      !parsed ||
+      typeof parsed.activeProvider !== "string" ||
+      !parsed.providers ||
+      typeof parsed.providers !== "object"
+    )
+      return null;
+    return parsed;
   } catch {
     return null;
   }
@@ -41,13 +49,23 @@ export function readCredentials(): CredentialsFile | null {
 export function writeCredentials(credentials: CredentialsFile): void {
   const filePath = getCredentialsPath();
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(credentials, null, 2), "utf8");
+  fs.writeFileSync(filePath, JSON.stringify(credentials, null, 2), { encoding: "utf8", mode: 0o600 });
+  if (process.platform !== "win32") fs.chmodSync(filePath, 0o600);
 }
 
 export function getActiveCredential(): ProviderCredential | null {
   const creds = readCredentials();
   if (!creds) return null;
-  return creds.providers[creds.activeProvider] ?? null;
+  const credential = creds.providers[creds.activeProvider];
+  return credential &&
+    findProviderById(credential.providerId) &&
+    typeof credential.apiKey === "string" &&
+    credential.apiKey.trim() &&
+    typeof credential.activeModel === "string" &&
+    credential.activeModel.trim() &&
+    (credential.mode === "api" || credential.mode === "coding-plan")
+    ? credential
+    : null;
 }
 
 export function setActiveCredential(

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { formatSessionTitle, filterSessions, formatSessionStatus } from "../ui";
-import type { SessionEntry } from "@YuanyuanMa03/cropcode-core";
+import type { SessionEntry } from "@yuanyuanma03/cropcode-core";
 
 test("formatSessionTitle replaces newlines with spaces", () => {
   assert.equal(formatSessionTitle("first line\nsecond line\r\nthird"), "first line second line third");
@@ -18,6 +18,8 @@ test("formatSessionStatus maps status values to display labels", () => {
   assert.equal(formatSessionStatus("waiting_for_user"), "waiting");
   assert.equal(formatSessionStatus("failed"), "failed");
   assert.equal(formatSessionStatus("interrupted"), "stopped");
+  assert.equal(formatSessionStatus("ask_permission"), "waiting");
+  assert.equal(formatSessionStatus("permission_denied"), "denied");
   assert.equal(formatSessionStatus("unknown_status" as any), "unknown_status");
 });
 
@@ -112,7 +114,6 @@ function buildSessions(overrides: Array<Partial<SessionEntry>>): SessionEntry[] 
     activeTokens: 0,
     createTime: new Date().toISOString(),
     updateTime: new Date().toISOString(),
-    lastAccessTime: new Date().toISOString(),
     processes: null,
   }));
 }

@@ -1,4 +1,4 @@
-import type { SessionMessage, SessionStatus } from "@YuanyuanMa03/cropcode-core";
+import type { SessionMessage, SessionStatus } from "@yuanyuanma03/cropcode-core";
 
 export type AskUserQuestionOption = {
   label: string;
@@ -47,10 +47,13 @@ export function findPendingAskUserQuestion(
 }
 
 export function formatAskUserQuestionAnswers(answers: AskUserQuestionAnswers): string {
-  const answersText = Object.entries(answers)
-    .map(([question, answer]) => `"${escapeAnswerPart(question)}"="${escapeAnswerPart(answer)}"`)
-    .join(", ");
-  return `User has answered your questions: ${answersText}. You can now continue with the user's answers in mind.`;
+  const entries = Object.entries(answers);
+  const lines = [`Questions ${entries.length}/${entries.length} answered`];
+  for (const [question, answer] of entries) {
+    lines.push(` - ${formatAnswerPart(question)}`);
+    lines.push(`   answer: ${formatAnswerPart(answer)}`);
+  }
+  return lines.join("\n");
 }
 
 export function formatAskUserQuestionDecline(): string {
@@ -87,9 +90,11 @@ function normalizeQuestions(raw: unknown): AskUserQuestionItem[] {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       continue;
     }
-    const record = item as Record<string, unknown>;
-    const question = typeof record.question === "string" ? record.question.trim() : "";
-    const rawOptions = record.options;
+    const question =
+      typeof (item as { question?: unknown }).question === "string"
+        ? (item as { question: string }).question.trim()
+        : "";
+    const rawOptions = (item as { options?: unknown }).options;
     if (!question || !Array.isArray(rawOptions) || rawOptions.length === 0) {
       continue;
     }
@@ -99,7 +104,10 @@ function normalizeQuestions(raw: unknown): AskUserQuestionItem[] {
     if (options.length === 0) {
       continue;
     }
-    const multiSelect = typeof record.multiSelect === "boolean" ? record.multiSelect : undefined;
+    const multiSelect =
+      typeof (item as { multiSelect?: unknown }).multiSelect === "boolean"
+        ? (item as { multiSelect: boolean }).multiSelect
+        : undefined;
     questions.push({ question, multiSelect, options });
   }
   return questions;
@@ -109,18 +117,20 @@ function normalizeOption(raw: unknown): AskUserQuestionOption | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return null;
   }
-  const record = raw as Record<string, unknown>;
-  const label = typeof record.label === "string" ? record.label.trim() : "";
+  const label = typeof (raw as { label?: unknown }).label === "string" ? (raw as { label: string }).label.trim() : "";
   if (!label) {
     return null;
   }
-  const description = typeof record.description === "string" ? record.description.trim() : "";
+  const description =
+    typeof (raw as { description?: unknown }).description === "string"
+      ? (raw as { description: string }).description.trim()
+      : "";
   return {
     label,
     description: description || undefined,
   };
 }
 
-function escapeAnswerPart(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\s+/g, " ").trim();
+function formatAnswerPart(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
 }

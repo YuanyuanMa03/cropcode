@@ -4,14 +4,9 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { render, type Instance } from "ink";
-import chalk from "chalk";
 import { UpdatePrompt, type UpdatePromptChoice } from "../ui";
-import { killProcessTree } from "@YuanyuanMa03/cropcode-core";
-
-export type PackageInfo = {
-  name: string;
-  version: string;
-};
+import { killProcessTree, TENCENT_MIRROR_REGISTRY } from "@yuanyuanma03/cropcode-core";
+import type { PackageJson } from "../utils/package";
 
 type UpdateState = {
   pending?: {
@@ -26,16 +21,16 @@ type UpdateState = {
 const UPDATE_STATE_FILE = "update-check.json";
 const NPM_VIEW_TIMEOUT_MS = 5000;
 const MAX_NPM_VIEW_OUTPUT_CHARS = 64 * 1024;
-const TENCENT_MIRROR_REGISTRY = "https://mirrors.cloud.tencent.com/npm/";
+export const UPDATE_SUCCESS_MESSAGE = "🎉 Update ran successfully! Please restart CropCode.";
 
-export async function promptForPendingUpdate(packageInfo: PackageInfo): Promise<{ installed: boolean }> {
+export async function promptForPendingUpdate(packageInfo: PackageJson): Promise<{ installed: boolean }> {
   const state = readUpdateState();
   const pending = state.pending;
   if (!pending) {
     return { installed: false };
   }
 
-  if (compareVersions(packageInfo.version, pending.latestVersion) >= 0) {
+  if (compareVersions(packageInfo.version!, pending.latestVersion) >= 0) {
     writeUpdateState({ ...state, pending: null });
     return { installed: false };
   }
@@ -48,7 +43,7 @@ export async function promptForPendingUpdate(packageInfo: PackageInfo): Promise<
   const installSpec = `${pending.packageName}@${pending.latestVersion}`;
   const installCommand = `npm install -g ${installSpec}`;
   const choice = await promptUpdateChoice({
-    currentVersion: packageInfo.version,
+    currentVersion: packageInfo.version!,
     latestVersion: pending.latestVersion,
     installCommand,
   });
@@ -57,9 +52,7 @@ export async function promptForPendingUpdate(packageInfo: PackageInfo): Promise<
     const ok = await runNpmInstallGlobal(installSpec);
     if (ok) {
       writeUpdateState({ ...state, pending: null });
-      process.stdout.write(
-        `\n${chalk.red("CropCode has been updated. Please restart the CLI to use the new version.")}\n\n`
-      );
+      process.stdout.write(`${UPDATE_SUCCESS_MESSAGE}\n\n`);
     }
     return { installed: ok };
   }
@@ -74,7 +67,7 @@ export async function promptForPendingUpdate(packageInfo: PackageInfo): Promise<
   return { installed: false };
 }
 
-export async function checkForNpmUpdate(packageInfo: PackageInfo): Promise<void> {
+export async function checkForNpmUpdate(packageInfo: PackageJson): Promise<void> {
   if (!packageInfo.name || !packageInfo.version) {
     return;
   }

@@ -1,6 +1,6 @@
-import DropdownMenu from "../../DropdownMenu";
+import DropdownMenu from "../DropdownMenu";
 import React, { useEffect, useState } from "react";
-import type { SkillInfo } from "@YuanyuanMa03/cropcode-core";
+import type { SkillInfo } from "@yuanyuanma03/cropcode-core";
 import { useInput } from "ink";
 import { isSkillSelected } from "../../views/SlashCommandMenu";
 
@@ -25,7 +25,7 @@ const SkillsDropdown: React.FC<{
       }
       if ((input === " " && !key.ctrl && !key.meta) || (key.return && !key.shift && !key.meta)) {
         const skill = skills[skillsDropdownIndex];
-        if (skill && !skill.disabled) {
+        if (skill) {
           onSelect?.(skill);
         }
         return;
@@ -62,12 +62,7 @@ const SkillsDropdown: React.FC<{
         label: skill.name,
         description: skill.path,
         selected: isSkillSelected(selectedSkills, skill),
-        disabled: skill.disabled,
-        statusIndicator: skill.disabled
-          ? { symbol: "✕", color: "gray" }
-          : skill.isLoaded
-            ? { symbol: "✓", color: "green" }
-            : undefined,
+        statusIndicator: skill.isLoaded ? { symbol: "✓", color: "green" } : undefined,
       }))}
       activeIndex={skillsDropdownIndex}
       activeColor="#229ac3"

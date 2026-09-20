@@ -5,10 +5,10 @@ export type ValidationResult = { ok: true; input: Record<string, unknown> } | { 
 
 export function semanticBoolean(defaultValue = false) {
   return z.preprocess((value) => {
-    if (value === "true" || value === "1" || value === "yes") {
+    if (value === "true") {
       return true;
     }
-    if (value === "false" || value === "0" || value === "no") {
+    if (value === "false") {
       return false;
     }
     return value;
@@ -40,6 +40,7 @@ export async function executeValidatedTool<TSchema extends z.ZodType<Record<stri
     preprocess?: (args: Record<string, unknown>) => ValidationResult;
   } = {}
 ): Promise<ToolExecutionResult> {
+  context.signal?.throwIfAborted();
   const preprocessed: ValidationResult = options.preprocess
     ? options.preprocess(rawArgs)
     : { ok: true, input: rawArgs };
