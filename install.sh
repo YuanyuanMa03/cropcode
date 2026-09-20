@@ -68,7 +68,7 @@ main() {
     case "$latest_url" in "$repo/releases/tag/v"*) version=${latest_url##*/} ;; *) fail 'Unexpected release redirect.' ;; esac
   fi
   version=${version#v}
-  printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' || fail 'Expected a version such as 2.2.1.'
+  printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' || fail 'Expected a version such as 1.1.0.'
   asset="cropcode-$version-$target.tar.gz"
   temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/cropcode-install.XXXXXX")
   install_lock=

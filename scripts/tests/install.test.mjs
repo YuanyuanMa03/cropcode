@@ -22,14 +22,14 @@ function fixture(t, options = {}) {
   const downloads = join(dir, "downloads");
   const nodeCalls = join(dir, "unexpected-node-call");
   const target = `${options.platform ?? "linux"}-${options.arch ?? "x64"}`;
-  const asset = `cropcode-2.2.1-${target}.tar.gz`;
+  const asset = `cropcode-1.1.0-${target}.tar.gz`;
   for (const path of [tools, release, join(bundle, "runtime/bin")]) mkdirSync(path, { recursive: true });
   const executable = (path, source) => writeFileSync(path, source, { mode: 0o755 });
   executable(join(bundle, "runtime/bin/node"), `#!/bin/sh\nexec '${process.execPath.replace(/'/g, "'\\''")}' "$@"\n`);
-  executable(join(bundle, "cropcode"), options.badCLI ? "#!/bin/sh\nexit 1\n" : "#!/bin/sh\nprintf '2.2.1\\n'\n");
+  executable(join(bundle, "cropcode"), options.badCLI ? "#!/bin/sh\nexit 1\n" : "#!/bin/sh\nprintf '1.1.0\\n'\n");
   writeFileSync(
     join(bundle, "manifest.json"),
-    JSON.stringify({ product: "CropCode", version: options.manifestVersion ?? "2.2.1", target })
+    JSON.stringify({ product: "CropCode", version: options.manifestVersion ?? "1.1.0", target })
   );
   cpSync(join(root, "uninstall.sh"), join(bundle, "uninstall.sh"));
   const packed = spawnSync("tar", ["-czf", join(release, asset), "-C", dir, "cropcode"]);
@@ -48,7 +48,7 @@ const fs = require('node:fs'); const path = require('node:path');
 const args = process.argv.slice(2); const url = args.find(a=>a.startsWith('https://'));
 fs.appendFileSync(${JSON.stringify(downloads)}, url+'\\n');
 if (${Boolean(options.downloadFailure)}) process.exit(22);
-if (url.endsWith('/latest')) process.stdout.write(${JSON.stringify(`https://github.com/YuanyuanMa03/cropcode/releases/tag/${options.tag ?? "v2.2.1"}`)});
+if (url.endsWith('/latest')) process.stdout.write(${JSON.stringify(`https://github.com/YuanyuanMa03/cropcode/releases/tag/${options.tag ?? "v1.1.0"}`)});
 else fs.copyFileSync(path.join(${JSON.stringify(release)},url.split('/').at(-1)),args[args.indexOf('--output')+1]);
 `
   );
@@ -90,7 +90,7 @@ shellTest("piped latest installation uses the bundled runtime, supports spaces a
 
 shellTest("local release installation skips the network and supports ARM64", (t) => {
   const f = fixture(t, { platform: "darwin", arch: "arm64" });
-  const result = f.run(["v2.2.1", "--from-release", f.release]);
+  const result = f.run(["v1.1.0", "--from-release", f.release]);
   assert.equal(result.status, 0, result.stderr);
   assert.ok(!existsSync(f.downloads));
   assert.ok(!existsSync(f.nodeCalls));
@@ -98,15 +98,15 @@ shellTest("local release installation skips the network and supports ARM64", (t)
 
 shellTest("failed update preserves the active version; successful update changes the pointer", (t) => {
   const f = fixture(t);
-  assert.equal(f.run(["2.2.1"]).status, 0);
+  assert.equal(f.run(["1.1.0"]).status, 0);
   const current = join(f.prefix, "share/cropcode/current");
   const before = readlinkSync(current);
   const checksums = readFileSync(join(f.release, "SHA256SUMS"));
   writeFileSync(join(f.release, "SHA256SUMS"), "invalid\n");
-  assert.notEqual(f.run(["2.2.1"]).status, 0);
+  assert.notEqual(f.run(["1.1.0"]).status, 0);
   assert.equal(readlinkSync(current), before);
   writeFileSync(join(f.release, "SHA256SUMS"), checksums);
-  assert.equal(f.run(["2.2.1"]).status, 0);
+  assert.equal(f.run(["1.1.0"]).status, 0);
   assert.notEqual(readlinkSync(current), before);
 });
 
@@ -136,7 +136,7 @@ shellTest("existing external commands are preserved", (t) => {
   mkdirSync(join(f.prefix, "bin"), { recursive: true });
   const command = join(f.prefix, "bin/cropcode");
   writeFileSync(command, "owned by another installation");
-  const result = f.run(["2.2.1"]);
+  const result = f.run(["1.1.0"]);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Another installation owns/);
   assert.equal(readFileSync(command, "utf8"), "owned by another installation");
@@ -156,7 +156,7 @@ shellTest("uninstaller refuses unmanaged data", (t) => {
 });
 
 shellTest("help and invalid arguments do not access the network", (t) => {
-  for (const args of [["--help"], ["--unknown"], ["--prefix"], ["--prefix", "relative"], ["2.2.1", "2.3.0"]]) {
+  for (const args of [["--help"], ["--unknown"], ["--prefix"], ["--prefix", "relative"], ["1.1.0", "1.2.0"]]) {
     const f = fixture(t);
     const result = f.run(args);
     assert.equal(result.status === 0, args[0] === "--help");

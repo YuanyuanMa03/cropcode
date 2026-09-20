@@ -20,7 +20,7 @@ if ($Version -eq 'latest') {
     $Version = $release.tag_name
 }
 $Version = $Version -replace '^v', ''
-if ($Version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw 'Expected a version such as 2.2.1.' }
+if ($Version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw 'Expected a version such as 1.1.0.' }
 $asset = "cropcode-$Version-$target.zip"
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('cropcode-install-' + [guid]::NewGuid().ToString('N'))
 $lock = $null
