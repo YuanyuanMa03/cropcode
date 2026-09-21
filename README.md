@@ -97,9 +97,11 @@ cropcode --version
 
 进入研究项目目录运行 `cropcode`。首次启动通过 **供应商 → 接入方式 → 模型 → API Key** 完成配置；已有配置直接复用，也可使用 `/login` 重新选择。
 
-## 本地 Web 对话
+## Desktop 与本地 Web 工作台
 
-在浏览器里使用 CropCode：历史会话、实时回复、工具输出、Plan 模式和权限确认，复用终端的模型配置与农业科研能力。
+任务侧栏、历史搜索、项目文件引用和对话工作区，支持实时回复、工具输出、Plan 模式和权限确认。Desktop 与浏览器共用界面，复用终端的模型配置与农业科研能力。
+
+从源码构建后，运行 `npm run dev --workspace=cropcode-desktop` 启动桌面端；macOS 使用原生窗口控件，支持跟随系统的浅色与深色外观。
 
 ![CropCode 本地 Web 工作台实机截图](docs/assets/cropcode-web.png)
 

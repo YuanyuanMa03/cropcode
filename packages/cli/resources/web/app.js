@@ -10,6 +10,77 @@
   let questionSignature = "";
   let forceScroll = false;
   const messageNodes = new Map();
+  const narrow = () => window.matchMedia("(max-width: 760px)").matches;
+  let workspaceGeneration = 0;
+  let workspaceTimer = 0;
+  let settingsReturnFocus = null;
+
+  if (window.cropcodeDesktop?.platform === "darwin") document.body.classList.add("desktop-mac");
+  if (!/Mac/.test(window.navigator.platform)) {
+    document.querySelector(".new-shortcut").textContent = "Ctrl N";
+    document.querySelector(".search-shortcut").textContent = "Ctrl K";
+  }
+  function setSidebar(open) {
+    document.body.classList.toggle("show-sessions", open && narrow());
+    document.body.classList.toggle("sidebar-collapsed", !open);
+    $("toggle-sessions").setAttribute("aria-expanded", String(open));
+    $("sidebar-scrim").hidden = !open || !narrow();
+  }
+  function openTaskSearch() {
+    setSidebar(true);
+    $("session-search-wrap").hidden = false;
+    $("session-search").focus();
+  }
+  function setWorkspace(open) {
+    $("workspace-panel").hidden = !open;
+    $("toggle-workspace").setAttribute("aria-expanded", String(open));
+    workspaceGeneration++;
+    window.clearTimeout(workspaceTimer);
+    if (open) {
+      $("file-search").focus();
+      void loadWorkspaceFiles();
+    }
+  }
+  async function loadWorkspaceFiles() {
+    const generation = ++workspaceGeneration;
+    $("workspace-files").replaceChildren();
+    if (!connected || !state) {
+      $("files-status").textContent = "连接本地服务后可查看项目文件。";
+      return;
+    }
+    $("files-status").textContent = "正在查找文件…";
+    try {
+      const data = await request("/api/files", { query: $("file-search").value, sessionId: state.sessionId });
+      if (generation !== workspaceGeneration || $("workspace-panel").hidden) return;
+      const items = data.items || [];
+      $("files-status").textContent = items.length
+        ? `显示 ${items.length} 项 · 点击引用，可搜索更多文件`
+        : "没有匹配的文件，试试其他关键词。";
+      for (const item of items) {
+        const row = node("button", undefined, "file-row");
+        const description = node("span", undefined, "file-description");
+        const segments = item.path.replace(/\/$/, "").split("/");
+        description.append(node("span", segments.pop() || item.path, "file-name"));
+        description.append(node("span", segments.join("/") || "项目根目录", "file-path"));
+        row.append(node("span", item.type === "directory" ? "▸" : "↗", "file-glyph"), description);
+        row.title = "引用 " + item.path;
+        row.disabled = $("prompt").disabled;
+        row.onclick = () => {
+          if ($("prompt").disabled) return;
+          closeMenu();
+          const input = $("prompt");
+          // Panel selections append a separate reference without consuming a stale trigger token.
+          input.value += input.value && !/\s$/.test(input.value) ? " " : "";
+          input.setSelectionRange(input.value.length, input.value.length);
+          insertMention(item.path);
+          if (narrow()) setWorkspace(false);
+        };
+        $("workspace-files").append(row);
+      }
+    } catch (error) {
+      if (generation === workspaceGeneration) $("files-status").textContent = error.message;
+    }
+  }
 
   // Composer trigger pipeline: "/" opens commands, "@" opens project file references.
   // Keyboard arbitration follows the combobox pattern: focus stays in the editor and
@@ -55,10 +126,14 @@
 
   function closeSettings() {
     $("settings").hidden = true;
+    settingsReturnFocus?.focus();
   }
   async function openSettings() {
+    if (!$("settings").hidden) return;
+    settingsReturnFocus = document.activeElement;
     settingsOpened = true;
     $("settings").hidden = false;
+    $("settings-close").focus();
     $("settings-body").replaceChildren(node("p", "正在读取配置…", "muted"));
     try {
       const [summary, providers] = await Promise.all([request("/api/settings"), request("/api/settings/providers")]);
@@ -231,10 +306,12 @@
     $("notice").className = isError ? "notice error" : "notice";
   }
   function connection(value) {
+    const reconnected = value && !connected;
     connected = value;
     $("connection-label").textContent = value ? "本地连接" : "连接已断开";
     $("connection-dot").classList.toggle("offline", !value);
     controls();
+    if (reconnected && !$("workspace-panel").hidden) void loadWorkspaceFiles();
   }
   async function request(path, body) {
     const response = await fetch(
@@ -281,6 +358,8 @@
     $("new-session").disabled = !ready || state.busy || submitting;
     $("plan-mode").disabled = !ready || state.busy || submitting;
     $("implement-plan").disabled = !ready || state.busy || submitting;
+    $("attach-file").disabled = $("prompt").disabled;
+    for (const button of document.querySelectorAll("[data-prompt], .file-row")) button.disabled = $("prompt").disabled;
     for (const button of $("permissions").querySelectorAll("button"))
       button.disabled = !ready || state.busy || submitting;
     for (const button of $("questions").querySelectorAll("button"))
@@ -392,6 +471,8 @@
       cursor = element.nextSibling;
     }
     $("welcome").hidden = data.messages.length > 0 || data.busy;
+    $("chat-pane").classList.toggle("is-empty", !$("welcome").hidden);
+    $("suggestions").hidden = $("welcome").hidden;
     $("live").hidden = !data.live?.text;
     $("live-content").textContent = data.live?.text || "";
     $("process-output").hidden = !data.output;
@@ -402,38 +483,44 @@
     if (!Number.isFinite(time)) return "";
     const minutes = Math.round((Date.now() - time) / 60000);
     if (minutes < 1) return "刚刚";
-    if (minutes < 60) return minutes + " 分钟前";
+    if (minutes < 60) return minutes + "分";
     const hours = Math.round(minutes / 60);
-    if (hours < 24) return hours + " 小时前";
+    if (hours < 24) return hours + "时";
     const days = Math.round(hours / 24);
-    if (days < 7) return days + " 天前";
-    return new Date(time).toLocaleDateString();
+    if (days < 7) return days + "天";
+    return new Date(time).toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
   }
   function renderSessions(data) {
-    const signature = JSON.stringify([data.sessions, data.sessionId, data.busy]);
+    const query = $("session-search").value.trim().toLocaleLowerCase();
+    const signature = JSON.stringify([data.sessions, data.sessionId, data.busy, query]);
     if (signature === sessionSignature) return;
     sessionSignature = signature;
     const list = document.createDocumentFragment();
+    $("session-count").textContent = String(data.sessions.length);
+    let matches = 0;
     for (const session of data.sessions) {
+      if (query && !(session.summary || "未命名任务").toLocaleLowerCase().includes(query)) continue;
+      matches++;
       const button = node("button", undefined, session.id === data.sessionId ? "selected" : "");
-      button.title = session.summary || "未命名会话";
+      button.title = session.summary || "未命名任务";
+      if (session.id === data.sessionId) button.setAttribute("aria-current", "page");
       button.append(
-        node("span", session.summary || "未命名会话", "session-summary"),
-        node("span", relativeTime(session.updateTime), "session-time")
+        node("span", session.summary || "未命名任务", "session-summary"),
+        node("span", relativeTime(session.updated), "session-time")
       );
       button.disabled = data.busy;
       button.onclick = () => {
         forceScroll = true;
         void action("/api/session", { target: session.id }).then((ok) => {
           if (ok) {
-            document.body.classList.remove("show-sessions");
-            $("toggle-sessions").setAttribute("aria-expanded", "false");
+            if (narrow()) setSidebar(false);
+            $("prompt").focus();
           }
         });
       };
       list.append(button);
     }
-    if (!data.sessions.length) list.append(node("p", "从一次对话开始。", "muted"));
+    if (!matches) list.append(node("p", query ? "没有匹配的任务。" : "新建一个任务，从这里继续。", "muted"));
     $("sessions").replaceChildren(list);
   }
   function renderPermissions(data) {
@@ -526,8 +613,13 @@
     state = data;
     $("project-name").textContent = data.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || data.projectRoot;
     $("project-name").title = data.projectRoot;
+    $("sidebar-project").textContent = $("project-name").textContent;
+    $("workspace-root").textContent = data.projectRoot;
+    $("task-title").textContent = data.sessions.find((session) => session.id === data.sessionId)?.summary || "新建任务";
+    $("task-title").title = $("task-title").textContent;
+    document.title = $("task-title").textContent + " · CropCode";
     $("model").textContent = data.provider + " · " + data.model;
-    $("model").title = data.projectRoot;
+    $("model").title = "配置模型供应商";
     $("usage").textContent = data.tokens == null ? "" : data.tokens.toLocaleString() + " tokens";
     const labels = {
       completed: "本轮已完成",
@@ -541,7 +633,7 @@
     $("activity-dot").classList.toggle("offline", data.busy);
     if (data.error || data.failReason) notice(data.error || data.failReason, true);
     else if (!data.configured) {
-      notice("尚未配置模型:点击下方供应商信息或自动弹出的面板完成配置。");
+      notice("尚未配置模型：点击设置或输入框内的模型名称完成配置。");
       if (!settingsOpened && $("settings").hidden) void openSettings();
     } else if (data.earlierMessages) notice("当前显示最近 200 条消息，完整历史保存在本地会话记录。");
     else notice("");
@@ -551,6 +643,7 @@
     renderQuestions(data);
     $("plan-ready").hidden = !data.proposedPlan;
     controls();
+    if (changedSession && !$("workspace-panel").hidden) void loadWorkspaceFiles();
     if (atBottom || changedSession || forceScroll) {
       conversation.scrollTop = conversation.scrollHeight;
       forceScroll = false;
@@ -779,6 +872,7 @@
       }
       if (event.key === "Escape") {
         event.preventDefault();
+        event.stopPropagation();
         closeMenu();
         return;
       }
@@ -827,7 +921,12 @@
   });
   $("new-session").onclick = () => {
     forceScroll = true;
-    void action("/api/session", { target: null });
+    void action("/api/session", { target: null }).then((ok) => {
+      if (ok) {
+        if (narrow()) setSidebar(false);
+        $("prompt").focus();
+      }
+    });
   };
   $("stop").onclick = () => action("/api/interrupt", {});
   $("implement-plan").onclick = () => action("/api/prompt", { text: "实现此方案，并验证实际结果。", planMode: false });
@@ -835,6 +934,7 @@
     button.onclick = () => {
       $("prompt").value = button.dataset.prompt;
       saveDraft();
+      autosize();
       $("prompt").focus();
     };
   }
@@ -871,20 +971,94 @@
     }
   }
   $("model").onclick = () => void openSettings();
+  $("open-settings").onclick = () => void openSettings();
   $("settings-close").onclick = closeSettings;
   $("settings").onclick = (event) => {
     if (event.target === $("settings")) closeSettings();
   };
   document.addEventListener("keydown", (event) => {
+    if (event.isComposing) return;
+    if (!$("settings").hidden && event.key === "Tab") {
+      const focusable = Array.from($("settings").querySelectorAll("button, input, select")).filter(
+        (element) => !element.disabled && element.getClientRects().length
+      );
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
     if (event.key === "Escape" && !$("settings").hidden) {
       event.preventDefault();
       closeSettings();
+      return;
+    }
+    if (!$("settings").hidden) return;
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey) {
+      if (event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        openTaskSearch();
+      } else if (event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        $("new-session").click();
+      }
+    }
+    if (event.key === "Escape" && !menu.open) {
+      if (!$("workspace-panel").hidden) {
+        setWorkspace(false);
+        $("toggle-workspace").focus();
+      } else if (document.body.classList.contains("show-sessions")) {
+        setSidebar(false);
+        $("toggle-sessions").focus();
+      }
     }
   });
   $("toggle-sessions").onclick = () => {
-    const expanded = document.body.classList.toggle("show-sessions");
-    $("toggle-sessions").setAttribute("aria-expanded", String(expanded));
+    setSidebar(
+      narrow()
+        ? !document.body.classList.contains("show-sessions")
+        : document.body.classList.contains("sidebar-collapsed")
+    );
   };
+  $("collapse-sidebar").onclick = () => {
+    setSidebar(false);
+    $("toggle-sessions").focus();
+  };
+  $("sidebar-scrim").onclick = () => setSidebar(false);
+  $("search-sessions").onclick = openTaskSearch;
+  $("session-search").oninput = () => {
+    if (state) renderSessions(state);
+  };
+  $("session-search").onkeydown = (event) => {
+    if (event.key === "Escape" && !event.isComposing) {
+      event.stopPropagation();
+      $("session-search").value = "";
+      $("session-search-wrap").hidden = true;
+      if (state) renderSessions(state);
+      $("search-sessions").focus();
+    }
+  };
+  $("toggle-workspace").onclick = () => setWorkspace($("workspace-panel").hidden);
+  $("close-workspace").onclick = () => {
+    setWorkspace(false);
+    $("toggle-workspace").focus();
+  };
+  $("project-files").onclick = () => {
+    if (narrow()) setSidebar(false);
+    setWorkspace(true);
+  };
+  $("attach-file").onclick = () => setWorkspace(true);
+  $("file-search").oninput = () => {
+    workspaceGeneration++;
+    window.clearTimeout(workspaceTimer);
+    workspaceTimer = window.setTimeout(() => void loadWorkspaceFiles(), 150);
+  };
+  window.matchMedia("(max-width: 760px)").addEventListener("change", () => setSidebar(!narrow()));
+  setSidebar(!narrow());
   $("conversation").addEventListener("scroll", () => {
     const el = $("conversation");
     $("jump-latest").hidden = el.scrollHeight - el.scrollTop - el.clientHeight < 100;

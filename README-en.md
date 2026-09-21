@@ -38,9 +38,11 @@ CropCode works inside your project: it reads data and code, discusses an analysi
 
 The capture shows a question triggering the `cropcode-self-refer` skill, a documentation read, and the beginning of an answer. The panel displays the provider, model, thinking settings, and working directory. Wallpaper and transparency belong to the user's terminal configuration.
 
-## Local Web chat
+## Desktop and local Web workspace
 
-The source version includes a browser workspace with conversation history, streaming replies, tool output, Plan mode, and permission prompts. It shares the CLI's model configuration and session engine.
+Desktop and Web share a task sidebar, history search, project file references and a conversation workspace with streaming replies, tool output, Plan mode and permission prompts. Both use the CLI's model configuration and session engine.
+
+After building from source, run `npm run dev --workspace=cropcode-desktop` to launch Desktop. It uses native window controls on macOS and follows the system light or dark appearance.
 
 Install `1.1.0`, or build and link the current source with `npm run link:local`, then run in your project directory:
 
@@ -49,7 +51,7 @@ cropcode web
 cropcode web --port 8788
 ```
 
-Open the complete URL printed in the terminal. The default listener is `127.0.0.1:8787`, accessible only from this computer. Configure a model through `cropcode` first; press `Ctrl+C` in the server terminal to stop. [Web guide (Chinese) →](docs/web.md)
+Open the complete URL printed in the terminal. The default listener is `127.0.0.1:8787`, accessible only from this computer. Configure a model through `cropcode` first; press `Ctrl+C` in the server terminal to stop. [Workspace guide →](docs/web_en.md)
 
 ## Quick start
 

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, powerSaveBlocker } from "electron";
+import { app, BrowserWindow, dialog, nativeTheme, powerSaveBlocker } from "electron";
 import { appendFile, createWriteStream } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -22,10 +22,12 @@ const here = fileURLToPath(new URL(".", import.meta.url));
 const mark = (tag: string) => void appendFile("/tmp/cropcode-desktop-markers.log", tag + "\n", () => {});
 mark("MAIN");
 const repoRoot = resolveRepoRoot(here);
-const packagedEntry = app.isPackaged ? join(process.resourcesPath, "cropcode", "cli.js") : null;
+const packagedEntry = app.isPackaged ? join(process.resourcesPath, "cropcode", "dist", "cli.js") : null;
 
 let mainWindow: BrowserWindow | null = null;
 let sidecar: SidecarHandle | null = null;
+let quitting = false;
+let hostReady = false;
 
 mark("BEFORE_LOCK");
 const locked = app.requestSingleInstanceLock();
@@ -50,6 +52,9 @@ if (!locked) {
   app.on("window-all-closed", () => {
     // A tool window: closing it ends the session on every platform.
     app.quit();
+  });
+  app.on("before-quit", () => {
+    quitting = true;
   });
 
   // Disposal reaches quiescence: request shutdown, wait for the host to
@@ -77,6 +82,24 @@ async function start(): Promise<void> {
 }
 
 async function startInner(): Promise<void> {
+  // npm workspaces runs scripts from apps/desktop; the user's invocation
+  // directory is the project, not the shell's implementation directory.
+  if (!app.isPackaged) process.chdir(process.env.INIT_CWD || process.cwd());
+  else if (process.env.CROPCODE_DESKTOP_SMOKE !== "1") {
+    // Finder/Start Menu do not supply a project cwd. Select it before starting
+    // the shared host, so the installed app never treats / or its install folder as a project.
+    const selection = await dialog.showOpenDialog({
+      title: "选择 CropCode 工作项目",
+      buttonLabel: "打开项目",
+      defaultPath: app.getPath("documents"),
+      properties: ["openDirectory"],
+    });
+    if (selection.canceled || !selection.filePaths[0]) {
+      app.quit();
+      return;
+    }
+    process.chdir(selection.filePaths[0]);
+  }
   const cliEntry = resolveCliEntry(repoRoot, packagedEntry);
   if (!cliEntry) {
     await fatal("找不到 CropCode 运行时", "开发模式请先在仓库根目录运行 npm run build;安装包损坏时请重新安装。");
@@ -101,6 +124,7 @@ async function startInner(): Promise<void> {
     output += chunk;
     const url = parseWebHostUrl(output);
     if (url) {
+      hostReady = true;
       mark("URL");
       child.stdout?.removeAllListeners("data");
       openWindow(url).catch((error) => mark("WINDOW_ERROR:" + (error instanceof Error ? error.stack : String(error))));
@@ -115,7 +139,7 @@ async function startInner(): Promise<void> {
 
   // Fail loudly if the host never comes up (misconfiguration fails loud).
   const timeout = setTimeout(() => {
-    if (!mainWindow) {
+    if (!hostReady && !quitting) {
       child.kill();
       void fatal("CropCode 服务启动超时", errorText || "本地服务 30 秒内未就绪。");
     }
@@ -124,7 +148,7 @@ async function startInner(): Promise<void> {
   child.once("exit", (code) => {
     mark("CHILD_EXIT=" + code + " STDERR:" + errorText.slice(-400));
     clearTimeout(timeout);
-    if (!mainWindow) {
+    if (!hostReady && !quitting) {
       void fatal("CropCode 服务异常退出", errorText || `退出码 ${code ?? "unknown"}。`);
     }
   });
@@ -137,11 +161,15 @@ async function openWindow(url: string): Promise<void> {
     height: 840,
     minWidth: 960,
     minHeight: 600,
+    ...(process.platform === "darwin"
+      ? { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 16, y: 14 } }
+      : {}),
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#202120" : "#ffffff",
     autoHideMenuBar: true,
     show: false,
     title: "CropCode",
     webPreferences: {
-      preload: join(here, "preload.js"),
+      preload: join(here, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -163,6 +191,10 @@ async function openWindow(url: string): Promise<void> {
   mark("LOADED");
 
   if (process.env.CROPCODE_DESKTOP_SMOKE === "1") {
+    const bridgeReady = await mainWindow.webContents.executeJavaScript(
+      "window.cropcodeDesktop?.desktop === true && typeof window.cropcodeDesktop.platform === 'string' && typeof window.require === 'undefined'"
+    );
+    if (!bridgeReady) throw new Error("桌面预加载桥接或沙箱校验失败。");
     // Verification hook: the page is up — optionally capture the rendered
     // window, report, and exit cleanly.
     const shot = process.env.CROPCODE_DESKTOP_SMOKE_SHOT;

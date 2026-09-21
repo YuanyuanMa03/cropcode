@@ -4,112 +4,380 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <title>CropCode · 本地工作台</title>
+    <title>CropCode · 工作台</title>
     <link rel="stylesheet" href="/style.css" />
     <script src="/app.js" defer></script>
   </head>
   <body>
-    <aside class="sidebar">
-      <a class="brand" href="/" aria-label="CropCode 首页"
-        ><span class="brand-mark">✳</span> CropCode <small>WEB</small></a
-      >
-      <button id="new-session" class="new-session" disabled><span>＋</span> 新建对话</button>
-      <button id="toggle-sessions" class="mobile-sessions" aria-label="显示或隐藏历史会话" aria-expanded="false">
-        ☰
+    <aside class="sidebar" id="sidebar" aria-label="任务侧栏">
+      <div class="sidebar-heading">
+        <a class="brand" href="/" aria-label="CropCode 首页"
+          ><svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M5 16C2 7 9 3 20 4c1 11-3 18-12 15M4 21 15 10M10 15V9m0 6h6" /></svg
+          ><span>CropCode</span></a
+        >
+        <button id="collapse-sidebar" class="icon-button" aria-label="收起侧栏" title="收起侧栏">
+          <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="4" width="18" height="16" rx="3" />
+            <path d="M9 4v16" />
+          </svg>
+        </button>
+      </div>
+      <div class="sidebar-actions">
+        <button id="new-session" class="nav-button" disabled>
+          <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path
+              d="M12 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-7M15 3l6 6M10 14l-1 4 4-1L22 8a2 2 0 0 0-6-6z"
+            /></svg
+          ><span>新建任务</span><kbd class="new-shortcut">⌘ N</kbd>
+        </button>
+        <button id="search-sessions" class="nav-button">
+          <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <path d="m16 16 4 4" /></svg
+          ><span>搜索任务</span><kbd class="search-shortcut">⌘ K</kbd>
+        </button>
+      </div>
+      <div id="session-search-wrap" class="session-search-wrap" hidden>
+        <label class="sr-only" for="session-search">搜索历史任务</label>
+        <input id="session-search" type="search" placeholder="搜索任务…" autocomplete="off" />
+      </div>
+      <div class="section-label">项目</div>
+      <button id="project-files" class="project-row" title="查看当前项目文件">
+        <svg
+          class="icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" /></svg
+        ><span id="sidebar-project">当前项目</span
+        ><svg
+          class="icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="m9 5 7 7-7 7" />
+        </svg>
       </button>
-      <div class="section-label">最近的研究与任务</div>
-      <nav id="sessions" aria-label="历史会话"><p class="muted">连接后显示历史会话</p></nav>
+      <div class="section-label tasks-label"><span>最近任务</span><span id="session-count"></span></div>
+      <nav id="sessions" aria-label="历史会话"><p class="muted">正在读取任务…</p></nav>
       <div class="sidebar-footer">
-        <span class="local-dot"></span> 本地工作台 <span class="muted">· 会话保存在本机</span>
+        <button id="open-settings" class="nav-button">
+          <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 7h16M4 17h16" />
+            <circle cx="9" cy="7" r="3" />
+            <circle cx="15" cy="17" r="3" /></svg
+          ><span>设置</span>
+        </button>
+        <div class="connection">
+          <span id="connection-dot" class="local-dot offline"></span><span id="connection-label">正在连接</span
+          ><span class="local-label">本机</span>
+        </div>
       </div>
     </aside>
+    <button id="sidebar-scrim" class="sidebar-scrim" aria-label="关闭任务侧栏" hidden></button>
     <main>
       <header class="topbar">
-        <div>
-          <span class="eyebrow">WORKSPACE</span>
-          <h1 id="project-name">当前项目</h1>
+        <button
+          id="toggle-sessions"
+          class="icon-button"
+          aria-label="展开任务侧栏"
+          aria-controls="sidebar"
+          aria-expanded="true"
+          title="切换侧栏"
+        >
+          <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="4" width="18" height="16" rx="3" />
+            <path d="M9 4v16" />
+          </svg>
+        </button>
+        <div class="breadcrumbs">
+          <span id="project-name">当前项目</span><span class="breadcrumb-slash">/</span>
+          <h1 id="task-title">新建任务</h1>
         </div>
-        <div class="connection">
-          <span id="connection-dot" class="local-dot offline"></span><span id="connection-label">正在连接</span>
-        </div>
+        <button
+          id="toggle-workspace"
+          class="toolbar-button"
+          aria-controls="workspace-panel"
+          aria-expanded="false"
+          title="显示项目文件"
+        >
+          <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" /></svg
+          ><span>文件</span>
+        </button>
       </header>
       <div id="notice" class="notice" role="alert" hidden></div>
-      <section id="conversation" class="conversation" aria-label="对话记录">
-        <div id="welcome" class="welcome">
-          <div class="welcome-mark">✳</div>
-          <p class="eyebrow">FROM FIELD TO FINDING</p>
-          <h2>把研究问题，<br />带进对话。</h2>
-          <p class="intro">一起理解数据、编写代码，让每一步都有迹可循。</p>
-          <div class="suggestions">
-            <button data-prompt="先查看当前项目的目录结构，说明主要文件和工作流程，不修改文件。">
-              <span>01 / 理解项目</span><strong>从现有代码开始</strong>
-              <p>梳理结构，找到下一步。</p>
-              <b>↗</b>
-            </button>
-            <button
-              data-prompt="检查当前项目中的数据文件，列出字段、缺失值和待确认的单位。先给出检查计划，不修改原始数据。"
-            >
-              <span>02 / 检查数据</span><strong>让分析有据可依</strong>
-              <p>核对字段、单位与数据质量。</p>
-              <b>↗</b>
-            </button>
-            <button
-              data-prompt="根据当前项目的内容，规划一套可复现的分析与科研绘图流程。说明需要的数据、脚本和验证步骤。"
-            >
-              <span>03 / 规划研究</span><strong>把问题变成步骤</strong>
-              <p>从分析方案到可复现产物。</p>
-              <b>↗</b>
-            </button>
-          </div>
-        </div>
-        <div id="messages"></div>
-        <article id="live" class="message assistant" hidden>
-          <div class="message-label">CropCode <span>正在生成</span></div>
-          <div id="live-content" class="prose"></div>
-        </article>
-        <details id="process-output" class="tool-card" hidden>
-          <summary>查看命令输出（最近 50,000 字符）</summary>
-          <pre id="output-content"></pre>
-        </details>
-        <section id="permissions" class="action-card" aria-label="权限确认" hidden></section>
-        <section id="questions" class="action-card" aria-label="补充信息" hidden></section>
-        <section id="plan-ready" class="action-card" hidden>
-          <h3>方案已准备好</h3>
-          <p>可以继续讨论，也可以开始执行。</p>
-          <button id="implement-plan" class="primary">执行此方案</button>
-        </section>
-      </section>
-      <footer class="composer-area">
-        <button id="jump-latest" class="jump-latest" type="button" hidden>↓ 回到最新</button>
-        <div class="activity">
-          <span id="activity-dot" class="local-dot"></span><span id="activity" role="status">等待连接本地服务</span
-          ><span id="usage" class="muted"></span>
-        </div>
-        <div class="composer-stack">
-          <div id="trigger-menu" class="trigger-menu" role="listbox" aria-label="命令与文件引用" hidden></div>
-          <form id="composer" class="composer">
-            <label class="sr-only" for="prompt">消息</label>
-            <textarea
-              id="prompt"
-              rows="3"
-              maxlength="32000"
-              placeholder="描述你的问题，或引用项目中的文件路径…"
-              disabled
-            ></textarea>
-            <div class="composer-toolbar">
-              <label class="mode-switch"><input id="plan-mode" type="checkbox" /> Plan · 先规划</label>
-              <div class="composer-buttons">
-                <button id="stop" class="stop" type="button" hidden aria-label="停止当前任务">■</button
-                ><button id="send" class="send" type="submit" disabled aria-label="发送">↑</button>
+      <div class="workbench">
+        <div id="chat-pane" class="chat-pane is-empty">
+          <section id="conversation" class="conversation" aria-label="对话记录">
+            <div id="welcome" class="welcome">
+              <div class="welcome-mark">
+                <svg
+                  class="icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 16C2 7 9 3 20 4c1 11-3 18-12 15M4 21 15 10M10 15V9m0 6h6" />
+                </svg>
               </div>
+              <h2>今天，一起推进什么？</h2>
+              <p class="intro">从一段代码、一份数据，或一个研究问题开始。</p>
             </div>
-          </form>
+            <div id="messages"></div>
+            <article id="live" class="message assistant" hidden>
+              <div class="message-label">CropCode <span>正在生成</span></div>
+              <div id="live-content" class="prose"></div>
+            </article>
+            <details id="process-output" class="tool-card" hidden>
+              <summary>查看命令输出（最近 50,000 字符）</summary>
+              <pre id="output-content"></pre>
+            </details>
+            <section id="permissions" class="action-card" aria-label="权限确认" hidden></section>
+            <section id="questions" class="action-card" aria-label="补充信息" hidden></section>
+            <section id="plan-ready" class="action-card" hidden>
+              <h3>方案已准备好</h3>
+              <p>可以继续讨论，也可以开始执行。</p>
+              <button id="implement-plan" class="primary">执行此方案</button>
+            </section>
+          </section>
+          <footer class="composer-area">
+            <button id="jump-latest" class="jump-latest" type="button" hidden>↓ 回到最新</button>
+            <div class="activity">
+              <span id="activity-dot" class="local-dot"></span><span id="activity" role="status">等待连接本地服务</span
+              ><span id="usage" class="muted"></span>
+            </div>
+            <div class="composer-stack">
+              <div id="trigger-menu" class="trigger-menu" role="listbox" aria-label="命令与文件引用" hidden></div>
+              <form id="composer" class="composer">
+                <label class="sr-only" for="prompt">消息</label>
+                <textarea
+                  id="prompt"
+                  rows="2"
+                  maxlength="32000"
+                  placeholder="描述任务，使用 @ 引用文件，/ 选择命令"
+                  disabled
+                ></textarea>
+                <div class="composer-toolbar">
+                  <div class="composer-options">
+                    <button
+                      id="attach-file"
+                      class="icon-button"
+                      type="button"
+                      aria-label="引用项目文件"
+                      title="引用项目文件"
+                    >
+                      <svg
+                        class="icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.6"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                    </button>
+                    <button id="model" class="model-chip" type="button" title="配置模型供应商">读取模型配置…</button>
+                    <label class="mode-switch"><input id="plan-mode" type="checkbox" /><span>先规划</span></label>
+                  </div>
+                  <div class="composer-buttons">
+                    <button id="stop" class="stop" type="button" hidden aria-label="停止当前任务">■</button>
+                    <button id="send" class="send" type="submit" disabled aria-label="发送">
+                      <svg
+                        class="icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.6"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M12 19V5m-6 6 6-6 6 6" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+            <div class="composer-meta"><span>在当前项目中工作</span><span>Enter 发送 · Shift+Enter 换行</span></div>
+            <div id="suggestions" class="suggestions" aria-label="任务建议">
+              <button data-prompt="先查看当前项目的目录结构，说明主要文件和工作流程，不修改文件。">
+                <svg
+                  class="icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 20" /></svg
+                ><span>理解项目</span>
+              </button>
+              <button
+                data-prompt="检查当前项目中的数据文件，列出字段、缺失值和待确认的单位。先给出检查计划，不修改原始数据。"
+              >
+                <svg
+                  class="icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M4 4v16h17M8 15v-4m5 4V7m5 8v-6" /></svg
+                ><span>检查数据</span>
+              </button>
+              <button
+                data-prompt="根据当前项目的内容，规划一套可复现的分析与科研绘图流程。说明需要的数据、脚本和验证步骤。"
+              >
+                <svg
+                  class="icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="5" y="3" width="14" height="18" rx="2" />
+                  <path d="M9 8h6m-6 4h6m-6 4h4" /></svg
+                ><span>规划研究</span>
+              </button>
+            </div>
+          </footer>
         </div>
-        <div class="composer-meta">
-          <button id="model" class="model-chip" type="button" title="配置模型供应商">读取本地模型配置</button
-          ><span>Enter 发送 · Shift+Enter 换行 · / 命令 · @ 引用文件</span>
-        </div>
-      </footer>
+        <aside id="workspace-panel" class="workspace-panel" aria-label="项目文件" hidden>
+          <header class="workspace-heading">
+            <h2>项目文件</h2>
+            <button id="close-workspace" class="icon-button" aria-label="关闭文件面板">
+              <svg
+                class="icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m6 6 12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </header>
+          <div id="workspace-root" class="workspace-root"></div>
+          <label class="file-search"
+            ><svg
+              class="icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m16 16 4 4" /></svg
+            ><input
+              id="file-search"
+              type="search"
+              placeholder="查找项目中的文件…"
+              aria-label="查找项目文件"
+              maxlength="200"
+              autocomplete="off"
+          /></label>
+          <p id="files-status" class="files-status" role="status">选择文件，将路径添加到对话。</p>
+          <div id="workspace-files" class="workspace-files"></div>
+          <div class="workspace-footnote">文件引用来自当前项目，遵循 .gitignore。</div>
+        </aside>
+      </div>
       <section id="settings" class="settings-overlay" role="dialog" aria-modal="true" aria-label="模型配置" hidden>
         <div class="settings-card">
           <header class="settings-head">
