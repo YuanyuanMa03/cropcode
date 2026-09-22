@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, nativeTheme, powerSaveBlocker } from "electron";
-import { appendFile, createWriteStream } from "node:fs";
+import { createWriteStream } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,7 +19,9 @@ import {
 // navigation security — never a second UI implementation.
 
 const here = fileURLToPath(new URL(".", import.meta.url));
-const mark = (tag: string) => void appendFile("/tmp/cropcode-desktop-markers.log", tag + "\n", () => {});
+const mark = (tag: string) => {
+  if (process.env.CROPCODE_DESKTOP_SIDECAR_LOG) process.stderr.write(`[desktop] ${tag}\n`);
+};
 mark("MAIN");
 const repoRoot = resolveRepoRoot(here);
 const packagedEntry = app.isPackaged ? join(process.resourcesPath, "cropcode", "dist", "cli.js") : null;
@@ -61,7 +63,7 @@ if (!locked) {
   // release its port, then let the process leave.
   app.on("will-quit", (event) => {
     const { child } = sidecar ?? {};
-    if (!child || child.exitCode !== null) return;
+    if (!child || child.exitCode !== null || child.signalCode !== null) return;
     event.preventDefault();
     const force = setTimeout(() => child.kill("SIGKILL"), 3000);
     child.once("exit", () => {
@@ -78,6 +80,7 @@ async function start(): Promise<void> {
     await startInner();
   } catch (error) {
     mark("START_ERROR:" + (error instanceof Error ? error.stack : String(error)));
+    await fatal("CropCode 启动失败", error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -127,7 +130,10 @@ async function startInner(): Promise<void> {
       hostReady = true;
       mark("URL");
       child.stdout?.removeAllListeners("data");
-      openWindow(url).catch((error) => mark("WINDOW_ERROR:" + (error instanceof Error ? error.stack : String(error))));
+      openWindow(url).catch(async (error) => {
+        mark("WINDOW_ERROR:" + (error instanceof Error ? error.stack : String(error)));
+        await fatal("CropCode 窗口启动失败", error instanceof Error ? error.message : String(error));
+      });
     }
   });
   let errorText = "";
