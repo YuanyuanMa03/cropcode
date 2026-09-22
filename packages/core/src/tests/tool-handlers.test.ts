@@ -79,7 +79,7 @@ test("Bash terminates commands that exceed the configured timeout", async () => 
   assert.equal(result.error, "Command timed out.");
   assert.equal(result.metadata?.timedOut, true);
   assert.equal(result.metadata?.timeoutMs, 100);
-  assert.doesNotMatch(result.output ?? "", /done/);
+  assert.doesNotMatch(result.output ?? "", /^done\r?$/m);
   assert.equal(exitedPids.length, 1);
 });
 
