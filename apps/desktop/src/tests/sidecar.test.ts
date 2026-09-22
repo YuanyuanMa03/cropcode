@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildSidecarSpec, parseWebHostUrl, resolveCliEntry } from "../sidecar.js";
 
 test("buildSidecarSpec re-uses the Electron binary as the Node runtime", () => {
@@ -44,7 +45,7 @@ http://127.0.0.1:8917/#token=fe111cbdb13ea167371e291833c5c44fc365d94235f96addf26
 test("resolveCliEntry prefers the packaged copy and falls back to the dev build", () => {
   assert.equal(resolveCliEntry("/nonexistent-repo", "/nonexistent-packaged/cli.js"), null);
   // Tests run from src/tests (one level deeper than the compiled dist layout).
-  const here = new URL(".", import.meta.url).pathname;
+  const here = fileURLToPath(new URL(".", import.meta.url));
   const repo = join(here, "..", "..", "..", "..");
   assert.ok(resolveCliEntry(repo, null)?.endsWith(join("packages", "cli", "dist", "cli.js")));
 });
