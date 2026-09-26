@@ -270,6 +270,8 @@ cropcode --help
 
 ## 参与开发
 
+三端工作台的独立设计预览：`npm run dev:workbench`。使用演示数据，尚未接入真实会话；详情见[工作台预览](docs/workbench-preview.md)。
+
 ```bash
 npm ci
 npm run check        # 类型、lint 和格式检查

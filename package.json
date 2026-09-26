@@ -20,8 +20,8 @@
     "bundle": "npm run generate && node scripts/esbuild.config.js && node scripts/copy-bundle-assets.js",
     "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx,cts}\" \"packages/cli/resources/web/*.js\" \"scripts/*.js\"",
     "lint:fix": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx,cts}\" \"packages/cli/resources/web/*.js\" \"scripts/*.js\" --fix",
-    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx,cts}\" \"apps/*/scripts/*.{js,mjs}\" \"apps/*/*.yml\" \"packages/cli/resources/web/*.{js,css,html}\" \"scripts/*.js\"",
-    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx,cts}\" \"apps/*/scripts/*.{js,mjs}\" \"apps/*/*.yml\" \"packages/cli/resources/web/*.{js,css,html}\" \"scripts/*.js\"",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx,cts}\" \"apps/*/scripts/*.{js,mjs}\" \"apps/*/*.yml\" \"packages/cli/resources/web/*.{js,css,html}\" \"scripts/*.js\" \"packages/ui/src/*.css\" \"apps/web/index.html\"",
+    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx,cts}\" \"apps/*/scripts/*.{js,mjs}\" \"apps/*/*.yml\" \"packages/cli/resources/web/*.{js,css,html}\" \"scripts/*.js\" \"packages/ui/src/*.css\" \"apps/web/index.html\"",
     "check": "npm run typecheck && npm run lint && npm run format:check",
     "clean": "node scripts/clean.js",
     "build": "node scripts/build.js",
@@ -38,7 +38,10 @@
     "package:cli": "npm run build && node scripts/package-cli.js",
     "package:standalone": "node scripts/package-standalone.js",
     "test:standalone": "node scripts/test-standalone.js",
-    "smoke": "node packages/cli/dist/cli.js --version"
+    "smoke": "node packages/cli/dist/cli.js --version",
+    "dev:workbench": "npm run dev --workspace=cropcode-web",
+    "build:workbench": "npm run build --workspace=cropcode-web",
+    "preview:workbench": "npm run preview --workspace=cropcode-web"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
