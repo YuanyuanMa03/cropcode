@@ -12,6 +12,7 @@ CropCode 使用 TypeScript 与 npm workspaces，包含 core、CLI、VSCode 与 D
 - `packages/cli/src/web/server.ts` 与 `packages/cli/resources/web/`：仅监听本机的 Web 主机及无构建任务工作台；任务搜索与项目文件引用复用既有会话与文件检索接口。
 - `apps/desktop/`：Electron 薄壳，启动同一 Web 主机并加载同一界面；只负责原生窗口与服务生命周期。沙箱预加载脚本以 CommonJS 编译，仅暴露桌面标记和平台名称，不开放 Node 或文件系统权限。
 - `packages/vscode-ide-companion/`：共享 core 的 VSCode 界面。
+- `apps/web/` 与 `packages/ui/`：三端升级的独立 React/Vite 设计预览，仅使用演示数据，尚未接入 core 或当前桌面发行包。启动与范围见[工作台预览](workbench-preview.md)。
 
 模型请求发往用户配置的供应商。搜索使用自定义脚本或 DeepSeek 官方接口，图片理解需要多模态模型。不提供产品专属中转、付费平台、媒体生成服务或使用上报。
 

@@ -221,6 +221,8 @@ Precedence: **`CROPCODE_*` environment variables → project settings → user s
 
 ## Development
 
+Run `npm run dev:workbench` for the independent three-surface design preview. It uses fixtures and is not connected to real sessions. See the [workbench preview](docs/workbench-preview_en.md).
+
 ```bash
 npm ci
 npm run check
