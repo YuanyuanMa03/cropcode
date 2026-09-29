@@ -28,7 +28,14 @@ export function prepareRuntime(platform, arch) {
   const os = { darwin: "mac", win32: "win", linux: "linux" }[platform];
   if (!os || !["x64", "arm64"].includes(arch)) throw new Error(`不支持的桌面目标: ${platform}-${arch}`);
   const cliDist = join(repoRoot, "packages/cli/dist");
-  for (const file of ["cli.js", "web/index.html", "web/app.js", "web/style.css"])
+  for (const file of [
+    "cli.js",
+    "web/index.html",
+    "web/app.js",
+    "web/style.css",
+    "web/workbench/index.html",
+    "web/workbench/manifest.json",
+  ])
     if (!existsSync(join(cliDist, file))) throw new Error(`缺少构建产物 ${file}，请先在根目录运行 npm run build。`);
   const version = readJson(join(appRoot, "package.json")).version;
   if (version !== readJson(join(repoRoot, "package.json")).version) throw new Error("桌面版本与仓库版本不一致。");
@@ -96,7 +103,23 @@ export function prepareRuntime(platform, arch) {
     if (addons.length !== 1) throw new Error(`缺少目标平台原生模块: ${addonDir}`);
     const addon = `${addonDir}/${addons[0]}`;
     // Record the exact bundle and native dependency shipped in each target.
-    const files = ["dist/cli.js", "dist/web/index.html", "dist/web/app.js", "dist/web/style.css", "package-lock.json"];
+    const files = [
+      "dist/cli.js",
+      "dist/web/index.html",
+      "dist/web/app.js",
+      "dist/web/style.css",
+      "dist/web/workbench/index.html",
+      "dist/web/workbench/manifest.json",
+      "dist/web/workbench/icon.svg",
+      "package-lock.json",
+    ];
+    const workbenchManifest = readJson(join(payload, "dist/web/workbench/manifest.json"));
+    for (const entry of Object.values(workbenchManifest)) {
+      for (const file of [entry.file, ...(entry.css ?? [])]) {
+        if (!/^assets\/[a-zA-Z0-9_.-]+\.(js|css)$/.test(file)) throw new Error("工作台资产 manifest 无效。");
+        files.push(`dist/web/workbench/${file}`);
+      }
+    }
     const nativePackages = readdirSync(join(payload, "node_modules/@img")).filter((name) => name.startsWith("sharp-"));
     if (nativePackages.some((name) => !name.endsWith(`${platform}-${arch}`)))
       throw new Error("运行时混入其他平台的原生依赖。");

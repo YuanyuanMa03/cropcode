@@ -360,6 +360,8 @@ validatePacklist(
     { type: "file", value: "dist/web/index.html" },
     { type: "file", value: "dist/web/app.js" },
     { type: "file", value: "dist/web/style.css" },
+    { type: "file", value: "dist/web/workbench/index.html" },
+    { type: "file", value: "dist/web/workbench/manifest.json" },
   ],
   { label: "cd packages/cli && npm pack --dry-run --json --ignore-scripts" }
 );
@@ -412,6 +414,8 @@ if (!dryRun) {
       { type: "file", value: "web/index.html" },
       { type: "file", value: "web/app.js" },
       { type: "file", value: "web/style.css" },
+      { type: "file", value: "web/workbench/index.html" },
+      { type: "file", value: "web/workbench/manifest.json" },
     ],
     { label: "cd dist && npm pack --dry-run --json --ignore-scripts" }
   );

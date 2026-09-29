@@ -413,3 +413,26 @@ test("Invalid input, missing model configuration and occupied ports produce usef
     { code: "EADDRINUSE" }
   );
 });
+
+test("built workbench serves only registered assets and retains the legacy entry", async (t) => {
+  const web = await fixture(t);
+  const page = await fetch(web.origin);
+  const html = await page.text();
+  const assetPaths = [...html.matchAll(/(?:src|href)="(\/workbench\/[^"?#]+)"/g)].map((match) => match[1]);
+  assert.ok(
+    assetPaths.some((path) => path.endsWith(".js")),
+    "build the workbench before running this test"
+  );
+  for (const path of assetPaths) {
+    const asset = await fetch(web.origin + path);
+    assert.equal(asset.status, 200, path);
+    assert.ok((await asset.text()).length > 0);
+  }
+  assert.equal((await fetch(web.origin + "/workbench/manifest.json")).status, 404);
+  assert.equal((await fetch(web.origin + "/workbench/assets/not-built.js")).status, 404);
+  assert.equal((await fetch(web.origin + "/workbench/src/main.tsx")).status, 404);
+  const legacy = await fetch(web.origin + "/legacy");
+  assert.equal(legacy.status, 200);
+  assert.match(await legacy.text(), /app\.js/);
+  assert.ok(!page.headers.get("content-security-policy")!.includes("unsafe-inline"));
+});

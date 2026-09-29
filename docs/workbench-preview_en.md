@@ -1,41 +1,48 @@
-# Workbench design preview
+# Workbench and design preview
 
-This P0 preview uses fixture data to evaluate the three-surface layout, themes, and interactions. It does not connect to the session core, read project files, store provider keys, contact models, or execute terminal commands. Existing `cropcode web`, terminal, and desktop releases continue using their current interfaces.
+The new workbench connects to the existing `SessionManager`. Web and the desktop shell use one local server and share session formats, tools, permissions and model configuration with the terminal.
 
-## Run
+## Start the live workbench
 
-From the repository root, use Node 22.12+ within the Node 22 line, or a newer version supported by Vite:
+Use Node 22.12+ (within Node 22) or a newer release supported by Vite:
 
 ```sh
 npm install
-npm run dev:workbench
+npm run build
+node packages/cli/dist/cli.js web --port 8787
 ```
 
-Open the printed loopback URL, normally `http://127.0.0.1:5173`. The development server binds only to loopback. To build and preview:
+Open the complete URL printed by the terminal, including its connection token. The server listens only on `127.0.0.1`. Authentication removes the token from the URL; an HttpOnly cookie authenticates subsequent refreshes. Do not share the complete URL.
+
+New desktop builds load the same workbench. Previously installed applications need a rebuilt installer to include these changes. The terminal Ink interface retains its current layout.
+
+## Supported workflow
+
+- Real tasks for one local project: search, create and switch history. After a server restart, reopen a saved session from the list.
+- Streaming model replies, collapsible thinking and tool text, process output and interruption.
+- Permission requests with their commands and scopes; allow or deny each request, including after a refresh.
+- Plan mode, plan implementation and free-text answers to core questions.
+- Real project file lookup with `@`; `/` suggestions use the shared terminal command registry. Arrow keys select, Tab/Enter complete and Escape dismisses. Enter sends, Shift+Enter adds a line, and IME confirmation does not send.
+- Automatic SSE reconnection. Full snapshots replace state instead of appending replayed messages. Tabs share one active session; the server rejects stale session and permission actions.
+- In-page drafts per session, light/dark themes and narrow-screen navigation. Drafts are not persisted and are cleared by a refresh.
+
+Model settings currently open `/legacy` through the sidebar, or can be configured with terminal `/login`. Keys are sent only to the local server and never returned in browser state. The legacy interface links back to the new workbench.
+
+Output is rendered as safe plain text. The interface shows the latest 200 messages, limited to 24000 characters each; the core retains full history. Interactive shells, a live file diff panel and multiple projects are not available yet. Process output comes from actual core tool executions.
+
+## Separate design preview
 
 ```sh
+npm run dev:workbench
+# Or
 npm run build:workbench
 npm run preview:workbench
 ```
 
-Development tooling is not shipped in the current CLI or desktop installers.
+Append `?preview=1` to `/workbench/` on the printed address, for example `http://127.0.0.1:5173/workbench/?preview=1`. Six preview scenes retain isolated fixture data and do not execute real tasks. The standalone Vite server has no session API; use the CLI server above for live work.
 
-## Preview coverage
+## Implementation boundaries
 
-The top bar switches between six scenes: project home, conversation, permission, files and changes, settings, and terminal. It also exposes loading, empty, and connection-error examples. Reset clears the current demo input and permission state.
+`apps/web` is the Vite entry. `packages/ui` provides React components, styles and the browser session adapter. HTTP commands and SSE snapshots reuse the local Web host; session and execution logic remain in core. The build emits an asset manifest. The host exposes only registered JS/CSS assets and fixed entry files, without arbitrary file serving or a relaxed CSP.
 
-- Project and task navigation, search, and per-task drafts.
-- Multiline input, fixture file/command suggestions, and clearly marked demo replies.
-- Allow-once or deny interactions with explicit result feedback.
-- File search, read-only files, code differences, and example chart artifacts.
-- Light and dark themes. Only the theme preference persists in browser storage; demo tasks reset on refresh.
-- Terminal appearance and input feedback. This is a browser-based design example, not a Shell or a change to the real Ink interface.
-- Narrow-screen navigation and file panels. Responsive layout does not imply cross-device connectivity.
-
-`Cmd/Ctrl+K` opens task search; `Cmd/Ctrl+N` starts a demo task. Enter submits and Shift+Enter inserts a newline. IME composition confirmation must not submit. Escape closes navigation and file panels.
-
-## Implementation boundary
-
-`apps/web` is the Vite entry point. `packages/ui` contains React components, semantic CSS design variables, and isolated fixtures. The preview uses Radix Dialog and icons. Tailwind, Zustand, protocol definitions, and real service adapters will be introduced only in their respective stages.
-
-No ZCode source or brand assets were copied into this implementation. Before replacing the existing Web interface, subsequent stages must integrate the real core, task/project contracts, reconnect recovery, asset manifests, and installer validation.
+Verification uses the real core, file writes and history reloads. Automated tests replace only model responses and do not call a live provider. Provider availability still depends on local configuration and network access.

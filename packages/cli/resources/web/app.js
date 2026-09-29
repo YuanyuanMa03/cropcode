@@ -943,7 +943,7 @@
       const token = new window.URLSearchParams(window.location.hash.slice(1)).get("token");
       if (token) {
         await request("/api/connect", { token });
-        window.history.replaceState(null, "", "/");
+        window.history.replaceState(null, "", window.location.pathname);
       }
       render(await request("/api/state"));
       commandRegistry = (await request("/api/commands")).commands || [];

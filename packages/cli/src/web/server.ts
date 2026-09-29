@@ -91,11 +91,35 @@ function loadAssets(): Map<string, { content: Buffer; type: string }> {
   const roots = [join(here, "../../resources/web"), join(here, "../web"), join(here, "web")];
   const root = roots.find((directory) => existsSync(join(directory, "index.html")));
   if (!root) throw new Error("Web assets are missing. Run npm run build, or reinstall CropCode.");
-  return new Map([
+  const assets = new Map([
     ["/", { content: readFileSync(join(root, "index.html")), type: "text/html; charset=utf-8" }],
     ["/app.js", { content: readFileSync(join(root, "app.js")), type: "text/javascript; charset=utf-8" }],
     ["/style.css", { content: readFileSync(join(root, "style.css")), type: "text/css; charset=utf-8" }],
   ]);
+  assets.set("/legacy", assets.get("/")!);
+  // Only Vite's declared entry assets are exposed, never arbitrary filesystem paths.
+  const workbenchRoots = [join(root, "workbench"), resolve(here, "../../../../apps/web/dist")];
+  const workbench = workbenchRoots.find((directory) => existsSync(join(directory, "manifest.json")));
+  if (workbench) {
+    const manifest = JSON.parse(readFileSync(join(workbench, "manifest.json"), "utf8")) as Record<
+      string,
+      { file: string; css?: string[] }
+    >;
+    for (const entry of Object.values(manifest)) {
+      for (const file of [entry.file, ...(entry.css ?? [])]) {
+        if (!/^assets\/[a-zA-Z0-9_.-]+\.(js|css)$/.test(file)) throw new Error("Invalid workbench asset manifest.");
+        assets.set(`/workbench/${file}`, {
+          content: readFileSync(join(workbench, file)),
+          type: file.endsWith(".css") ? "text/css; charset=utf-8" : "text/javascript; charset=utf-8",
+        });
+      }
+    }
+    const index = { content: readFileSync(join(workbench, "index.html")), type: "text/html; charset=utf-8" };
+    assets.set("/", index);
+    assets.set("/workbench/", index);
+    assets.set("/workbench/icon.svg", { content: readFileSync(join(workbench, "icon.svg")), type: "image/svg+xml" });
+  }
+  return assets;
 }
 
 /** One local workspace and one active turn, shared by connected browser tabs. */
@@ -106,6 +130,7 @@ export async function startWebServer(options: WebServerOptions) {
   const secret = randomBytes(32).toString("hex");
   const clients = new Set<ServerResponse>();
   let port = 0;
+  let revision = 0;
   let busy = false;
   let shuttingDown = false;
   let cancelled = false;
@@ -185,6 +210,7 @@ export async function startWebServer(options: WebServerOptions) {
     const entry = selected();
     const processList = Array.from(entry?.processes?.values() ?? []);
     return {
+      revision: ++revision,
       projectRoot,
       model: settings.model,
       provider: findProviderByBaseURL(settings.baseURL)?.label ?? "自定义服务",
