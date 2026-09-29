@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "lib": ["es2025", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["node", "vscode", "vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../ui/src/*"]
+    },
+    "ignoreDeprecations": "6.0"
+  },
+  "include": ["src", "webview"],
+  "references": [
+    {
+      "path": "../services"
+    },
+    {
+      "path": "../client"
+    },
+    {
+      "path": "../ui"
+    }
+  ]
+}

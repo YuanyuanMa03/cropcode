@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "files": {
+    "README.md": "355d304ac474d99206b42bf799ab715884133247ebd9e349d869e7d23de9364e",
+    "grade.py": "2a605c147ba00595818a74eb7e18211d3c114bdc6225e84ab311f73a2616c578",
+    "task-a/PROMPT.md": "10d52bd917d6adae13d9a19557727734dd4bae7e3486025557539b7ce2388039",
+    "task-a/raw/weather.csv": "84b3f0b4f0953ce776b9b81efc9e2292ddc4035631553bfb0ad4324f273ac367",
+    "task-a/src/heat.py": "4a03e8c18fda1dfe6b7dabe613df61eb5c711acba40b8ac7ba45a1cfbc83c5c2",
+    "task-b/PROMPT.md": "2658d50782d6618b1b12be8ac7eaab42f423b3e4374401c67cf31095a6c4671a",
+    "task-b/raw/yield.csv": "5d846db3a8f2daec35f4ee841f8687a514cf27c2eefa2ed919cfdfd25b5f677f",
+    "task-b/src/evaluate.py": "0c5320ce21d216cb96db0927af009b3703dd3fde23d9ad1d8de70ccd24196234"
+  }
+}

@@ -1,0 +1,6 @@
+src/**
+webview/**
+*.ts
+*.mjs
+tsconfig.json
+node_modules/**

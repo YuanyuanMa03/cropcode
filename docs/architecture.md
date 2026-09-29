@@ -1,19 +1,33 @@
 # CropCode 架构
 
-CropCode 使用 TypeScript 与 npm workspaces，包含 core、CLI、VSCode 与 Desktop 工作区。
+CropCode 2.0 使用一套 Agent 内核，只交付桌面和终端两个入口。两端复用模型配置、执行循环、工具权限和会话存储，不继续维护旧版内核。
 
-- `packages/core/src/session.ts`：会话、流式生成、工具调用、压缩、检查点和会话恢复。
-- `packages/core/src/settings.ts`：环境变量、项目设置、用户设置及登录凭证的解析。
-- `packages/core/src/common/provider-presets.ts` 与 `openai-thinking.ts`：供应商配置和协议适配。
-- `packages/core/src/prompt.ts`：农业科研提示词与工具声明。
-- `packages/core/src/tools/`：文件、Shell、搜索、原生图片输入、计划及用户交互工具。
-- `packages/core/src/mcp/`：外部 MCP 工具接入。
-- `packages/cli/src/ui/`：绿色终端界面、供应商登录、模型菜单和会话交互。
-- `packages/cli/src/web/server.ts` 与 `packages/cli/resources/web/`：仅监听本机的 Web 主机及无构建任务工作台；任务搜索与项目文件引用复用既有会话与文件检索接口。
-- `apps/desktop/`：Electron 薄壳，启动同一 Web 主机并加载同一界面；只负责原生窗口与服务生命周期。沙箱预加载脚本以 CommonJS 编译，仅暴露桌面标记和平台名称，不开放 Node 或文件系统权限。
-- `packages/vscode-ide-companion/`：共享 core 的 VSCode 界面。
-- `apps/web/` 与 `packages/ui/`：三端升级的独立 React/Vite 设计预览，仅使用演示数据，尚未接入 core 或当前桌面发行包。启动与范围见[工作台预览](workbench-preview.md)。
+| 层    | 位置                                        | 职责                                   |
+| ----- | ------------------------------------------- | -------------------------------------- |
+| 桌面  | `packages/desktop`                          | Electron 窗口、本机宿主与运行时装配    |
+| 终端  | `apps/zcode-cli/packages/cli`、`tui`        | 命令行与终端交互，直接调用共享 Agent   |
+| 界面  | `packages/ui`                               | 项目、任务、文件、模型设置与研究入口   |
+| 服务  | `packages/services`                         | 会话索引、存储、终端、文件与模型服务   |
+| 模型  | `packages/provider`、`provider-node`        | 供应商模板、模型选择与配置持久化       |
+| 协议  | `packages/rpc`、`client`、`shared`          | 共享类型与服务调用                     |
+| Agent | `apps/zcode-cli/packages/core`、`bootstrap` | 执行循环、上下文、工具、权限和模型调用 |
 
-模型请求发往用户配置的供应商。搜索使用自定义脚本或 DeepSeek 官方接口，图片理解需要多模态模型。不提供产品专属中转、付费平台、媒体生成服务或使用上报。
+桌面使用 React 界面和本机服务。终端调用同一 Agent 库，提供交互 TUI 与单次任务命令。独立终端包直接装配 Agent、Node 和原生依赖，不依赖编辑器插件构建产物。
 
-配置及会话保存在 `.cropcode` 目录；更高优先级配置的覆盖规则见[配置说明](configuration.md)。许可证信息见 [LICENSE](../LICENSE)。本文不包含未经实测的性能或基准成绩。
+模型配置保存在 `~/.cropcode-desktop/v2/provider_config.json`，由共享配置服务写入，权限为 0600。桌面模型设置和 `cropcode configure` 写入相同格式。终端配置命令通过环境变量读取密钥，不接受明文密钥参数。产品不预选供应商。支持 Anthropic Messages、Chat Completions 与 Responses 协议；用户自行配置端点、模型和凭证。
+
+会话内核与存储机制共用，不代表两个界面可以同时改写同一个正在运行的会话。当前不提供跨进程的会话接管和实时多端协作保证。
+
+## 产品边界
+
+界面聚焦项目、任务、文件、终端和变更。取消首次引导、职业问卷、市场、产品账号、套餐和远程工作区入口。默认插件与市场集合为空，保留用户配置的本地技能和 MCP。遥测、产品远程配置和自动更新关闭。必要的 Node/Electron、搜索工具和终端原生模块随运行时保留。
+
+`packages/web`、`packages/vscode` 和远程服务源码仍作为内部继承模块保留，不属于交付入口。工作区排除编辑器插件；不构建或发布 VSIX。内部包名与协议标识保留以控制改动范围；用户可见名称、操作系统身份和链接协议使用 CropCode。第三方许可与来源记录集中维护在 NOTICE 和第三方声明中。
+
+## 研究交互
+
+默认采用灰绿浅色，保留深色与键盘焦点。文案清雅克制，功能名称直白。研究入口只预填可编辑的问题，不伪造任务或结果。执行指引要求核对单位、时空尺度、率定与独立验证，保留原始数据，并报告实际命令、参数和输出位置；这些指引不替代研究者对科学正确性的判断。
+
+## 验证
+
+`pnpm check` 包含共享模块、桌面主进程和 CLI 类型检查，以及 lint、格式检查。`pnpm test:product` 检查产品边界和模型配置。构建产物需分别通过 TUI 和 Electron 的实际启动与任务操作。网络模型验收和本地确定性模型夹具分开记录，安装包与签名状态见升级记录。

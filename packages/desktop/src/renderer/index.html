@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CropCode</title>
+    <style>
+      html,
+      body,
+      #root {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: #fafcfb;
+        color: #53665b;
+        font:
+          14px -apple-system,
+          BlinkMacSystemFont,
+          "PingFang SC",
+          sans-serif;
+      }
+      body.zcode-startup-ready #loading {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="loading" role="status" aria-busy="true">正在打开工作台…</div>
+    <script type="module">
+      const ready = () => {
+        document.body.classList.add("zcode-startup-ready");
+        document.getElementById("loading")?.remove();
+      };
+      window.addEventListener("zcode-react-startup-ready", ready, { once: true });
+      // If startup fails, let the application's error boundary remain visible.
+      window.setTimeout(ready, 3000);
+    </script>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>

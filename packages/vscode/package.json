@@ -1,0 +1,66 @@
+{
+  "name": "cropcode",
+  "displayName": "CropCode",
+  "version": "2.0.0",
+  "private": true,
+  "description": "面向作物模型科研的 AI 工作台",
+  "categories": [
+    "Other"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YuanyuanMa03/cropcode"
+  },
+  "publisher": "cropcode",
+  "type": "module",
+  "main": "./dist/extension.cjs",
+  "scripts": {
+    "build": "node build.mjs && vite build",
+    "typecheck": "tsc --noEmit",
+    "package": "vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@zcode/client": "workspace:*",
+    "@zcode/rpc": "workspace:*",
+    "@zcode/services": "workspace:*",
+    "@zcode/shared": "workspace:*",
+    "@zcode/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/vscode": "^1.96.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.25.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.2"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "cropcode.open",
+        "title": "CropCode: 打开科研工作台"
+      },
+      {
+        "command": "cropcode.terminal",
+        "title": "CropCode: 打开终端助手"
+      }
+    ]
+  },
+  "activationEvents": [
+    "onCommand:cropcode.open"
+  ],
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "CropCode 需要在受信任的项目中运行文件和终端工具。"
+    },
+    "virtualWorkspaces": false
+  }
+}

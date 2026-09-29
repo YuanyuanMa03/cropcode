@@ -1,0 +1,182 @@
+{
+  "schema": 1,
+  "date": "2026-09-29",
+  "model": "glm-5.3",
+  "provider": "Volcengine Coding Plan",
+  "fixture_manifest": "manifest.json",
+  "grading": "9 hidden checks plus raw CSV preservation, 10 points each",
+  "runs": [
+    {
+      "surface": "old-cli",
+      "task": "a",
+      "score": 100,
+      "checks": {
+        "sample_and_sort": true,
+        "below_base": true,
+        "upper_cap": true,
+        "both_above_cap": true,
+        "blank_and_sentinel": true,
+        "duplicate_even_if_missing": true,
+        "inverted_temperature": true,
+        "nonfinite": true,
+        "invalid_calendar_date": true
+      },
+      "raw_unchanged": true,
+      "completed": true,
+      "elapsed_s": 229.36,
+      "timing": "process",
+      "prompt_fidelity": true
+    },
+    {
+      "surface": "old-cli",
+      "task": "b",
+      "score": 100,
+      "checks": {
+        "sample_no_leakage": true,
+        "holdout_not_fit": true,
+        "asymmetric_metrics": true,
+        "blank_skipped": true,
+        "sentinel_skipped": true,
+        "duplicate_even_if_missing": true,
+        "invalid_partition": true,
+        "no_calibration": true,
+        "no_validation": true
+      },
+      "raw_unchanged": true,
+      "completed": true,
+      "elapsed_s": 419.63,
+      "timing": "process",
+      "prompt_fidelity": true
+    },
+    {
+      "surface": "new-cli",
+      "task": "a",
+      "score": 100,
+      "checks": {
+        "sample_and_sort": true,
+        "below_base": true,
+        "upper_cap": true,
+        "both_above_cap": true,
+        "blank_and_sentinel": true,
+        "duplicate_even_if_missing": true,
+        "inverted_temperature": true,
+        "nonfinite": true,
+        "invalid_calendar_date": true
+      },
+      "raw_unchanged": true,
+      "completed": true,
+      "elapsed_s": 526.34,
+      "timing": "process",
+      "prompt_fidelity": true,
+      "note": "Clean yolo rerun; initial default build-mode attempt timed out after 600 s."
+    },
+    {
+      "surface": "new-cli",
+      "task": "b",
+      "score": 100,
+      "checks": {
+        "sample_no_leakage": true,
+        "holdout_not_fit": true,
+        "asymmetric_metrics": true,
+        "blank_skipped": true,
+        "sentinel_skipped": true,
+        "duplicate_even_if_missing": true,
+        "invalid_partition": true,
+        "no_calibration": true,
+        "no_validation": true
+      },
+      "raw_unchanged": true,
+      "completed": false,
+      "elapsed_s": 600.03,
+      "timing": "process timeout",
+      "prompt_fidelity": true,
+      "note": "Code on disk passed hidden tests, but the CLI returned no final answer before timeout."
+    },
+    {
+      "surface": "old-desktop",
+      "task": "a",
+      "score": 100,
+      "checks": {
+        "sample_and_sort": true,
+        "below_base": true,
+        "upper_cap": true,
+        "both_above_cap": true,
+        "blank_and_sentinel": true,
+        "duplicate_even_if_missing": true,
+        "inverted_temperature": true,
+        "nonfinite": true,
+        "invalid_calendar_date": true
+      },
+      "raw_unchanged": true,
+      "completed": true,
+      "elapsed_s": null,
+      "timing": "approximately 10 minutes observed in UI",
+      "prompt_fidelity": true
+    },
+    {
+      "surface": "old-desktop",
+      "task": "b",
+      "score": 100,
+      "checks": {
+        "sample_no_leakage": true,
+        "holdout_not_fit": true,
+        "asymmetric_metrics": true,
+        "blank_skipped": true,
+        "sentinel_skipped": true,
+        "duplicate_even_if_missing": true,
+        "invalid_partition": true,
+        "no_calibration": true,
+        "no_validation": true
+      },
+      "raw_unchanged": true,
+      "completed": true,
+      "elapsed_s": null,
+      "timing": "approximately 10 minutes observed in UI",
+      "prompt_fidelity": true
+    },
+    {
+      "surface": "new-desktop",
+      "task": "a",
+      "score": 100,
+      "checks": {
+        "sample_and_sort": true,
+        "below_base": true,
+        "upper_cap": true,
+        "both_above_cap": true,
+        "blank_and_sentinel": true,
+        "duplicate_even_if_missing": true,
+        "inverted_temperature": true,
+        "nonfinite": true,
+        "invalid_calendar_date": true
+      },
+      "raw_unchanged": true,
+      "completed": true,
+      "elapsed_s": 1828,
+      "timing": "UI displayed 30 min 28 s",
+      "prompt_fidelity": false,
+      "note": "Rich-text input mangled the submitted prompt; agent read PROMPT.md. Multiple one-time approvals delayed completion."
+    },
+    {
+      "surface": "new-desktop",
+      "task": "b",
+      "score": 20,
+      "checks": {
+        "sample_no_leakage": false,
+        "holdout_not_fit": false,
+        "asymmetric_metrics": false,
+        "blank_skipped": false,
+        "sentinel_skipped": false,
+        "duplicate_even_if_missing": true,
+        "invalid_partition": false,
+        "no_calibration": false,
+        "no_validation": false
+      },
+      "raw_unchanged": true,
+      "completed": false,
+      "elapsed_s": 600,
+      "timing": "10-minute score snapshot",
+      "prompt_fidelity": true,
+      "note": "Original code remained at cutoff. Write permission appeared later, and the write tool then reported failure."
+    }
+  ]
+}
