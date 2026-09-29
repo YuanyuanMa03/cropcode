@@ -53,8 +53,5 @@ jobs:
       - name: Build VSCode Extension
         run: npm run build:vscode
 
-      - name: Build workbench preview
-        run: npm run build:workbench
-
       - name: Test
         run: npm test

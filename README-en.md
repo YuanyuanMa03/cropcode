@@ -221,7 +221,7 @@ Precedence: **`CROPCODE_*` environment variables → project settings → user s
 
 ## Development
 
-Run `npm run dev:workbench` for the independent three-surface design preview. It uses fixtures and is not connected to real sessions. See the [workbench preview](docs/workbench-preview_en.md).
+The new workbench connects to real sessions. After `npm run build`, start it with `cropcode web` or the desktop shell. An isolated design preview remains available at `?preview=1`. See [workbench and design preview](docs/workbench-preview_en.md).
 
 ```bash
 npm ci

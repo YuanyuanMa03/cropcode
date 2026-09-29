@@ -17,7 +17,7 @@
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "generate": "node scripts/generate-git-commit-info.js",
-    "bundle": "npm run generate && node scripts/esbuild.config.js && node scripts/copy-bundle-assets.js",
+    "bundle": "npm run build:workbench && npm run generate && node scripts/esbuild.config.js && node scripts/copy-bundle-assets.js",
     "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx,cts}\" \"packages/cli/resources/web/*.js\" \"scripts/*.js\"",
     "lint:fix": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx,cts}\" \"packages/cli/resources/web/*.js\" \"scripts/*.js\" --fix",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\" \"apps/*/src/**/*.{ts,tsx,cts}\" \"apps/*/scripts/*.{js,mjs}\" \"apps/*/*.yml\" \"packages/cli/resources/web/*.{js,css,html}\" \"scripts/*.js\" \"packages/ui/src/*.css\" \"apps/web/index.html\"",

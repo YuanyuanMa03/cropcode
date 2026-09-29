@@ -48,4 +48,11 @@ if (existsSync(bundledSkillsSrc)) {
 }
 
 cpSync(join(cliRoot, "resources", "web"), join(distDir, "web"), { recursive: true });
+const workbenchSrc = join(root, "apps", "web", "dist");
+if (!existsSync(join(workbenchSrc, "manifest.json"))) {
+  throw new Error("Workbench assets missing. Run npm run build:workbench before bundling.");
+}
+const workbenchDest = join(distDir, "web", "workbench");
+rmSync(workbenchDest, { recursive: true, force: true });
+cpSync(workbenchSrc, workbenchDest, { recursive: true });
 console.log("\n✅  All bundle assets copied (including local Web UI).\n");

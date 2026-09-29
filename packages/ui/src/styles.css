@@ -1563,3 +1563,162 @@ button[aria-pressed="true"] {
     display: none;
   }
 }
+
+/* Live session host: the same shell, with server-owned state and no preview fixtures. */
+.live-root {
+  height: 100dvh;
+}
+.live-root .app-shell {
+  height: 100%;
+}
+.live-search {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.live-project {
+  padding: 8px 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-status {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.live-notice {
+  padding: 12px 24px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  overflow-wrap: anywhere;
+}
+.live-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.75;
+  margin: 8px 0;
+}
+.live-root .message-body {
+  min-width: 0;
+  flex: 1;
+}
+.live-muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+.live-permission {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 24px 0;
+}
+.live-permission h2 {
+  font-size: 16px;
+}
+.live-actions {
+  display: flex;
+  gap: 12px;
+}
+.live-permission button,
+.live-composer-footer button {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--brand);
+  color: var(--brand-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.live-composer {
+  position: relative;
+  flex-shrink: 0;
+  width: calc(100% - 40px);
+  max-width: 820px;
+  margin: 12px auto 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 14px;
+}
+.live-composer textarea {
+  width: 100%;
+  min-height: 80px;
+  max-height: 240px;
+  resize: vertical;
+  border: 0;
+  background: transparent;
+  outline-offset: 4px;
+}
+.live-composer-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.live-composer-footer label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.live-model {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+.live-choices {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px;
+}
+.live-choices button {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.live-choices [aria-selected="true"] {
+  background: var(--selected);
+}
+.live-root button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (max-width: 767px) {
+  .live-composer {
+    width: calc(100% - 20px);
+    margin-bottom: 10px;
+  }
+  .live-status {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.live-root .breadcrumbs > span {
+  color: var(--text);
+}
+.live-root a.nav-button {
+  color: var(--text);
+  text-decoration: none;
+}

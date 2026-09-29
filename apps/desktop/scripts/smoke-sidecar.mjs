@@ -42,8 +42,9 @@ const url = await new Promise((resolveUrl, reject) => {
 
 const page = await fetch(url.replace(/#.*$/, ""));
 const html = await page.text();
+const workbenchAssets = [...html.matchAll(/(?:src|href)="(\/workbench\/[^"?#]+)"/g)].map((match) => match[1]);
 const assets = await Promise.all(
-  ["/app.js", "/style.css"].map(async (asset) => (await fetch(new URL(asset, url.replace(/#.*$/, "")))).status)
+  workbenchAssets.map(async (asset) => (await fetch(new URL(asset, url.replace(/#.*$/, "")))).status)
 );
 
 // The token handshake with plain http.request: undici's fetch stamps
@@ -112,4 +113,12 @@ console.log("SMOKE_SIDE_OK", {
 
 child.kill();
 await new Promise((done) => child.once("exit", done));
-process.exit(page.status === 200 && connect.status === 200 && state.status === 200 ? 0 : 1);
+process.exit(
+  page.status === 200 &&
+    connect.status === 200 &&
+    state.status === 200 &&
+    workbenchAssets.some((file) => file.endsWith(".js")) &&
+    assets.every((status) => status === 200)
+    ? 0
+    : 1
+);

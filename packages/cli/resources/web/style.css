@@ -1386,3 +1386,11 @@ textarea::placeholder {
     flex-wrap: wrap;
   }
 }
+
+.legacy-workbench-link {
+  position: fixed;
+  right: 12px;
+  bottom: 8px;
+  z-index: 5;
+  font-size: 12px;
+}
